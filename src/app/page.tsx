@@ -10,11 +10,11 @@ function HeroBoardIllustration() {
 
   return (
     <div className="relative mx-auto mt-12 max-w-xl">
-      <div className="blueprint-surface overflow-hidden rounded-[2rem] bg-white/88 p-5 dark:bg-paper-strong">
+      <div className="blueprint-surface blueprint-grid-paper overflow-hidden rounded-[2rem] p-5">
         <div className="grid grid-cols-4 border-2 border-ink text-center">
           {columns.map((column) => (
             <div className="border-r-2 border-ink last:border-r-0" key={column}>
-              <div className="blueprint-title border-b-2 border-ink px-2 py-3 text-2xl text-ink">
+              <div className="blueprint-title whitespace-nowrap border-b-2 border-ink px-1.5 py-3 text-[clamp(0.68rem,2.2vw,1.05rem)] leading-none text-ink">
                 {column}
               </div>
               <div className="grid min-h-72 gap-4 p-4">
@@ -37,9 +37,6 @@ function HeroBoardIllustration() {
           ))}
         </div>
       </div>
-
-      <div className="absolute -bottom-10 -left-10 h-24 w-24 rounded-full border-2 border-ink bg-white/88 dark:bg-paper-strong" />
-      <div className="absolute -bottom-6 right-0 h-20 w-24 rounded-[1.2rem] border-2 border-ink bg-white/88 dark:bg-paper-strong" />
     </div>
   );
 }
@@ -53,7 +50,7 @@ export default async function LoginPage() {
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
-      <div className="blueprint-surface blueprint-surface-strong mx-auto min-h-[calc(100vh-3rem)] max-w-[96rem] overflow-hidden rounded-[2rem]">
+      <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto min-h-[calc(100vh-3rem)] max-w-[96rem] overflow-hidden rounded-[2rem]">
         <div className="grid min-h-[calc(100vh-3rem)] items-center gap-10 px-6 py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-14 lg:py-12">
           <section className="fade-up space-y-8">
             <div className="space-y-6">
