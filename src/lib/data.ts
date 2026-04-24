@@ -31,6 +31,14 @@ export type BoardNavItem = {
   iconKey: string;
 };
 
+export type BoardSummary = {
+  slug: string;
+  name: string;
+  description: string | null;
+  iconKey: string;
+  totalTasks: number;
+};
+
 export type SerializedSubtask = {
   id: string;
   title: string;
@@ -172,6 +180,15 @@ function parseDueDate(value: string | null) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
 }
 
+export async function userExists(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  return Boolean(user);
+}
+
 export async function getShellSnapshot(userId: string) {
   const [user, boards] = await Promise.all([
     prisma.user.findUnique({
@@ -208,6 +225,34 @@ export async function getShellSnapshot(userId: string) {
     },
     boards,
   };
+}
+
+export async function getBoardSummaries(userId: string): Promise<BoardSummary[]> {
+  const boards = await prisma.board.findMany({
+    where: { userId },
+    orderBy: {
+      sortOrder: "asc",
+    },
+    select: {
+      slug: true,
+      name: true,
+      description: true,
+      iconKey: true,
+      _count: {
+        select: {
+          tasks: true,
+        },
+      },
+    },
+  });
+
+  return boards.map((board) => ({
+    slug: board.slug,
+    name: board.name,
+    description: board.description,
+    iconKey: board.iconKey,
+    totalTasks: board._count.tasks,
+  }));
 }
 
 export async function getDashboardSnapshot(userId: string): Promise<DashboardSnapshot> {

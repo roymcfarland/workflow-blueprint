@@ -33,9 +33,32 @@ Create `.env` for local work:
 ```bash
 DATABASE_URL="file:./dev.db"
 AUTH_SECRET="replace-with-a-long-random-secret"
+READ_ONLY_API_KEY="replace-with-a-long-random-read-only-api-key"
+READ_ONLY_USER_ID="user_demo_alex_blue"
 ```
 
 `DATABASE_URL` falls back to the bundled demo SQLite database for local/demo use. Production should provide a durable database URL and a strong `AUTH_SECRET`.
+`READ_ONLY_API_KEY` enables the private read-only API. `READ_ONLY_USER_ID` selects which account is exposed through that API and defaults to the seeded demo user when omitted.
+
+## Private Read-Only API
+
+Private read-only endpoints require either an `Authorization: Bearer <READ_ONLY_API_KEY>` header or an `X-API-Key: <READ_ONLY_API_KEY>` header. They return JSON only, do not mutate data, and are intentionally not CORS-enabled for browser calls from other origins.
+
+```bash
+curl -i \
+  -H "Authorization: Bearer $READ_ONLY_API_KEY" \
+  http://127.0.0.1:3000/api/read-only/dashboard
+
+curl -i \
+  -H "Authorization: Bearer $READ_ONLY_API_KEY" \
+  http://127.0.0.1:3000/api/read-only/boards
+
+curl -i \
+  -H "Authorization: Bearer $READ_ONLY_API_KEY" \
+  http://127.0.0.1:3000/api/read-only/boards/personal
+```
+
+Production uses the same paths under `https://www.workflowblueprint.io`.
 
 ## Scripts
 
@@ -50,6 +73,7 @@ npm run db:seed   # seed the demo account and boards
 ## Security Notes
 
 - API routes use shared JSON parsing and schema validation helpers.
+- Private read-only API responses are validated before being returned.
 - Authenticated API routes return JSON `401` responses instead of page redirects.
 - Sign-in and password reset endpoints include a lightweight in-memory rate limit.
 - Password reset tokens are stored hashed and claimed atomically before the password changes.
