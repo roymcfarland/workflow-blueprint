@@ -1,11 +1,38 @@
 import { PrismaClient } from "@prisma/client";
 
+import { resolveDatabaseUrl } from "./database-url";
+
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+let prismaClient: PrismaClient | undefined;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+function createPrismaClient() {
+  return new PrismaClient({
+    datasourceUrl: resolveDatabaseUrl({ allowFallback: process.env.NODE_ENV !== "production" }),
+  });
 }
+
+function getPrismaClient() {
+  if (prismaClient) {
+    return prismaClient;
+  }
+
+  prismaClient = globalForPrisma.prisma ?? createPrismaClient();
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = prismaClient;
+  }
+
+  return prismaClient;
+}
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, property, client);
+
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
