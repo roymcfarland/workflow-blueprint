@@ -2,7 +2,6 @@
 @import "@fontsource/manrope/500.css";
 @import "@fontsource/manrope/600.css";
 @import "@fontsource/manrope/700.css";
-@import "@fontsource/patrick-hand-sc";
 @import "tailwindcss";
 
 :root {
@@ -59,7 +58,7 @@
   --color-success: var(--success);
   --color-danger: var(--danger);
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Patrick Hand SC", "Marker Felt", "Chalkboard SE", cursive;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SF Mono", ui-monospace, monospace;
 }
 
@@ -114,7 +113,8 @@ select {
 
 .blueprint-title {
   font-family: var(--font-display);
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
