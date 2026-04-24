@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm run db:setup && next dev --hostname 127.0.0.1",
-    "build": "next build",
+    "build": "next build --webpack",
     "db:push": "node scripts/ensure-sqlite-file.mjs && prisma db push",
     "db:seed": "prisma db seed",
     "db:setup": "prisma db push && prisma db seed",

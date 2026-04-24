@@ -6,7 +6,7 @@ import { resolveDatabaseUrl } from "./src/lib/database-url";
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
-    seed: "node --experimental-strip-types prisma/seed.ts",
+    seed: "node --import tsx prisma/seed.ts",
   },
   datasource: {
     url: resolveDatabaseUrl({ allowFallback: true }),
