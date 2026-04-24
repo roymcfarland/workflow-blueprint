@@ -9,7 +9,6 @@ import { useForm } from "react-hook-form";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintCheckbox } from "@/components/blueprint/checkbox";
 import { BlueprintInput } from "@/components/blueprint/input";
-import { demoUser } from "@/lib/domain";
 import type { SignInInput } from "@/lib/validators";
 
 export function LoginForm() {
@@ -20,7 +19,6 @@ export function LoginForm() {
   const {
     formState: { errors },
     register,
-    setValue,
     handleSubmit,
   } = useForm<SignInInput>({
     defaultValues: {
@@ -130,21 +128,6 @@ export function LoginForm() {
         >
           Forgot your password?
         </Link>
-        <div className="rounded-[1.3rem] border-2 border-dashed border-ink-soft bg-white/70 px-4 py-3 text-left text-sm text-ink-muted">
-          <p className="font-semibold text-ink">Demo account</p>
-          <p>{demoUser.email}</p>
-          <p>{demoUser.password}</p>
-          <button
-            className="mt-2 font-semibold text-ink underline decoration-2 underline-offset-4"
-            onClick={() => {
-              setValue("email", demoUser.email);
-              setValue("password", demoUser.password);
-            }}
-            type="button"
-          >
-            Load demo credentials
-          </button>
-        </div>
       </div>
     </form>
   );

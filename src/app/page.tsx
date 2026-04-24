@@ -50,8 +50,8 @@ export default async function LoginPage() {
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
-      <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto min-h-[calc(100vh-3rem)] max-w-[96rem] overflow-hidden rounded-[2rem]">
-        <div className="grid min-h-[calc(100vh-3rem)] items-center gap-10 px-6 py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-14 lg:py-12">
+      <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto flex min-h-[calc(100vh-3rem)] max-w-[96rem] flex-col overflow-hidden rounded-[2rem]">
+        <div className="grid flex-1 items-center gap-10 px-6 py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-14 lg:py-12">
           <section className="fade-up space-y-8">
             <div className="space-y-6">
               <div>
@@ -118,6 +118,18 @@ export default async function LoginPage() {
             </BlueprintCard>
           </section>
         </div>
+
+        <footer className="border-t-2 border-ink/15 px-6 py-4 text-center text-sm font-semibold text-ink-muted lg:px-14">
+          Built by{" "}
+          <a
+            className="text-ink underline decoration-2 underline-offset-4"
+            href="https://www.brightline.io"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Brightline Labs
+          </a>
+        </footer>
       </div>
     </div>
   );
