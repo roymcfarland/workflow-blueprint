@@ -1,19 +1,27 @@
 import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 
+import { checkRateLimit, parseJsonPayload, rateLimitKey } from "@/lib/api";
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
 import { resetPasswordWithToken } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { resetPasswordSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
-  const payload = resetPasswordSchema.safeParse(await request.json());
+  const payload = await parseJsonPayload(request, resetPasswordSchema, "Unable to reset password.");
 
-  if (!payload.success) {
-    return NextResponse.json(
-      { message: payload.error.issues[0]?.message ?? "Unable to reset password." },
-      { status: 400 },
-    );
+  if (!payload.ok) {
+    return payload.response;
+  }
+
+  const rateLimitResponse = checkRateLimit({
+    key: rateLimitKey(request, "reset-password", payload.data.token),
+    limit: 8,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const passwordHash = await hash(payload.data.password, 12);

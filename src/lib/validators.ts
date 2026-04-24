@@ -1,9 +1,33 @@
 import { boardStatuses, themePreferences } from "@/lib/domain";
 import { z } from "zod";
 
+function isValidDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return false;
+  }
+
+  const [, yearPart, monthPart, dayPart] = match;
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  const day = Number(dayPart);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 const subtaskSchema = z.object({
   id: z.string().trim().optional(),
-  title: z.string().trim().min(1, "Subtask title is required."),
+  title: z
+    .string()
+    .trim()
+    .min(1, "Subtask title is required.")
+    .max(180, "Subtask titles should stay under 180 characters."),
   isComplete: z.boolean().default(false),
 });
 
@@ -28,32 +52,76 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
-export const taskInputSchema = z.object({
-  title: z.string().trim().min(1, "Task title is required."),
-  description: z
-    .string()
-    .trim()
-    .max(1200, "Descriptions should stay under 1200 characters.")
-    .nullable()
-    .transform((value) => (value ? value : null)),
-  status: z.enum(boardStatuses),
-  dueDate: z
-    .string()
-    .trim()
-    .nullable()
-    .transform((value) => (value ? value : null)),
-  subtasks: z.array(subtaskSchema).default([]),
-});
+export const taskInputSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Task title is required.")
+      .max(180, "Task titles should stay under 180 characters."),
+    description: z
+      .string()
+      .trim()
+      .max(1200, "Descriptions should stay under 1200 characters.")
+      .nullable()
+      .transform((value) => (value ? value : null)),
+    status: z.enum(boardStatuses),
+    dueDate: z
+      .string()
+      .trim()
+      .nullable()
+      .transform((value) => (value ? value : null))
+      .refine((value) => value === null || isValidDateOnly(value), {
+        message: "Enter a valid due date.",
+      }),
+    subtasks: z.array(subtaskSchema).max(50, "Tasks can include up to 50 subtasks.").default([]),
+  })
+  .superRefine((value, context) => {
+    const subtaskIds = new Set<string>();
 
-export const taskReorderSchema = z.object({
-  items: z.array(
-    z.object({
-      taskId: z.string().trim().min(1),
-      status: z.enum(boardStatuses),
-      sortOrder: z.number().int().min(0),
-    }),
-  ),
-});
+    value.subtasks.forEach((subtask, index) => {
+      if (!subtask.id || !subtaskIds.has(subtask.id)) {
+        if (subtask.id) {
+          subtaskIds.add(subtask.id);
+        }
+
+        return;
+      }
+
+      context.addIssue({
+        code: "custom",
+        message: "Task payload contains duplicate subtasks.",
+        path: ["subtasks", index, "id"],
+      });
+    });
+  });
+
+export const taskReorderSchema = z
+  .object({
+    items: z.array(
+      z.object({
+        taskId: z.string().trim().min(1),
+        status: z.enum(boardStatuses),
+        sortOrder: z.number().int().min(0),
+      }),
+    ),
+  })
+  .superRefine((value, context) => {
+    const taskIds = new Set<string>();
+
+    value.items.forEach((item, index) => {
+      if (!taskIds.has(item.taskId)) {
+        taskIds.add(item.taskId);
+        return;
+      }
+
+      context.addIssue({
+        code: "custom",
+        message: "Task reorder payload contains duplicate tasks.",
+        path: ["items", index, "taskId"],
+      });
+    });
+  });
 
 export const noteSchema = z.object({
   content: z
@@ -68,12 +136,16 @@ export const themePreferenceSchema = z.object({
 
 export const profileSchema = z
   .object({
-    name: z.string().trim().min(2, "Name must be at least 2 characters."),
+    name: z
+      .string()
+      .trim()
+      .min(2, "Name must be at least 2 characters.")
+      .max(80, "Name should stay under 80 characters."),
     email: z.email("Enter a valid email address.").trim().toLowerCase(),
     themePreference: z.enum(themePreferences),
-    currentPassword: z.string().trim().optional(),
-    newPassword: z.string().trim().optional(),
-    confirmPassword: z.string().trim().optional(),
+    currentPassword: z.string().optional(),
+    newPassword: z.string().optional(),
+    confirmPassword: z.string().optional(),
   })
   .superRefine((value, context) => {
     const wantsPasswordChange = Boolean(value.newPassword || value.confirmPassword);

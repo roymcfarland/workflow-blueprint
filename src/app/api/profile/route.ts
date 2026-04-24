@@ -1,25 +1,28 @@
 import { compare, hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 
-import { createSessionToken, requireCurrentUser, setSessionCookie } from "@/lib/auth";
+import { parseJsonPayload, requireApiUser } from "@/lib/api";
+import { createSessionToken, setSessionCookie } from "@/lib/auth";
 import { updateUserProfile } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { profileSchema } from "@/lib/validators";
 
 export async function PATCH(request: Request) {
-  const currentUser = await requireCurrentUser();
-  const payload = profileSchema.safeParse(await request.json());
+  const currentUser = await requireApiUser();
 
-  if (!payload.success) {
-    return NextResponse.json(
-      { message: payload.error.issues[0]?.message ?? "Unable to save profile." },
-      { status: 400 },
-    );
+  if (!currentUser.ok) {
+    return currentUser.response;
+  }
+
+  const payload = await parseJsonPayload(request, profileSchema, "Unable to save profile.");
+
+  if (!payload.ok) {
+    return payload.response;
   }
 
   const user = await prisma.user.findUnique({
     where: {
-      id: currentUser.id,
+      id: currentUser.data.id,
     },
   });
 
@@ -46,7 +49,7 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const updatedUser = await updateUserProfile(currentUser.id, payload.data, passwordHash);
+    const updatedUser = await updateUserProfile(currentUser.data.id, payload.data, passwordHash);
     const token = await createSessionToken({
       sub: updatedUser.id,
       email: updatedUser.email,

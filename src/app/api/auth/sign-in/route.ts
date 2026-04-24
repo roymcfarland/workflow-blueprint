@@ -2,17 +2,25 @@ import { compare } from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
+import { checkRateLimit, parseJsonPayload, rateLimitKey } from "@/lib/api";
 import { findUserByEmail } from "@/lib/data";
 import { signInSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
-  const payload = signInSchema.safeParse(await request.json());
+  const payload = await parseJsonPayload(request, signInSchema, "Unable to sign in.");
 
-  if (!payload.success) {
-    return NextResponse.json(
-      { message: payload.error.issues[0]?.message ?? "Unable to sign in." },
-      { status: 400 },
-    );
+  if (!payload.ok) {
+    return payload.response;
+  }
+
+  const rateLimitResponse = checkRateLimit({
+    key: rateLimitKey(request, "sign-in", payload.data.email),
+    limit: 8,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const user = await findUserByEmail(payload.data.email);

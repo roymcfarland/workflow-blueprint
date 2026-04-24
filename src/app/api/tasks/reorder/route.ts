@@ -1,27 +1,36 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { requireCurrentUser } from "@/lib/auth";
+import { parseJsonPayload, requireApiUser } from "@/lib/api";
 import { reorderTasksForUser } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { taskReorderSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
-  const user = await requireCurrentUser();
-  const payload = taskReorderSchema.safeParse(await request.json());
+  const user = await requireApiUser();
 
-  if (!payload.success) {
+  if (!user.ok) {
+    return user.response;
+  }
+
+  const payload = await parseJsonPayload(request, taskReorderSchema, "Unable to reorder tasks.");
+
+  if (!payload.ok) {
+    return payload.response;
+  }
+
+  try {
+    await reorderTasksForUser(user.data.id, payload.data);
+  } catch (error) {
     return NextResponse.json(
-      { message: payload.error.issues[0]?.message ?? "Unable to reorder tasks." },
+      { message: error instanceof Error ? error.message : "Unable to reorder tasks." },
       { status: 400 },
     );
   }
 
-  await reorderTasksForUser(user.id, payload.data);
-
   const boards = await prisma.board.findMany({
     where: {
-      userId: user.id,
+      userId: user.data.id,
       tasks: {
         some: {
           id: {

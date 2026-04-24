@@ -70,6 +70,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             })}
           />
           <button
+            aria-label={showPassword ? "Hide password" : "Show password"}
             className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
             onClick={() => setShowPassword((value) => !value)}
             type="button"
@@ -98,6 +99,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
             })}
           />
           <button
+            aria-label={
+              showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"
+            }
             className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
             onClick={() => setShowConfirmPassword((value) => !value)}
             type="button"

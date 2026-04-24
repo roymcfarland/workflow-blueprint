@@ -17,5 +17,5 @@ export default async function BoardPage({
     notFound();
   }
 
-  return <BoardWorkspace board={board} />;
+  return <BoardWorkspace board={board} key={board.id} />;
 }

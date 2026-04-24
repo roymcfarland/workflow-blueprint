@@ -168,6 +168,10 @@ function statusDates(status: TaskStatus, existing?: { completedAt: Date | null; 
   };
 }
 
+function parseDueDate(value: string | null) {
+  return value ? new Date(`${value}T00:00:00.000Z`) : null;
+}
+
 export async function getShellSnapshot(userId: string) {
   const [user, boards] = await Promise.all([
     prisma.user.findUnique({
@@ -300,7 +304,7 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
       description: input.description,
       status: input.status as PrismaTaskStatus,
       sortOrder,
-      dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      dueDate: parseDueDate(input.dueDate),
       completedAt,
       archivedAt,
       subtasks: {
@@ -347,7 +351,7 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
       description: input.description,
       status: nextStatus,
       sortOrder,
-      dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      dueDate: parseDueDate(input.dueDate),
       completedAt,
       archivedAt,
       subtasks: {
@@ -358,22 +362,27 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
               .map((subtask) => subtask.id),
           },
         },
-        upsert: input.subtasks.map((subtask, index) => ({
-          where: {
-            id: subtask.id ?? randomUUID(),
-          },
-          update: {
-            title: subtask.title,
-            isComplete: subtask.isComplete,
-            sortOrder: index,
-          },
-          create: {
-            id: subtask.id && existingSubtaskIds.has(subtask.id) ? subtask.id : randomUUID(),
-            title: subtask.title,
-            isComplete: subtask.isComplete,
-            sortOrder: index,
-          },
-        })),
+        upsert: input.subtasks.map((subtask, index) => {
+          const subtaskId =
+            subtask.id && existingSubtaskIds.has(subtask.id) ? subtask.id : randomUUID();
+
+          return {
+            where: {
+              id: subtaskId,
+            },
+            update: {
+              title: subtask.title,
+              isComplete: subtask.isComplete,
+              sortOrder: index,
+            },
+            create: {
+              id: subtaskId,
+              title: subtask.title,
+              isComplete: subtask.isComplete,
+              sortOrder: index,
+            },
+          };
+        }),
       },
     },
     include: taskInclude,
@@ -397,16 +406,21 @@ export async function deleteTaskForUser(userId: string, taskId: string) {
 }
 
 export async function reorderTasksForUser(userId: string, input: TaskReorderInput) {
+  const submittedTaskIds = [...new Set(input.items.map((item) => item.taskId))];
   const tasks = await prisma.task.findMany({
     where: {
       id: {
-        in: input.items.map((item) => item.taskId),
+        in: submittedTaskIds,
       },
       board: {
         userId,
       },
     },
   });
+
+  if (tasks.length !== submittedTaskIds.length) {
+    throw new Error("One or more tasks could not be found.");
+  }
 
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
 
@@ -415,7 +429,7 @@ export async function reorderTasksForUser(userId: string, input: TaskReorderInpu
       const task = tasksById.get(item.taskId);
 
       if (!task) {
-        return prisma.task.findMany({ take: 0 });
+        throw new Error("One or more tasks could not be found.");
       }
 
       const { completedAt, archivedAt } = statusDates(item.status, task);
@@ -527,38 +541,47 @@ export async function createPasswordResetToken(userId: string) {
 }
 
 export async function resetPasswordWithToken(token: string, passwordHash: string) {
-  const resetToken = await prisma.passwordResetToken.findFirst({
-    where: {
-      tokenHash: hashToken(token),
-      usedAt: null,
-      expiresAt: {
-        gt: new Date(),
+  return prisma.$transaction(async (tx) => {
+    const resetToken = await tx.passwordResetToken.findFirst({
+      where: {
+        tokenHash: hashToken(token),
+        usedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
       },
-    },
-  });
+    });
 
-  if (!resetToken) {
-    return null;
-  }
+    if (!resetToken) {
+      return null;
+    }
 
-  await prisma.$transaction([
-    prisma.user.update({
+    const claimedToken = await tx.passwordResetToken.updateMany({
+      where: {
+        id: resetToken.id,
+        usedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      data: {
+        usedAt: new Date(),
+      },
+    });
+
+    if (claimedToken.count === 0) {
+      return null;
+    }
+
+    await tx.user.update({
       where: {
         id: resetToken.userId,
       },
       data: {
         passwordHash,
       },
-    }),
-    prisma.passwordResetToken.update({
-      where: {
-        id: resetToken.id,
-      },
-      data: {
-        usedAt: new Date(),
-      },
-    }),
-  ]);
+    });
 
-  return resetToken.userId;
+    return resetToken.userId;
+  });
 }

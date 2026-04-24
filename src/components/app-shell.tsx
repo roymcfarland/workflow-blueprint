@@ -38,9 +38,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { setTheme } = useTheme();
-  const [desktopOpen, setDesktopOpen] = useState(
-    pathname === "/dashboard" || pathname === "/profile",
-  );
+  const [desktopOpen, setDesktopOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
   const [isPending, startTransition] = useTransition();
@@ -87,15 +85,21 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const Sidebar = (
     <aside className="blueprint-surface blueprint-surface-strong flex h-full w-full max-w-[18.75rem] flex-col rounded-none border-y-0 border-l-0 px-7 py-6 lg:max-w-none lg:rounded-r-[2rem]">
       <button
-        aria-label={desktopOpen ? "Collapse navigation" : "Expand navigation"}
-        className="mb-8 flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink text-ink transition hover:bg-white/60"
-        onClick={() => {
-          setDesktopOpen((value) => !value);
-          setMobileOpen((value) => !value);
-        }}
+        aria-label="Collapse navigation"
+        className="mb-8 hidden h-12 w-12 items-center justify-center rounded-full border-2 border-ink text-ink transition hover:bg-white/60 lg:flex"
+        onClick={() => setDesktopOpen(false)}
         type="button"
       >
-        {mobileOpen ? <X className="h-6 w-6 lg:hidden" /> : <Menu className="h-6 w-6" />}
+        <Menu className="h-6 w-6" />
+      </button>
+
+      <button
+        aria-label="Close navigation"
+        className="mb-8 flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink text-ink transition hover:bg-white/60 lg:hidden"
+        onClick={() => setMobileOpen(false)}
+        type="button"
+      >
+        <X className="h-6 w-6" />
       </button>
 
       <div className="space-y-5">
@@ -156,8 +160,8 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         </div>
 
         <div className="rounded-[1.3rem] border-2 border-ink-soft bg-white/75 px-4 py-3 text-sm text-ink-muted dark:bg-paper-strong">
-          <p className="font-semibold text-ink">{user.name}</p>
-          <p>{user.email}</p>
+          <p className="break-words font-semibold text-ink">{user.name}</p>
+          <p className="break-all">{user.email}</p>
         </div>
 
         <BlueprintButton
@@ -181,7 +185,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         <div
           className={cn(
             "fixed inset-y-0 left-0 z-50 w-[19rem] -translate-x-full transition-transform duration-200 lg:sticky lg:top-0 lg:block lg:h-screen lg:w-[19rem]",
-            desktopOpen && "hidden lg:block lg:translate-x-0",
+            desktopOpen ? "lg:translate-x-0" : "lg:hidden",
             mobileOpen && "translate-x-0",
           )}
         >
@@ -201,7 +205,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           {!desktopOpen ? (
             <button
               aria-label="Open navigation"
-              className="fixed left-5 top-5 z-30 flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink bg-white/92 text-ink shadow-[0_10px_20px_rgba(31,80,242,0.12)] transition hover:-translate-y-0.5 lg:left-8 lg:top-8"
+              className="fixed left-8 top-8 z-30 hidden h-12 w-12 items-center justify-center rounded-full border-2 border-ink bg-white/92 text-ink shadow-[0_10px_20px_rgba(31,80,242,0.12)] transition hover:-translate-y-0.5 lg:flex"
               onClick={() => setDesktopOpen(true)}
               type="button"
             >

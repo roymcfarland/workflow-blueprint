@@ -1,21 +1,27 @@
 import { NextResponse } from "next/server";
 
-import { requireCurrentUser } from "@/lib/auth";
+import { parseJsonPayload, requireApiUser } from "@/lib/api";
 import { updateUserTheme } from "@/lib/data";
 import { themePreferenceSchema } from "@/lib/validators";
 
 export async function PATCH(request: Request) {
-  const user = await requireCurrentUser();
-  const payload = themePreferenceSchema.safeParse(await request.json());
+  const user = await requireApiUser();
 
-  if (!payload.success) {
-    return NextResponse.json(
-      { message: payload.error.issues[0]?.message ?? "Unable to update theme." },
-      { status: 400 },
-    );
+  if (!user.ok) {
+    return user.response;
   }
 
-  const themePreference = await updateUserTheme(user.id, payload.data.themePreference);
+  const payload = await parseJsonPayload(
+    request,
+    themePreferenceSchema,
+    "Unable to update theme.",
+  );
+
+  if (!payload.ok) {
+    return payload.response;
+  }
+
+  const themePreference = await updateUserTheme(user.data.id, payload.data.themePreference);
 
   return NextResponse.json({
     ok: true,

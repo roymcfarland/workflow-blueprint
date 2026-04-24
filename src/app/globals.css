@@ -14,6 +14,10 @@
   --ink-strong: #153ed6;
   --ink-soft: rgba(31, 80, 242, 0.18);
   --ink-muted: rgba(31, 80, 242, 0.68);
+  --accent: #f4b740;
+  --accent-soft: rgba(244, 183, 64, 0.18);
+  --success: #1a9f72;
+  --danger: #d9485f;
   --grid: rgba(31, 80, 242, 0.08);
   --grid-strong: rgba(31, 80, 242, 0.14);
   --surface-shadow: 0 16px 36px rgba(21, 62, 214, 0.08);
@@ -31,6 +35,10 @@
   --ink-strong: #b7cdff;
   --ink-soft: rgba(140, 176, 255, 0.2);
   --ink-muted: rgba(183, 205, 255, 0.82);
+  --accent: #f8cd67;
+  --accent-soft: rgba(248, 205, 103, 0.18);
+  --success: #5bd0a6;
+  --danger: #ff7f94;
   --grid: rgba(140, 176, 255, 0.12);
   --grid-strong: rgba(140, 176, 255, 0.18);
   --surface-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
@@ -46,6 +54,10 @@
   --color-ink-strong: var(--ink-strong);
   --color-ink-soft: var(--ink-soft);
   --color-ink-muted: var(--ink-muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Patrick Hand SC", "Marker Felt", "Chalkboard SE", cursive;
   --font-mono: "SF Mono", ui-monospace, monospace;
@@ -80,10 +92,8 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 10% 10%, rgba(31, 80, 242, 0.04), transparent 26%),
-    radial-gradient(circle at 90% 16%, rgba(31, 80, 242, 0.05), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+  background: linear-gradient(135deg, var(--accent-soft), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
   z-index: -1;
 }
 
@@ -132,6 +142,7 @@ select {
 .blueprint-fill {
   background-color: var(--ink);
   background-image:
+    linear-gradient(135deg, transparent, rgba(244, 183, 64, 0.2)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
     repeating-linear-gradient(
       -55deg,

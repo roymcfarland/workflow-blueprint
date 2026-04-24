@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { requireCurrentUser } from "@/lib/auth";
+import { parseJsonPayload, requireApiUser } from "@/lib/api";
 import { createTaskForBoard } from "@/lib/data";
 import { taskInputSchema } from "@/lib/validators";
 
@@ -9,21 +9,30 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const user = await requireCurrentUser();
-  const { slug } = await params;
-  const payload = taskInputSchema.safeParse(await request.json());
+  const user = await requireApiUser();
 
-  if (!payload.success) {
+  if (!user.ok) {
+    return user.response;
+  }
+
+  const { slug } = await params;
+  const payload = await parseJsonPayload(request, taskInputSchema, "Unable to create task.");
+
+  if (!payload.ok) {
+    return payload.response;
+  }
+
+  try {
+    const task = await createTaskForBoard(user.data.id, slug, payload.data);
+
+    revalidatePath(`/boards/${slug}`);
+    revalidatePath("/dashboard");
+
+    return NextResponse.json({ ok: true, task });
+  } catch (error) {
     return NextResponse.json(
-      { message: payload.error.issues[0]?.message ?? "Unable to create task." },
+      { message: error instanceof Error ? error.message : "Unable to create task." },
       { status: 400 },
     );
   }
-
-  const task = await createTaskForBoard(user.id, slug, payload.data);
-
-  revalidatePath(`/boards/${slug}`);
-  revalidatePath("/dashboard");
-
-  return NextResponse.json({ ok: true, task });
 }

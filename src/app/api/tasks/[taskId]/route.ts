@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { requireCurrentUser } from "@/lib/auth";
+import { parseJsonPayload, requireApiUser } from "@/lib/api";
 import { deleteTaskForUser, updateTaskForUser } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { taskInputSchema } from "@/lib/validators";
@@ -10,19 +10,21 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> },
 ) {
-  const user = await requireCurrentUser();
-  const { taskId } = await params;
-  const payload = taskInputSchema.safeParse(await request.json());
+  const user = await requireApiUser();
 
-  if (!payload.success) {
-    return NextResponse.json(
-      { message: payload.error.issues[0]?.message ?? "Unable to update task." },
-      { status: 400 },
-    );
+  if (!user.ok) {
+    return user.response;
+  }
+
+  const { taskId } = await params;
+  const payload = await parseJsonPayload(request, taskInputSchema, "Unable to update task.");
+
+  if (!payload.ok) {
+    return payload.response;
   }
 
   try {
-    const task = await updateTaskForUser(user.id, taskId, payload.data);
+    const task = await updateTaskForUser(user.data.id, taskId, payload.data);
     const board = await prisma.board.findFirst({
       where: {
         tasks: {
@@ -30,6 +32,7 @@ export async function PATCH(
             id: taskId,
           },
         },
+        userId: user.data.id,
       },
       select: {
         slug: true,
@@ -55,7 +58,12 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ taskId: string }> },
 ) {
-  const user = await requireCurrentUser();
+  const user = await requireApiUser();
+
+  if (!user.ok) {
+    return user.response;
+  }
+
   const { taskId } = await params;
 
   const board = await prisma.board.findFirst({
@@ -65,7 +73,7 @@ export async function DELETE(
           id: taskId,
         },
       },
-      userId: user.id,
+      userId: user.data.id,
     },
     select: {
       slug: true,
@@ -73,7 +81,7 @@ export async function DELETE(
   });
 
   try {
-    await deleteTaskForUser(user.id, taskId);
+    await deleteTaskForUser(user.data.id, taskId);
 
     if (board) {
       revalidatePath(`/boards/${board.slug}`);

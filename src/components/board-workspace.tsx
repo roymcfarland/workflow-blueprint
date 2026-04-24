@@ -66,6 +66,14 @@ const archiveOptions = [
 type ViewMode = (typeof boardViewOptions)[number]["value"];
 type ArchiveMode = (typeof archiveOptions)[number]["value"];
 
+const statusAccentColors: Record<TaskStatus, string> = {
+  ARCHIVED: "#9aa6bd",
+  DONE: "#1a9f72",
+  ICE_BOX: "#8cb0ff",
+  IN_PROGRESS: "#f4b740",
+  ON_DECK: "#63c7c9",
+};
+
 function groupTasks(tasks: SerializedTask[]) {
   return Object.fromEntries(
     boardStatuses.map((status) => [
@@ -97,7 +105,9 @@ function parseColumnId(value: string): TaskStatus | null {
     return null;
   }
 
-  return value.replace("column:", "") as TaskStatus;
+  const status = value.replace("column:", "") as TaskStatus;
+
+  return boardStatuses.includes(status) ? status : null;
 }
 
 function reorderTasks(tasks: SerializedTask[], activeId: string, overId: string) {
@@ -180,7 +190,7 @@ function TaskPreview({
       <div className="flex items-start justify-between gap-3">
         <button className="flex-1 space-y-2 text-left" onClick={() => onOpen?.(task)} type="button">
           <div className="h-0.5 w-10 rounded-full bg-ink/50" />
-          <p className="text-base font-semibold leading-snug">{task.title}</p>
+          <p className="break-words text-base font-semibold leading-snug">{task.title}</p>
         </button>
         <div className="flex items-center gap-1">
           {task.subtasks.length > 0 ? (
@@ -308,6 +318,7 @@ function BoardColumn({
 
   return (
     <div className="blueprint-surface min-w-[16rem] overflow-hidden rounded-[1.6rem] bg-white/86 dark:bg-paper-strong">
+      <div className="h-2" style={{ backgroundColor: statusAccentColors[status] }} />
       <div className="blueprint-title border-b-2 border-ink px-5 py-4 text-center text-3xl text-ink">
         {statusLabels[status]}
       </div>
@@ -599,6 +610,10 @@ function TaskDrawer({
                   className="justify-center"
                   disabled={isPending}
                   onClick={() => {
+                    if (!window.confirm("Delete this task?")) {
+                      return;
+                    }
+
                     startTransition(async () => {
                       try {
                         await onDelete(task.id);
@@ -647,6 +662,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
   const boardDndId = `${board.slug}-tasks-dnd`;
   const noteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteAbortRef = useRef<AbortController | null>(null);
   const lastSavedNote = useRef(board.noteContent);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -670,29 +686,48 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
       clearTimeout(noteTimerRef.current);
     }
 
+    noteAbortRef.current?.abort();
+
+    const controller = new AbortController();
+    const content = noteDraft;
+    noteAbortRef.current = controller;
+
     noteTimerRef.current = setTimeout(async () => {
-      const response = await fetch(`/api/boards/${board.slug}/note`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content: noteDraft }),
-      });
+      try {
+        const response = await fetch(`/api/boards/${board.slug}/note`, {
+          body: JSON.stringify({ content }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "PATCH",
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        setNoteMessage("Unable to save notes.");
-        return;
+        if (!response.ok) {
+          setNoteMessage("Unable to save notes.");
+          return;
+        }
+
+        lastSavedNote.current = content;
+        setNoteMessage("Notes saved");
+        setTimeout(() => setNoteMessage(null), 1600);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setNoteMessage(error instanceof Error ? error.message : "Unable to save notes.");
+        }
+      } finally {
+        if (noteAbortRef.current === controller) {
+          noteAbortRef.current = null;
+        }
       }
-
-      lastSavedNote.current = noteDraft;
-      setNoteMessage("Notes saved");
-      setTimeout(() => setNoteMessage(null), 1600);
     }, 800);
 
     return () => {
       if (noteTimerRef.current) {
         clearTimeout(noteTimerRef.current);
       }
+
+      controller.abort();
     };
   }, [board.slug, noteDraft]);
 
@@ -775,19 +810,28 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
       return;
     }
 
-    const nextTasks = reorderTasks(tasks, String(active.id), String(over.id));
+    const previousTasks = tasks;
+    const nextTasks = reorderTasks(previousTasks, String(active.id), String(over.id));
+
+    if (nextTasks === previousTasks) {
+      return;
+    }
+
     setTasks(nextTasks);
 
     try {
       await persistTaskOrder(nextTasks);
     } catch (error) {
+      setTasks(previousTasks);
       setFlashMessage(error instanceof Error ? error.message : "Unable to reorder tasks.");
       setTimeout(() => setFlashMessage(null), 2200);
     }
   };
 
+  const activeTask = activeTaskId ? tasks.find((task) => task.id === activeTaskId) : null;
+
   return (
-    <div className="fade-up space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-5">
           <PageTitle title={`${board.name} Tasks`} />
@@ -871,7 +915,15 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
               {visibleStatuses.map((status) => (
                 <BlueprintCard className="space-y-4 p-5" key={status}>
                   <div className="flex items-center justify-between gap-3 border-b-2 border-ink/20 pb-3">
-                    <h2 className="blueprint-title text-3xl text-ink">{statusLabels[status]}</h2>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="h-4 w-4 rounded-full border-2 border-ink"
+                        style={{ backgroundColor: statusAccentColors[status] }}
+                      />
+                      <h2 className="blueprint-title text-3xl text-ink">
+                        {statusLabels[status]}
+                      </h2>
+                    </div>
                     <span className="text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
                       {grouped[status].length} tasks
                     </span>
@@ -882,7 +934,10 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
                       strategy={verticalListSortingStrategy}
                     >
                       {grouped[status].map((task) => (
-                        <div className="rounded-[1.2rem] border-2 border-ink bg-white/80 p-4 dark:bg-paper-strong" key={task.id}>
+                        <div
+                          className="rounded-[1.2rem] border-2 border-ink bg-white/80 p-4 dark:bg-paper-strong"
+                          key={task.id}
+                        >
                           <div className="flex items-start justify-between gap-3">
                             <div className="space-y-2">
                               <button
@@ -904,6 +959,11 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
                             </div>
                             {task.subtasks.length > 0 ? (
                               <button
+                                aria-label={
+                                  expandedTaskIds.has(task.id)
+                                    ? "Collapse subtasks"
+                                    : "Expand subtasks"
+                                }
                                 className="rounded-full p-1 text-ink-muted transition hover:bg-white/70"
                                 onClick={() =>
                                   setExpandedTaskIds((current) => {
@@ -968,7 +1028,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
         <DragOverlay>
           {activeTaskId ? (
             <div className="w-[15rem]">
-              <TaskPreview task={tasks.find((task) => task.id === activeTaskId)!} />
+              {activeTask ? <TaskPreview task={activeTask} /> : null}
             </div>
           ) : null}
         </DragOverlay>
