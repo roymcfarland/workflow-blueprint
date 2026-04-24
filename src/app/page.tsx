@@ -9,18 +9,21 @@ function HeroBoardIllustration() {
   const columns = ["Ice Box", "On Deck", "In Progress", "Done"];
 
   return (
-    <div className="relative mx-auto mt-12 max-w-xl">
-      <div className="blueprint-surface blueprint-grid-paper overflow-hidden rounded-[2rem] p-5">
-        <div className="grid grid-cols-4 border-2 border-ink text-center">
+    <div className="relative mx-auto mt-8 w-full max-w-[18.5rem] sm:mt-12 sm:max-w-xl">
+      <div className="blueprint-surface blueprint-grid-paper overflow-hidden rounded-[1.4rem] p-3 sm:rounded-[2rem] sm:p-5">
+        <div className="grid grid-cols-2 border-2 border-ink text-center sm:grid-cols-4">
           {columns.map((column) => (
-            <div className="border-r-2 border-ink last:border-r-0" key={column}>
-              <div className="blueprint-title whitespace-nowrap border-b-2 border-ink px-1.5 py-3 text-[clamp(0.68rem,2.2vw,1.05rem)] leading-none text-ink">
+            <div
+              className="border-b-2 border-r-2 border-ink even:border-r-0 last:border-b-0 sm:border-b-0 sm:even:border-r-2 sm:last:border-r-0"
+              key={column}
+            >
+              <div className="blueprint-title whitespace-nowrap border-b-2 border-ink px-1.5 py-2 text-[0.68rem] leading-none text-ink sm:py-3 sm:text-[clamp(0.68rem,2.2vw,1.05rem)]">
                 {column}
               </div>
-              <div className="grid min-h-72 gap-4 p-4">
+              <div className="grid min-h-44 gap-3 p-3 sm:min-h-72 sm:gap-4 sm:p-4">
                 {[0, 1, 2].map((card) => (
                   <div
-                    className="blueprint-note flex h-24 w-full items-center justify-center px-3 text-center text-sm text-ink"
+                    className="blueprint-note flex h-16 w-full items-center justify-center px-3 text-center text-sm text-ink sm:h-24"
                     key={`${column}-${card}`}
                     style={{
                       rotate: `${(card % 2 === 0 ? -1 : 1) * 1.8}deg`,
@@ -49,20 +52,20 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 lg:px-8">
-      <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto flex min-h-[calc(100vh-3rem)] max-w-[96rem] flex-col overflow-hidden rounded-[2rem]">
-        <div className="grid flex-1 items-center gap-10 px-6 py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-14 lg:py-12">
-          <section className="fade-up space-y-8">
+    <div className="min-h-screen px-3 py-3 sm:px-6 sm:py-6 lg:px-8">
+      <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto flex min-h-[calc(100svh-1.5rem)] max-w-[96rem] flex-col overflow-hidden rounded-[1.35rem] sm:min-h-[calc(100vh-3rem)] sm:rounded-[2rem]">
+        <div className="grid min-w-0 flex-1 items-center gap-8 px-4 py-7 sm:px-6 sm:py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-14 lg:py-12">
+          <section className="fade-up min-w-0 space-y-8">
             <div className="space-y-6">
               <div>
-                <h1 className="blueprint-title text-[clamp(4.8rem,11vw,8.8rem)] leading-[0.82] text-ink">
+                <h1 className="blueprint-title text-[clamp(2.1rem,8.8vw,8.8rem)] leading-[0.86] text-ink">
                   Workflow
                 </h1>
-                <h1 className="blueprint-title text-[clamp(4.8rem,11vw,8.8rem)] leading-[0.82] text-ink">
+                <h1 className="blueprint-title text-[clamp(2.1rem,8.8vw,8.8rem)] leading-[0.86] text-ink">
                   Blueprint
                 </h1>
               </div>
-              <div className="h-1.5 w-64 rounded-full bg-ink" />
+              <div className="h-1.5 w-48 max-w-full rounded-full bg-ink sm:w-64" />
               <p className="text-[clamp(1.5rem,3vw,2.4rem)] font-medium text-ink">
                 Plan. Execute. Achieve.
               </p>
@@ -101,11 +104,11 @@ export default async function LoginPage() {
             </div>
           </section>
 
-          <section className="fade-up">
-            <BlueprintCard className="mx-auto w-full max-w-2xl p-7 sm:p-10">
+          <section className="fade-up min-w-0">
+            <BlueprintCard className="mx-auto w-full max-w-2xl p-5 sm:p-10">
               <div className="space-y-8">
                 <div className="space-y-2 text-center">
-                  <h2 className="blueprint-title text-[clamp(3rem,5vw,4.3rem)] text-ink">
+                  <h2 className="blueprint-title text-[clamp(2.25rem,11vw,4.3rem)] text-ink">
                     Welcome Back
                   </h2>
                   <p className="text-lg text-ink-muted">

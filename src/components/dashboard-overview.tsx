@@ -74,17 +74,17 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
         <BlueprintCard className="p-6 lg:p-7">
           <div className="space-y-6">
             <div>
-              <h2 className="blueprint-title text-3xl text-ink">Task Breakdown</h2>
+              <h2 className="blueprint-title text-2xl text-ink sm:text-3xl">Task Breakdown</h2>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ink-muted">
                 % of total tasks
               </p>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <div className="flex h-72 items-center justify-center">
+              <div className="flex aspect-square max-h-72 min-h-56 items-center justify-center">
                 <svg
                   aria-label="Task breakdown by board"
-                  className="h-[20rem] w-[20rem]"
+                  className="h-full max-h-[18rem] w-full max-w-[18rem]"
                   role="img"
                   viewBox="0 0 320 320"
                 >
@@ -143,7 +143,9 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
         <BlueprintCard className="p-6 lg:p-7">
           <div className="space-y-8">
             <div className="space-y-3">
-              <h2 className="blueprint-title text-3xl text-ink">Sprint Completion Rate</h2>
+              <h2 className="blueprint-title text-2xl text-ink sm:text-3xl">
+                Sprint Completion Rate
+              </h2>
               <p className="text-lg text-ink-muted">(Done / Total active tasks)</p>
             </div>
 
@@ -174,12 +176,12 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <BlueprintCard className="flex items-center gap-5 p-6 lg:p-7">
-          <div className="flex h-24 w-24 items-center justify-center rounded-[1.5rem] border-2 border-ink bg-white/85 dark:bg-paper-strong">
-            <ClipboardList className="h-10 w-10 text-ink" />
+        <BlueprintCard className="flex flex-col items-start gap-5 p-6 sm:flex-row sm:items-center lg:p-7">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] border-2 border-ink bg-white/85 dark:bg-paper-strong sm:h-24 sm:w-24 sm:rounded-[1.5rem]">
+            <ClipboardList className="h-8 w-8 text-ink sm:h-10 sm:w-10" />
           </div>
           <div>
-            <p className="blueprint-title text-3xl text-ink">In Progress Tasks</p>
+            <p className="blueprint-title text-2xl text-ink sm:text-3xl">In Progress Tasks</p>
             <p className="text-[clamp(3rem,7vw,4.5rem)] font-semibold leading-none text-ink">
               {data.inProgressCount}
             </p>
@@ -187,12 +189,14 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
           </div>
         </BlueprintCard>
 
-        <BlueprintCard className="flex items-center gap-5 p-6 lg:p-7">
-          <div className="flex h-24 w-24 items-center justify-center rounded-[1.5rem] border-2 border-ink bg-white/85 dark:bg-paper-strong">
-            <CheckCheck className="h-10 w-10 text-ink" />
+        <BlueprintCard className="flex flex-col items-start gap-5 p-6 sm:flex-row sm:items-center lg:p-7">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] border-2 border-ink bg-white/85 dark:bg-paper-strong sm:h-24 sm:w-24 sm:rounded-[1.5rem]">
+            <CheckCheck className="h-8 w-8 text-ink sm:h-10 sm:w-10" />
           </div>
           <div>
-            <p className="blueprint-title text-3xl text-ink">Tasks Closed (Last 7 Days)</p>
+            <p className="blueprint-title text-2xl text-ink sm:text-3xl">
+              Tasks Closed (Last 7 Days)
+            </p>
             <p className="text-[clamp(3rem,7vw,4.5rem)] font-semibold leading-none text-ink">
               {data.closedLastSevenDays}
             </p>
@@ -203,22 +207,22 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
 
       <BlueprintCard className="space-y-5 p-6 lg:p-7">
         <div>
-          <h2 className="blueprint-title text-3xl text-ink">Jump To Board</h2>
+          <h2 className="blueprint-title text-2xl text-ink sm:text-3xl">Jump To Board</h2>
         </div>
         <div className="grid gap-4 xl:grid-cols-3">
           {data.boardBreakdown.map((board) => (
             <Link
-              className="rounded-[1.4rem] border-2 border-ink bg-white/85 p-5 transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(31,80,242,0.12)] dark:bg-paper-strong"
+              className="rounded-[1.4rem] border-2 border-ink bg-white/85 p-4 transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(31,80,242,0.12)] dark:bg-paper-strong sm:p-5"
               href={`/boards/${board.slug}`}
               key={board.slug}
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-18 w-18 items-center justify-center rounded-full border-2 border-ink bg-white/90 dark:bg-paper">
-                    <BoardIcon className="h-8 w-8 text-ink" iconKey={board.iconKey} />
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-white/90 dark:bg-paper sm:h-18 sm:w-18">
+                    <BoardIcon className="h-7 w-7 text-ink sm:h-8 sm:w-8" iconKey={board.iconKey} />
                   </div>
-                  <div>
-                    <p className="blueprint-title text-2xl text-ink">{board.name}</p>
+                  <div className="min-w-0">
+                    <p className="blueprint-title text-xl text-ink sm:text-2xl">{board.name}</p>
                     <p className="text-sm text-ink-muted">Open the {board.name} board</p>
                   </div>
                 </div>

@@ -72,11 +72,13 @@ body {
 }
 
 html {
+  overflow-x: clip;
   scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
+  overflow-x: hidden;
   color: var(--foreground);
   font-family: var(--font-sans);
   background-color: var(--background);

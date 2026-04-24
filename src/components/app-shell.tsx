@@ -83,7 +83,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   };
 
   const Sidebar = (
-    <aside className="blueprint-surface blueprint-surface-strong flex h-full w-full max-w-[18.75rem] flex-col rounded-none border-y-0 border-l-0 px-7 py-6 lg:max-w-none lg:rounded-r-[2rem]">
+    <aside className="blueprint-surface blueprint-surface-strong flex h-full w-full max-w-none flex-col rounded-none border-y-0 border-l-0 px-5 py-5 sm:px-7 sm:py-6 lg:rounded-r-[2rem]">
       <button
         aria-label="Collapse navigation"
         className="mb-8 hidden h-12 w-12 items-center justify-center rounded-full border-2 border-ink text-ink transition hover:bg-white/60 lg:flex"
@@ -104,10 +104,10 @@ export function AppShell({ boards, children, user }: AppShellProps) {
 
       <div className="space-y-5">
         <div>
-          <p className="blueprint-title text-[clamp(3rem,4vw,4.4rem)] leading-[0.86] text-ink">
+          <p className="blueprint-title text-[clamp(2.15rem,11vw,2.45rem)] leading-[0.86] text-ink">
             Workflow
           </p>
-          <p className="blueprint-title text-[clamp(3rem,4vw,4.4rem)] leading-[0.86] text-ink">
+          <p className="blueprint-title text-[clamp(2.15rem,11vw,2.45rem)] leading-[0.86] text-ink">
             Blueprint
           </p>
         </div>
@@ -120,7 +120,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
               <Link
                 key={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-[1.35rem] px-4 py-3 text-lg font-semibold transition",
+                  "flex items-center gap-3 rounded-[1.35rem] px-4 py-3 text-base font-semibold transition sm:text-lg",
                   isActive
                     ? "blueprint-fill text-white"
                     : "hover:bg-white/70 dark:hover:bg-white/6",
@@ -147,11 +147,11 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-ink bg-white text-2xl font-bold text-ink shadow-[0_10px_20px_rgba(31,80,242,0.1)] dark:bg-paper-strong">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-ink bg-white text-xl font-bold text-ink shadow-[0_10px_20px_rgba(31,80,242,0.1)] dark:bg-paper-strong sm:h-20 sm:w-20 sm:text-2xl">
             {user.avatarLabel ?? initialsFromName(user.name)}
           </div>
           <Link
-            className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-ink bg-white text-ink transition hover:-translate-y-0.5 dark:bg-paper-strong"
+            className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-ink bg-white text-ink transition hover:-translate-y-0.5 dark:bg-paper-strong sm:h-20 sm:w-20"
             href="/profile"
             onClick={() => setMobileOpen(false)}
           >
@@ -184,7 +184,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       <div className="min-h-screen lg:flex">
         <div
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-[19rem] -translate-x-full transition-transform duration-200 lg:sticky lg:top-0 lg:block lg:h-screen lg:w-[19rem]",
+            "fixed inset-y-0 left-0 z-50 w-[min(20rem,calc(100vw-1rem))] -translate-x-full transition-transform duration-200 lg:sticky lg:top-0 lg:block lg:h-screen lg:w-[19rem]",
             desktopOpen ? "lg:translate-x-0" : "lg:hidden",
             mobileOpen && "translate-x-0",
           )}

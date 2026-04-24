@@ -317,15 +317,15 @@ function BoardColumn({
   });
 
   return (
-    <div className="blueprint-surface min-w-[16rem] overflow-hidden rounded-[1.6rem] bg-white/86 dark:bg-paper-strong">
+    <div className="blueprint-surface min-w-[15.5rem] overflow-hidden rounded-[1.6rem] bg-white/86 dark:bg-paper-strong sm:min-w-[16rem]">
       <div className="h-2" style={{ backgroundColor: statusAccentColors[status] }} />
-      <div className="blueprint-title border-b-2 border-ink px-5 py-4 text-center text-3xl text-ink">
+      <div className="blueprint-title border-b-2 border-ink px-5 py-4 text-center text-2xl text-ink sm:text-3xl">
         {statusLabels[status]}
       </div>
       <div
         ref={setNodeRef}
         className={cn(
-          "blueprint-scrollbar min-h-[34rem] space-y-4 overflow-y-auto p-5 transition",
+          "blueprint-scrollbar min-h-[28rem] space-y-4 overflow-y-auto p-4 transition sm:min-h-[34rem] sm:p-5",
           isOver && "bg-ink-soft/15",
         )}
       >
@@ -391,7 +391,7 @@ function SortableSubtaskRow({
         )}
       />
       <input
-        className="flex-1 bg-transparent text-sm font-semibold text-ink outline-none"
+        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-ink outline-none"
         placeholder="Subtask title"
         {...register(`subtasks.${index}.title`)}
       />
@@ -472,10 +472,10 @@ function TaskDrawer({
     <div className="fixed inset-0 z-[60] flex justify-end bg-[#071733]/30 backdrop-blur-sm">
       <button aria-label="Close task editor" className="flex-1" onClick={onClose} type="button" />
 
-      <div className="blueprint-surface blueprint-surface-strong blueprint-scrollbar relative h-full w-full max-w-2xl overflow-y-auto border-y-0 border-r-0 rounded-none px-6 py-6 sm:px-8">
+      <div className="blueprint-surface blueprint-surface-strong blueprint-scrollbar relative h-full w-full max-w-2xl overflow-y-auto border-y-0 border-r-0 rounded-none px-4 py-5 sm:px-8 sm:py-6">
         <button
           aria-label="Close task editor"
-          className="absolute right-6 top-6 rounded-full border-2 border-ink p-2 text-ink"
+          className="absolute right-4 top-5 rounded-full border-2 border-ink p-2 text-ink sm:right-6 sm:top-6"
           onClick={onClose}
           type="button"
         >
@@ -484,7 +484,7 @@ function TaskDrawer({
 
         <div className="space-y-6 pt-10">
           <div className="space-y-2">
-            <p className="blueprint-title text-4xl text-ink">
+            <p className="blueprint-title text-3xl text-ink sm:text-4xl">
               {task ? "Task Details" : "New Task"}
             </p>
             <p className="text-lg text-ink-muted">Board: {boardName}</p>
@@ -632,11 +632,16 @@ function TaskDrawer({
                 <span />
               )}
 
-              <div className="flex gap-3">
-                <BlueprintButton onClick={onClose} type="button" variant="outline">
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                <BlueprintButton
+                  className="justify-center"
+                  onClick={onClose}
+                  type="button"
+                  variant="outline"
+                >
                   Cancel
                 </BlueprintButton>
-                <BlueprintButton disabled={isPending} type="submit">
+                <BlueprintButton className="justify-center" disabled={isPending} type="submit">
                   {isPending ? "Saving..." : "Save Task"}
                 </BlueprintButton>
               </div>
@@ -896,7 +901,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
             ))}
 
             <BlueprintCard className="min-w-[17rem] p-0">
-              <div className="blueprint-title border-b-2 border-ink px-5 py-4 text-center text-3xl text-ink">
+              <div className="blueprint-title border-b-2 border-ink px-5 py-4 text-center text-2xl text-ink sm:text-3xl">
                 Notes
               </div>
               <div className="space-y-3 p-5">
@@ -920,7 +925,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
                         className="h-4 w-4 rounded-full border-2 border-ink"
                         style={{ backgroundColor: statusAccentColors[status] }}
                       />
-                      <h2 className="blueprint-title text-3xl text-ink">
+                      <h2 className="blueprint-title text-2xl text-ink sm:text-3xl">
                         {statusLabels[status]}
                       </h2>
                     </div>
@@ -941,7 +946,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
                           <div className="flex items-start justify-between gap-3">
                             <div className="space-y-2">
                               <button
-                                className="text-left text-lg font-semibold text-ink"
+                                className="break-words text-left text-lg font-semibold text-ink"
                                 onClick={() => openTask(task)}
                                 type="button"
                               >
@@ -1013,7 +1018,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
 
             <BlueprintCard className="h-fit p-5">
               <div className="space-y-3">
-                <h2 className="blueprint-title text-3xl text-ink">Notes</h2>
+                <h2 className="blueprint-title text-2xl text-ink sm:text-3xl">Notes</h2>
                 <BlueprintTextarea
                   className="min-h-[24rem] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0"
                   onChange={(event) => setNoteDraft(event.target.value)}
