@@ -1,26 +1,200 @@
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+@import "@fontsource/patrick-hand-sc";
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fbfcff;
+  --foreground: #1d4ef5;
+  --paper: rgba(255, 255, 255, 0.94);
+  --paper-strong: #ffffff;
+  --ink: #1f50f2;
+  --ink-strong: #153ed6;
+  --ink-soft: rgba(31, 80, 242, 0.18);
+  --ink-muted: rgba(31, 80, 242, 0.68);
+  --grid: rgba(31, 80, 242, 0.08);
+  --grid-strong: rgba(31, 80, 242, 0.14);
+  --surface-shadow: 0 16px 36px rgba(21, 62, 214, 0.08);
+  --surface-shadow-strong: 0 22px 52px rgba(21, 62, 214, 0.14);
+  --radius-card: 1.75rem;
+  --radius-note: 1.2rem;
+}
+
+.dark {
+  --background: #09172f;
+  --foreground: #eff5ff;
+  --paper: rgba(13, 28, 59, 0.88);
+  --paper-strong: rgba(15, 32, 67, 0.98);
+  --ink: #8cb0ff;
+  --ink-strong: #b7cdff;
+  --ink-soft: rgba(140, 176, 255, 0.2);
+  --ink-muted: rgba(183, 205, 255, 0.82);
+  --grid: rgba(140, 176, 255, 0.12);
+  --grid-strong: rgba(140, 176, 255, 0.18);
+  --surface-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  --surface-shadow-strong: 0 24px 60px rgba(0, 0, 0, 0.42);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-paper-strong: var(--paper-strong);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Patrick Hand SC", "Marker Felt", "Chalkboard SE", cursive;
+  --font-mono: "SF Mono", ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
+  margin: 0;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(31, 80, 242, 0.04), transparent 26%),
+    radial-gradient(circle at 90% 16%, rgba(31, 80, 242, 0.05), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+  z-index: -1;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(31, 80, 242, 0.18);
+}
+
+.blueprint-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.blueprint-surface {
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  box-shadow: var(--surface-shadow);
+  backdrop-filter: blur(14px);
+}
+
+.blueprint-surface-strong {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.88)),
+    var(--paper);
+  box-shadow: var(--surface-shadow-strong);
+}
+
+.dark .blueprint-surface-strong {
+  background:
+    linear-gradient(180deg, rgba(16, 34, 69, 0.98), rgba(16, 34, 69, 0.88)),
+    var(--paper);
+}
+
+.blueprint-fill {
+  background-color: var(--ink);
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+    repeating-linear-gradient(
+      -55deg,
+      rgba(255, 255, 255, 0.12) 0,
+      rgba(255, 255, 255, 0.12) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+}
+
+.blueprint-outline {
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.blueprint-note {
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-note);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 5px 5px 0 rgba(31, 80, 242, 0.12);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dark .blueprint-note {
+  background: rgba(11, 24, 51, 0.95);
+}
+
+.blueprint-note:hover {
+  transform: translateY(-2px);
+  box-shadow: 7px 7px 0 rgba(31, 80, 242, 0.16);
+}
+
+.blueprint-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.blueprint-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.blueprint-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: rgba(31, 80, 242, 0.24);
+  background-clip: padding-box;
+}
+
+.fade-up {
+  animation: fade-up 360ms ease both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
