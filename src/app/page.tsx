@@ -10,14 +10,14 @@ function HeroBoardIllustration() {
 
   return (
     <div className="relative mx-auto mt-8 w-full max-w-[18.5rem] sm:mt-12 sm:max-w-xl">
-      <div className="blueprint-surface blueprint-grid-paper overflow-hidden rounded-[1.4rem] p-3 sm:rounded-[2rem] sm:p-5">
-        <div className="grid grid-cols-2 border-2 border-ink text-center sm:grid-cols-4">
+      <div className="blueprint-surface blueprint-grid-paper overflow-hidden p-3 sm:p-5">
+        <div className="grid grid-cols-2 border border-ink text-center sm:grid-cols-4">
           {columns.map((column) => (
             <div
-              className="border-b-2 border-r-2 border-ink even:border-r-0 last:border-b-0 sm:border-b-0 sm:even:border-r-2 sm:last:border-r-0"
+              className="border-b border-r border-ink even:border-r-0 last:border-b-0 sm:border-b-0 sm:even:border-r sm:last:border-r-0"
               key={column}
             >
-              <div className="blueprint-title whitespace-nowrap border-b-2 border-ink px-1.5 py-2 text-[0.68rem] leading-none text-ink sm:py-3 sm:text-[clamp(0.68rem,2.2vw,1.05rem)]">
+              <div className="blueprint-title whitespace-nowrap border-b border-ink px-1.5 py-2 text-[0.68rem] leading-none text-ink sm:py-3 sm:text-sm">
                 {column}
               </div>
               <div className="grid min-h-44 gap-3 p-3 sm:min-h-72 sm:gap-4 sm:p-4">
@@ -25,9 +25,6 @@ function HeroBoardIllustration() {
                   <div
                     className="blueprint-note flex h-16 w-full items-center justify-center px-3 text-center text-sm text-ink sm:h-24"
                     key={`${column}-${card}`}
-                    style={{
-                      rotate: `${(card % 2 === 0 ? -1 : 1) * 1.8}deg`,
-                    }}
                   >
                     <div className="space-y-1">
                       <div className="mx-auto h-0.5 w-9 rounded-full bg-ink/50" />
@@ -53,20 +50,20 @@ export default async function LoginPage() {
 
   return (
     <div className="min-h-screen px-3 py-3 sm:px-6 sm:py-6 lg:px-8">
-      <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto flex min-h-[calc(100svh-1.5rem)] max-w-[96rem] flex-col overflow-hidden rounded-[1.35rem] sm:min-h-[calc(100vh-3rem)] sm:rounded-[2rem]">
+      <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto flex min-h-[calc(100svh-1.5rem)] max-w-[96rem] flex-col overflow-hidden sm:min-h-[calc(100vh-3rem)]">
         <div className="grid min-w-0 flex-1 items-center gap-8 px-4 py-7 sm:px-6 sm:py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-14 lg:py-12">
           <section className="fade-up min-w-0 space-y-8">
             <div className="space-y-6">
               <div>
-                <h1 className="blueprint-title text-[clamp(2.1rem,8.8vw,8.8rem)] leading-[0.86] text-ink">
+                <h1 className="blueprint-title text-5xl leading-[0.86] text-ink sm:text-7xl lg:text-8xl">
                   Workflow
                 </h1>
-                <h1 className="blueprint-title text-[clamp(2.1rem,8.8vw,8.8rem)] leading-[0.86] text-ink">
+                <h1 className="blueprint-title text-5xl leading-[0.86] text-ink sm:text-7xl lg:text-8xl">
                   Blueprint
                 </h1>
               </div>
-              <div className="h-1.5 w-48 max-w-full rounded-full bg-ink sm:w-64" />
-              <p className="text-[clamp(1.5rem,3vw,2.4rem)] font-medium text-ink">
+              <div className="h-1 w-40 max-w-full rounded-full bg-ink sm:w-56" />
+              <p className="text-2xl font-medium text-ink sm:text-3xl">
                 Plan. Execute. Achieve.
               </p>
             </div>
@@ -92,11 +89,11 @@ export default async function LoginPage() {
                 },
               ].map((item) => (
                 <div className="flex items-center gap-3" key={item.title}>
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-ink">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-ink bg-white/70 dark:bg-paper-strong">
                     <item.icon className="h-7 w-7 text-ink" />
                   </div>
                   <div>
-                    <p className="text-xl font-semibold text-ink">{item.title}</p>
+                    <p className="text-lg font-semibold text-ink">{item.title}</p>
                     <p className="text-sm text-ink-muted">{item.copy}</p>
                   </div>
                 </div>
@@ -108,7 +105,7 @@ export default async function LoginPage() {
             <BlueprintCard className="mx-auto w-full max-w-2xl p-5 sm:p-10">
               <div className="space-y-8">
                 <div className="space-y-2 text-center">
-                  <h2 className="blueprint-title text-[clamp(2.25rem,11vw,4.3rem)] text-ink">
+                  <h2 className="blueprint-title text-4xl text-ink sm:text-5xl">
                     Welcome Back
                   </h2>
                   <p className="text-lg text-ink-muted">
@@ -122,7 +119,7 @@ export default async function LoginPage() {
           </section>
         </div>
 
-        <footer className="border-t-2 border-ink/15 px-6 py-4 text-center text-sm font-semibold text-ink-muted lg:px-14">
+        <footer className="border-t border-ink/15 px-6 py-4 text-center text-sm font-semibold text-ink-muted lg:px-14">
           Built by{" "}
           <a
             className="text-ink underline decoration-2 underline-offset-4"

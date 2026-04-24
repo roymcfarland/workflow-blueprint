@@ -20,7 +20,7 @@ export default async function ResetPasswordPage({
         <BlueprintCard className="w-full p-8 sm:p-10">
           <div className="space-y-8">
             <div className="space-y-3 text-center">
-              <p className="blueprint-title text-[clamp(2.8rem,4vw,4rem)] text-ink">
+              <p className="blueprint-title text-4xl text-ink sm:text-5xl">
                 Choose a New Password
               </p>
               <p className="text-lg text-ink-muted">

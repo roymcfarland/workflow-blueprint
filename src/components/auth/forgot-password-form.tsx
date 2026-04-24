@@ -45,11 +45,11 @@ export function ForgotPasswordForm() {
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <div className="space-y-2">
-        <label className="block text-lg font-semibold text-ink" htmlFor="email">
+        <label className="block text-base font-semibold text-ink" htmlFor="email">
           Email
         </label>
         <div className="relative">
-          <Mail className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-ink-muted" />
+          <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
           <BlueprintInput
             aria-invalid={errors.email ? "true" : "false"}
             className="pl-14"
@@ -64,7 +64,7 @@ export function ForgotPasswordForm() {
       </div>
 
       {message ? (
-        <div className="space-y-3 rounded-[1.3rem] border-2 border-ink-soft bg-white/75 px-4 py-3 text-sm text-ink">
+        <div className="space-y-3 rounded-lg border border-ink-soft bg-white/75 px-4 py-3 text-sm text-ink">
           <p>{message}</p>
           {previewLink ? (
             <Link

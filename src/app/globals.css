@@ -5,43 +5,43 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbfcff;
-  --foreground: #1d4ef5;
-  --paper: rgba(255, 255, 255, 0.94);
+  --background: #f7f9fd;
+  --foreground: #17213a;
+  --paper: rgba(255, 255, 255, 0.92);
   --paper-strong: #ffffff;
-  --ink: #1f50f2;
-  --ink-strong: #153ed6;
-  --ink-soft: rgba(31, 80, 242, 0.18);
-  --ink-muted: rgba(31, 80, 242, 0.68);
-  --accent: #f4b740;
-  --accent-soft: rgba(244, 183, 64, 0.18);
-  --success: #1a9f72;
-  --danger: #d9485f;
-  --grid: rgba(31, 80, 242, 0.08);
-  --grid-strong: rgba(31, 80, 242, 0.14);
-  --surface-shadow: 0 16px 36px rgba(21, 62, 214, 0.08);
-  --surface-shadow-strong: 0 22px 52px rgba(21, 62, 214, 0.14);
-  --radius-card: 1.75rem;
-  --radius-note: 1.2rem;
+  --ink: #1f4fcf;
+  --ink-strong: #12348c;
+  --ink-soft: rgba(31, 79, 207, 0.16);
+  --ink-muted: rgba(23, 33, 58, 0.62);
+  --accent: #d89020;
+  --accent-soft: rgba(216, 144, 32, 0.15);
+  --success: #18795e;
+  --danger: #bf3650;
+  --grid: rgba(31, 79, 207, 0.075);
+  --grid-strong: rgba(31, 79, 207, 0.13);
+  --surface-shadow: 0 14px 30px rgba(18, 52, 140, 0.08);
+  --surface-shadow-strong: 0 20px 44px rgba(18, 52, 140, 0.12);
+  --radius-card: 0.9rem;
+  --radius-note: 0.75rem;
 }
 
 .dark {
-  --background: #09172f;
+  --background: #0d1424;
   --foreground: #eff5ff;
-  --paper: rgba(13, 28, 59, 0.88);
-  --paper-strong: rgba(15, 32, 67, 0.98);
-  --ink: #8cb0ff;
-  --ink-strong: #b7cdff;
-  --ink-soft: rgba(140, 176, 255, 0.2);
-  --ink-muted: rgba(183, 205, 255, 0.82);
-  --accent: #f8cd67;
-  --accent-soft: rgba(248, 205, 103, 0.18);
-  --success: #5bd0a6;
+  --paper: rgba(18, 28, 48, 0.9);
+  --paper-strong: rgba(22, 34, 58, 0.98);
+  --ink: #9ab7ff;
+  --ink-strong: #c5d6ff;
+  --ink-soft: rgba(154, 183, 255, 0.18);
+  --ink-muted: rgba(229, 237, 255, 0.7);
+  --accent: #edba58;
+  --accent-soft: rgba(237, 186, 88, 0.16);
+  --success: #64d7ad;
   --danger: #ff7f94;
-  --grid: rgba(140, 176, 255, 0.12);
-  --grid-strong: rgba(140, 176, 255, 0.18);
-  --surface-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-  --surface-shadow-strong: 0 24px 60px rgba(0, 0, 0, 0.42);
+  --grid: rgba(154, 183, 255, 0.095);
+  --grid-strong: rgba(154, 183, 255, 0.15);
+  --surface-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+  --surface-shadow-strong: 0 22px 54px rgba(0, 0, 0, 0.36);
 }
 
 @theme inline {
@@ -93,8 +93,9 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(135deg, var(--accent-soft), transparent 38%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0));
+  background:
+    linear-gradient(135deg, var(--accent-soft), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0));
   z-index: -1;
 }
 
@@ -116,12 +117,12 @@ select {
 .blueprint-title {
   font-family: var(--font-display);
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .blueprint-surface {
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--radius-card);
   background: var(--paper);
   box-shadow: var(--surface-shadow);
@@ -175,16 +176,16 @@ select {
 }
 
 .blueprint-outline {
-  border: 2px solid var(--ink);
-  border-radius: 999px;
+  border: 1px solid var(--ink);
+  border-radius: 0.75rem;
   background: rgba(255, 255, 255, 0.4);
 }
 
 .blueprint-note {
-  border: 2px solid var(--ink);
+  border: 1px solid var(--ink);
   border-radius: var(--radius-note);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 5px 5px 0 rgba(31, 80, 242, 0.12);
+  box-shadow: 0 12px 24px rgba(31, 79, 207, 0.08);
   transition:
     transform 160ms ease,
     box-shadow 160ms ease;
@@ -196,7 +197,7 @@ select {
 
 .blueprint-note:hover {
   transform: translateY(-2px);
-  box-shadow: 7px 7px 0 rgba(31, 80, 242, 0.16);
+  box-shadow: 0 16px 30px rgba(31, 79, 207, 0.13);
 }
 
 .blueprint-scrollbar::-webkit-scrollbar {
@@ -228,5 +229,15 @@ select {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
   }
 }

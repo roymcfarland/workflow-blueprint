@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, Settings, X } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useTheme } from "next-themes";
 
@@ -83,36 +83,36 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   };
 
   const Sidebar = (
-    <aside className="blueprint-surface blueprint-surface-strong flex h-full w-full max-w-none flex-col rounded-none border-y-0 border-l-0 px-5 py-5 sm:px-7 sm:py-6 lg:rounded-r-[2rem]">
+    <aside className="blueprint-surface blueprint-surface-strong flex h-full w-full max-w-none flex-col rounded-none border-y-0 border-l-0 px-5 py-5 sm:px-6 lg:rounded-r-xl">
       <button
         aria-label="Collapse navigation"
-        className="mb-8 hidden h-12 w-12 items-center justify-center rounded-full border-2 border-ink text-ink transition hover:bg-white/60 lg:flex"
+        className="mb-7 hidden h-10 w-10 items-center justify-center rounded-lg border border-ink text-ink transition hover:bg-white/60 lg:flex"
         onClick={() => setDesktopOpen(false)}
         type="button"
       >
-        <Menu className="h-6 w-6" />
+        <PanelLeftClose className="h-5 w-5" />
       </button>
 
       <button
         aria-label="Close navigation"
-        className="mb-8 flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink text-ink transition hover:bg-white/60 lg:hidden"
+        className="mb-7 flex h-10 w-10 items-center justify-center rounded-lg border border-ink text-ink transition hover:bg-white/60 lg:hidden"
         onClick={() => setMobileOpen(false)}
         type="button"
       >
-        <X className="h-6 w-6" />
+        <X className="h-5 w-5" />
       </button>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div>
-          <p className="blueprint-title text-[clamp(2.15rem,11vw,2.45rem)] leading-[0.86] text-ink">
+          <p className="blueprint-title text-3xl leading-[0.88] text-ink">
             Workflow
           </p>
-          <p className="blueprint-title text-[clamp(2.15rem,11vw,2.45rem)] leading-[0.86] text-ink">
+          <p className="blueprint-title text-3xl leading-[0.88] text-ink">
             Blueprint
           </p>
         </div>
 
-        <nav className="space-y-2 pt-4">
+        <nav className="space-y-1.5 pt-4">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
 
@@ -120,7 +120,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
               <Link
                 key={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-[1.35rem] px-4 py-3 text-base font-semibold transition sm:text-lg",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition sm:text-base",
                   isActive
                     ? "blueprint-fill text-white"
                     : "hover:bg-white/70 dark:hover:bg-white/6",
@@ -128,17 +128,17 @@ export function AppShell({ boards, children, user }: AppShellProps) {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
               >
-                <BoardIcon className="h-6 w-6 shrink-0" iconKey={item.iconKey} />
-                <span>{item.label}</span>
+                <BoardIcon className="h-5 w-5 shrink-0" iconKey={item.iconKey} />
+                <span className="truncate">{item.label}</span>
               </Link>
             );
           })}
         </nav>
       </div>
 
-      <div className="mt-auto space-y-6 border-t-2 border-ink/20 pt-8">
+      <div className="mt-auto space-y-5 border-t border-ink/20 pt-6">
         <div className="space-y-3">
-          <p className="blueprint-title text-lg text-ink">View Settings</p>
+          <p className="blueprint-title text-base text-ink">View Settings</p>
           <BlueprintPillToggle
             onChange={handleThemeChange}
             options={themeOptions}
@@ -147,19 +147,20 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-ink bg-white text-xl font-bold text-ink shadow-[0_10px_20px_rgba(31,80,242,0.1)] dark:bg-paper-strong sm:h-20 sm:w-20 sm:text-2xl">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-ink bg-white text-lg font-bold text-ink shadow-[0_10px_20px_rgba(31,79,207,0.1)] dark:bg-paper-strong">
             {user.avatarLabel ?? initialsFromName(user.name)}
           </div>
           <Link
-            className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-ink bg-white text-ink transition hover:-translate-y-0.5 dark:bg-paper-strong sm:h-20 sm:w-20"
+            aria-label="Open profile settings"
+            className="flex h-14 w-14 items-center justify-center rounded-lg border border-ink bg-white text-ink transition hover:-translate-y-0.5 dark:bg-paper-strong"
             href="/profile"
             onClick={() => setMobileOpen(false)}
           >
-            <Settings className="h-8 w-8" />
+            <Settings className="h-6 w-6" />
           </Link>
         </div>
 
-        <div className="rounded-[1.3rem] border-2 border-ink-soft bg-white/75 px-4 py-3 text-sm text-ink-muted dark:bg-paper-strong">
+        <div className="rounded-lg border border-ink-soft bg-white/75 px-3 py-2.5 text-sm text-ink-muted dark:bg-paper-strong">
           <p className="break-words font-semibold text-ink">{user.name}</p>
           <p className="break-all">{user.email}</p>
         </div>
@@ -184,7 +185,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       <div className="min-h-screen lg:flex">
         <div
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-[min(20rem,calc(100vw-1rem))] -translate-x-full transition-transform duration-200 lg:sticky lg:top-0 lg:block lg:h-screen lg:w-[19rem]",
+            "fixed inset-y-0 left-0 z-50 w-[min(19rem,calc(100vw-1rem))] -translate-x-full transition-transform duration-200 lg:sticky lg:top-0 lg:block lg:h-screen lg:w-[17.5rem]",
             desktopOpen ? "lg:translate-x-0" : "lg:hidden",
             mobileOpen && "translate-x-0",
           )}
@@ -195,7 +196,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         {mobileOpen ? (
           <button
             aria-label="Close navigation overlay"
-            className="fixed inset-0 z-40 bg-[#0b1f43]/20 lg:hidden"
+            className="fixed inset-0 z-40 bg-[#0b1428]/35 lg:hidden"
             onClick={() => setMobileOpen(false)}
             type="button"
           />
@@ -205,26 +206,26 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           {!desktopOpen ? (
             <button
               aria-label="Open navigation"
-              className="fixed left-8 top-8 z-30 hidden h-12 w-12 items-center justify-center rounded-full border-2 border-ink bg-white/92 text-ink shadow-[0_10px_20px_rgba(31,80,242,0.12)] transition hover:-translate-y-0.5 lg:flex"
+              className="fixed left-6 top-6 z-30 hidden h-10 w-10 items-center justify-center rounded-lg border border-ink bg-white/90 text-ink shadow-[0_10px_20px_rgba(31,79,207,0.12)] transition hover:-translate-y-0.5 lg:flex"
               onClick={() => setDesktopOpen(true)}
               type="button"
             >
-              <Menu className="h-6 w-6" />
+              <PanelLeftOpen className="h-5 w-5" />
             </button>
           ) : null}
 
           {!mobileOpen ? (
             <button
               aria-label="Open mobile navigation"
-              className="fixed left-5 top-5 z-30 flex h-12 w-12 items-center justify-center rounded-full border-2 border-ink bg-white/92 text-ink shadow-[0_10px_20px_rgba(31,80,242,0.12)] transition hover:-translate-y-0.5 lg:hidden"
+              className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-lg border border-ink bg-white/90 text-ink shadow-[0_10px_20px_rgba(31,79,207,0.12)] transition hover:-translate-y-0.5 lg:hidden"
               onClick={() => setMobileOpen(true)}
               type="button"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5" />
             </button>
           ) : null}
 
-          <main className="min-h-screen px-4 pb-10 pt-20 sm:px-6 lg:px-8 lg:pt-8">{children}</main>
+          <main className="min-h-screen px-4 pb-10 pt-16 sm:px-6 lg:px-8 lg:pt-8">{children}</main>
         </div>
       </div>
     </>

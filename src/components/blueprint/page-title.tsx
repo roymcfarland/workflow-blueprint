@@ -9,10 +9,10 @@ export function PageTitle({
 }) {
   return (
     <div className={cn("space-y-3", className)}>
-      <h1 className="blueprint-title text-[clamp(2.7rem,4vw,4.5rem)] leading-none text-ink">
+      <h1 className="blueprint-title text-4xl leading-none text-ink sm:text-5xl lg:text-6xl">
         {title}
       </h1>
-      <div className="h-1.5 w-48 rounded-full bg-ink" />
+      <div className="h-1 w-36 rounded-full bg-ink sm:w-48" />
     </div>
   );
 }

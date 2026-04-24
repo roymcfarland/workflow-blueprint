@@ -10,7 +10,7 @@ export default function ForgotPasswordPage() {
         <BlueprintCard className="w-full p-8 sm:p-10">
           <div className="space-y-8">
             <div className="space-y-3 text-center">
-              <p className="blueprint-title text-[clamp(2.8rem,4vw,4rem)] text-ink">Reset Access</p>
+              <p className="blueprint-title text-4xl text-ink sm:text-5xl">Reset Access</p>
               <p className="text-lg text-ink-muted">
                 Enter your email and we&apos;ll prepare a reset link for the demo account flow.
               </p>
@@ -19,7 +19,10 @@ export default function ForgotPasswordPage() {
             <ForgotPasswordForm />
 
             <div className="text-center text-sm text-ink-muted">
-              <Link className="font-semibold text-ink underline decoration-2 underline-offset-4" href="/">
+              <Link
+                className="font-semibold text-ink underline decoration-2 underline-offset-4"
+                href="/"
+              >
                 Return to the landing page
               </Link>
             </div>

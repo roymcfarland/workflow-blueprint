@@ -10,7 +10,7 @@ export const BlueprintTextarea = React.forwardRef<
     <textarea
       ref={ref}
       className={cn(
-        "min-h-32 w-full rounded-[1.15rem] border-2 border-ink bg-white/92 px-4 py-3 text-base text-ink placeholder:text-ink-muted shadow-[0_10px_20px_rgba(31,80,242,0.06)] outline-none transition focus-visible:ring-4 focus-visible:ring-ink-soft dark:bg-paper-strong",
+        "min-h-32 w-full rounded-lg border border-ink bg-white/90 px-4 py-3 text-base text-ink placeholder:text-ink-muted shadow-[0_8px_18px_rgba(31,79,207,0.06)] outline-none transition focus-visible:ring-4 focus-visible:ring-ink-soft dark:bg-paper-strong",
         className,
       )}
       {...props}

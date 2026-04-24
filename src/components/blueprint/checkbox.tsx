@@ -17,14 +17,14 @@ export function BlueprintCheckbox({
 }: BlueprintCheckboxProps) {
   return (
     <label className={cn("flex cursor-pointer items-start gap-3 text-sm text-ink", className)}>
-      <span className="relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-white/90">
+      <span className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-ink bg-white/90">
         <input
           checked={checked}
           className="peer absolute inset-0 cursor-pointer opacity-0"
           type="checkbox"
           {...props}
         />
-        <Check className="h-4 w-4 scale-0 text-ink transition peer-checked:scale-100" />
+        <Check className="h-3.5 w-3.5 scale-0 text-ink transition peer-checked:scale-100" />
       </span>
       {(label || description) && (
         <span className="space-y-1">

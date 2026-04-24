@@ -134,7 +134,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
         </div>
       </div>
 
-      <div className="rounded-[1.3rem] border-2 border-ink-soft bg-white/70 p-4 text-sm text-ink-muted dark:bg-paper-strong">
+      <div className="rounded-lg border border-ink-soft bg-white/70 p-4 text-sm text-ink-muted dark:bg-paper-strong">
         <p className="font-semibold text-ink">Demo environment note</p>
         <p>
           This build uses a local SQLite database with a seeded demo account, so profile changes and
@@ -143,7 +143,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
       </div>
 
       {message ? (
-        <p className="rounded-[1.2rem] border-2 border-ink-soft bg-white/75 px-4 py-3 text-sm font-semibold text-ink dark:bg-paper-strong">
+        <p className="rounded-lg border border-ink-soft bg-white/75 px-4 py-3 text-sm font-semibold text-ink dark:bg-paper-strong">
           {message}
         </p>
       ) : null}

@@ -55,11 +55,11 @@ export function LoginForm() {
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <div className="space-y-2">
-        <label className="block text-lg font-semibold text-ink" htmlFor="email">
+        <label className="block text-base font-semibold text-ink" htmlFor="email">
           Email
         </label>
         <div className="relative">
-          <Mail className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-ink-muted" />
+          <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
           <BlueprintInput
             aria-invalid={errors.email ? "true" : "false"}
             className="pl-14"
@@ -74,11 +74,11 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-lg font-semibold text-ink" htmlFor="password">
+        <label className="block text-base font-semibold text-ink" htmlFor="password">
           Password
         </label>
         <div className="relative">
-          <Lock className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-ink-muted" />
+          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
           <BlueprintInput
             aria-invalid={errors.password ? "true" : "false"}
             className="pl-14 pr-14"
@@ -95,7 +95,7 @@ export function LoginForm() {
             onClick={() => setShowPassword((value) => !value)}
             type="button"
           >
-            {showPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
+            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
           </button>
         </div>
         {errors.password ? (
@@ -106,24 +106,24 @@ export function LoginForm() {
       <BlueprintCheckbox label="Remember me" {...register("rememberMe")} />
 
       {message ? (
-        <p className="rounded-2xl border-2 border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p className="rounded-lg border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {message}
         </p>
       ) : null}
 
-      <BlueprintButton className="w-full text-2xl" disabled={isPending} type="submit">
+      <BlueprintButton className="w-full text-base" disabled={isPending} type="submit">
         {isPending ? "Signing In..." : "Sign In"}
       </BlueprintButton>
 
       <div className="flex items-center gap-4 text-ink-muted">
         <div className="h-px flex-1 bg-ink-soft" />
-        <span className="text-lg">or</span>
+        <span className="text-sm font-semibold uppercase tracking-[0.14em]">or</span>
         <div className="h-px flex-1 bg-ink-soft" />
       </div>
 
       <div className="space-y-4 text-center">
         <Link
-          className="text-lg font-semibold underline decoration-2 underline-offset-4"
+          className="text-base font-semibold underline decoration-2 underline-offset-4"
           href="/forgot-password"
         >
           Forgot your password?

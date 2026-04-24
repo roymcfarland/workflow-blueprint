@@ -15,9 +15,9 @@ export const BlueprintButton = React.forwardRef<HTMLButtonElement, BlueprintButt
     return (
       <Comp
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-[1.1rem] border-2 border-ink px-5 py-3 text-sm font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ink-soft disabled:cursor-not-allowed disabled:opacity-55",
+          "inline-flex items-center justify-center gap-2 rounded-lg border border-ink px-4 py-2.5 text-sm font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ink-soft disabled:cursor-not-allowed disabled:opacity-55",
           variant === "primary" &&
-            "blueprint-fill text-white shadow-[0_10px_24px_rgba(31,80,242,0.18)] hover:-translate-y-0.5",
+            "blueprint-fill text-white shadow-[0_10px_22px_rgba(31,79,207,0.18)] hover:-translate-y-0.5",
           variant === "outline" &&
             "bg-white/70 text-ink hover:bg-white hover:-translate-y-0.5 dark:bg-paper dark:hover:bg-paper-strong",
           variant === "ghost" &&
