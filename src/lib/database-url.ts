@@ -1,6 +1,11 @@
 const postgresUrlPattern = /^postgres(?:ql)?:\/\//i;
+const prismaGeneratePlaceholderUrl = "postgresql://postgres:postgres@localhost:5432/postgres";
 
-export function resolveDatabaseUrl() {
+type DatabaseUrlOptions = {
+  allowGeneratePlaceholder?: boolean;
+};
+
+export function resolveDatabaseUrl({ allowGeneratePlaceholder = false }: DatabaseUrlOptions = {}) {
   const databaseUrl = process.env.DATABASE_URL?.trim();
 
   if (databaseUrl) {
@@ -9,6 +14,10 @@ export function resolveDatabaseUrl() {
     }
 
     return databaseUrl;
+  }
+
+  if (allowGeneratePlaceholder) {
+    return prismaGeneratePlaceholderUrl;
   }
 
   throw new Error("DATABASE_URL must be configured with a PostgreSQL connection string.");
