@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { UserRole } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, X } from "lucide-react";
 import { useState, useTransition } from "react";
 
 import { BoardIcon } from "@/components/board-icon";
@@ -44,11 +44,9 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
   const [isPending, startTransition] = useTransition();
+  const isAdmin = user.role === "ADMIN";
   const navItems = [
     { href: "/dashboard", label: "Dashboard", iconKey: "dashboard" },
-    ...(user.role === "ADMIN"
-      ? [{ href: "/admin/invitations", label: "Admin Invites", iconKey: "invitations" }]
-      : []),
     ...boards.map((board) => ({
       href: `/boards/${board.slug}`,
       label: board.name,
@@ -117,7 +115,29 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           </p>
         </div>
 
-        <nav className="space-y-1.5 pt-4">
+        {isAdmin ? (
+          <nav aria-label="Admin panel" className="space-y-2 pt-5">
+            <div className="flex items-center gap-2 text-ink">
+              <ShieldCheck className="h-4 w-4" />
+              <p className="blueprint-title text-xs leading-none">Admin Panel</p>
+            </div>
+            <Link
+              className={cn(
+                "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition sm:text-base",
+                pathname.startsWith("/admin")
+                  ? "blueprint-fill border-ink text-white"
+                  : "border-accent/50 bg-accent-soft text-ink hover:bg-accent-soft/80",
+              )}
+              href="/admin/invitations"
+              onClick={() => setMobileOpen(false)}
+            >
+              <BoardIcon className="h-5 w-5 shrink-0" iconKey="invitations" />
+              <span className="truncate">Invitations</span>
+            </Link>
+          </nav>
+        ) : null}
+
+        <nav aria-label="Workspace" className="space-y-1.5 pt-4">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
 
@@ -166,7 +186,14 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         </div>
 
         <div className="rounded-lg border border-ink-soft bg-white/75 px-3 py-2.5 text-sm text-ink-muted dark:bg-paper-strong">
-          <p className="break-words font-semibold text-ink">{user.name}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="break-words font-semibold text-ink">{user.name}</p>
+            {isAdmin ? (
+              <span className="rounded-md border border-accent/40 bg-accent-soft px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-ink">
+                Admin
+              </span>
+            ) : null}
+          </div>
           <p className="break-all">{user.email}</p>
         </div>
 
