@@ -33,11 +33,13 @@ Create `.env` for local work:
 ```bash
 DATABASE_URL="file:./dev.db"
 AUTH_SECRET="replace-with-a-long-random-secret"
+NEXT_PUBLIC_SITE_URL="https://www.workflowblueprint.io"
 READ_ONLY_API_KEY="replace-with-a-long-random-read-only-api-key"
 READ_ONLY_USER_ID="user_demo_alex_blue"
 ```
 
 `DATABASE_URL` falls back to the bundled demo SQLite database for local/demo use. Production should provide a durable database URL and a strong `AUTH_SECRET`.
+`NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
 `READ_ONLY_API_KEY` enables the private read-only API. `READ_ONLY_USER_ID` selects which account is exposed through that API and defaults to the seeded demo user when omitted.
 
 ## Private Read-Only API

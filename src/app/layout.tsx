@@ -1,18 +1,25 @@
 import type { Metadata, Viewport } from "next";
 
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { siteConfig } from "@/lib/site-config";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "Workflow Blueprint",
+  applicationName: siteConfig.name,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Blueprint",
+    title: siteConfig.shortName,
   },
-  title: "Workflow Blueprint",
-  description: "A blueprint-inspired task planning workspace for personal and team execution.",
+  alternates: {
+    canonical: "/",
+  },
+  title: {
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.shortName}`,
+  },
+  description: siteConfig.description,
   icons: {
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
     icon: [
@@ -22,6 +29,20 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
   },
   manifest: "/manifest.webmanifest",
+  metadataBase: new URL(siteConfig.url),
+  openGraph: {
+    title: siteConfig.name,
+    description: siteConfig.description,
+    locale: "en_US",
+    siteName: siteConfig.name,
+    type: "website",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.name,
+    description: siteConfig.description,
+  },
 };
 
 export const viewport: Viewport = {

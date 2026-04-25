@@ -1,10 +1,12 @@
 import type { MetadataRoute } from "next";
 
+import { siteConfig } from "@/lib/site-config";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Workflow Blueprint",
-    short_name: "Blueprint",
-    description: "A blueprint-inspired task planning workspace for personal and team execution.",
+    name: siteConfig.name,
+    short_name: siteConfig.shortName,
+    description: siteConfig.description,
     start_url: "/",
     scope: "/",
     display: "standalone",
