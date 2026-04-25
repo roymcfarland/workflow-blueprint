@@ -80,6 +80,23 @@ export async function requireApiUser() {
   };
 }
 
+export async function requireApiAdmin() {
+  const user = await requireApiUser();
+
+  if (!user.ok) {
+    return user;
+  }
+
+  if (user.data.role !== "ADMIN") {
+    return {
+      ok: false as const,
+      response: apiError("Admin access is required.", 403),
+    };
+  }
+
+  return user;
+}
+
 export function rateLimitKey(request: Request, scope: string, identifier?: string) {
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const ipAddress = forwardedFor || request.headers.get("x-real-ip") || "local";

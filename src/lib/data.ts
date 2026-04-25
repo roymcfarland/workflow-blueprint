@@ -4,7 +4,7 @@ import {
   ThemePreference as PrismaThemePreference,
 } from "@prisma/client";
 import { addDays, subDays } from "date-fns";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import {
@@ -25,6 +25,29 @@ const taskInclude = {
 } satisfies Prisma.TaskInclude;
 
 type DbTask = Prisma.TaskGetPayload<{ include: typeof taskInclude }>;
+
+const invitationListSelect = {
+  id: true,
+  email: true,
+  expiresAt: true,
+  acceptedAt: true,
+  revokedAt: true,
+  createdAt: true,
+  invitedBy: {
+    select: {
+      email: true,
+      name: true,
+    },
+  },
+  acceptedBy: {
+    select: {
+      email: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.InvitationSelect;
+
+type DbInvitationListItem = Prisma.InvitationGetPayload<{ select: typeof invitationListSelect }>;
 
 export type BoardNavItem = {
   slug: string;
@@ -85,6 +108,33 @@ export type DashboardSnapshot = {
   totalTaskCount: number;
 };
 
+export type InvitationStatus = "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
+
+export type SerializedInvitation = {
+  id: string;
+  email: string;
+  status: InvitationStatus;
+  expiresAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  invitedBy: {
+    email: string;
+    name: string;
+  };
+  acceptedBy: {
+    email: string;
+    name: string;
+  } | null;
+};
+
+class InvitationAcceptanceConflictError extends Error {
+  constructor() {
+    super("Invitation could not be accepted.");
+    this.name = "InvitationAcceptanceConflictError";
+  }
+}
+
 function serializeTask(task: DbTask): SerializedTask {
   return {
     id: task.id,
@@ -114,6 +164,48 @@ function themePreferenceToDb(preference: ThemePreference): PrismaThemePreference
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function generateRawToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function invitationStatus(invitation: {
+  acceptedAt: Date | null;
+  expiresAt: Date;
+  revokedAt: Date | null;
+}): InvitationStatus {
+  if (invitation.revokedAt) {
+    return "REVOKED";
+  }
+
+  if (invitation.acceptedAt) {
+    return "ACCEPTED";
+  }
+
+  if (invitation.expiresAt <= new Date()) {
+    return "EXPIRED";
+  }
+
+  return "PENDING";
+}
+
+function serializeInvitation(invitation: DbInvitationListItem): SerializedInvitation {
+  return {
+    id: invitation.id,
+    email: invitation.email,
+    status: invitationStatus(invitation),
+    expiresAt: invitation.expiresAt.toISOString(),
+    acceptedAt: invitation.acceptedAt?.toISOString() ?? null,
+    revokedAt: invitation.revokedAt?.toISOString() ?? null,
+    createdAt: invitation.createdAt.toISOString(),
+    invitedBy: invitation.invitedBy,
+    acceptedBy: invitation.acceptedBy,
+  };
 }
 
 async function findBoardForUser(userId: string, slug: string) {
@@ -200,6 +292,7 @@ export async function getShellSnapshot(userId: string) {
         email: true,
         avatarLabel: true,
         themePreference: true,
+        role: true,
       },
     }),
     prisma.board.findMany({
@@ -550,6 +643,7 @@ export async function updateUserProfile(userId: string, input: ProfileInput, pas
       email: true,
       avatarLabel: true,
       themePreference: true,
+      role: true,
     },
   });
 
@@ -571,58 +665,249 @@ function avatarLabelFor(name: string, email: string) {
   return initials || email[0]?.toUpperCase() || null;
 }
 
-export async function createUserAccount({
+async function createUserWithStarterBoards(
+  tx: Prisma.TransactionClient,
+  {
+    email,
+    name,
+    passwordHash,
+  }: {
+    email: string;
+    name: string;
+    passwordHash: string;
+  },
+) {
+  const normalizedEmail = normalizeEmail(email);
+  const user = await tx.user.create({
+    data: {
+      id: randomUUID(),
+      avatarLabel: avatarLabelFor(name, normalizedEmail),
+      email: normalizedEmail,
+      name,
+      passwordHash,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      avatarLabel: true,
+      themePreference: true,
+      role: true,
+    },
+  });
+
+  await tx.board.createMany({
+    data: boardDefinitions.map((board, index) => ({
+      id: randomUUID(),
+      userId: user.id,
+      name: board.name,
+      slug: board.slug,
+      description: board.description,
+      iconKey: board.iconKey,
+      sortOrder: index,
+    })),
+  });
+
+  return {
+    ...user,
+    themePreference: themePreferenceToUi(user.themePreference),
+  };
+}
+
+export async function createUserAccountWithInvitation({
   email,
+  inviteToken,
   name,
   passwordHash,
 }: {
   email: string;
+  inviteToken: string;
   name: string;
   passwordHash: string;
 }) {
-  return prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: {
-        id: randomUUID(),
-        avatarLabel: avatarLabelFor(name, email),
-        email,
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const normalizedEmail = normalizeEmail(email);
+      const invitation = await tx.invitation.findUnique({
+        where: {
+          tokenHash: hashToken(inviteToken),
+        },
+        select: {
+          id: true,
+          email: true,
+          acceptedAt: true,
+          expiresAt: true,
+          revokedAt: true,
+        },
+      });
+
+      if (
+        !invitation ||
+        invitation.email !== normalizedEmail ||
+        invitation.acceptedAt ||
+        invitation.revokedAt ||
+        invitation.expiresAt <= now
+      ) {
+        return {
+          status: "invalid-invitation" as const,
+        };
+      }
+
+      const existingUser = await tx.user.findUnique({
+        where: {
+          email: normalizedEmail,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingUser) {
+        return {
+          status: "email-in-use" as const,
+        };
+      }
+
+      const user = await createUserWithStarterBoards(tx, {
+        email: normalizedEmail,
         name,
         passwordHash,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        avatarLabel: true,
-        themePreference: true,
-      },
-    });
+      });
+      const claimedInvite = await tx.invitation.updateMany({
+        where: {
+          id: invitation.id,
+          acceptedAt: null,
+          revokedAt: null,
+          expiresAt: {
+            gt: now,
+          },
+        },
+        data: {
+          acceptedAt: now,
+          acceptedByUserId: user.id,
+        },
+      });
 
-    await tx.board.createMany({
-      data: boardDefinitions.map((board, index) => ({
-        id: randomUUID(),
-        userId: user.id,
-        name: board.name,
-        slug: board.slug,
-        description: board.description,
-        iconKey: board.iconKey,
-        sortOrder: index,
-      })),
-    });
+      if (claimedInvite.count === 0) {
+        throw new InvitationAcceptanceConflictError();
+      }
 
-    return {
-      ...user,
-      themePreference: themePreferenceToUi(user.themePreference),
-    };
-  });
+      return {
+        status: "created" as const,
+        user,
+      };
+    });
+  } catch (error) {
+    if (error instanceof InvitationAcceptanceConflictError) {
+      return {
+        status: "invalid-invitation" as const,
+      };
+    }
+
+    throw error;
+  }
 }
 
 export async function findUserByEmail(email: string) {
   return prisma.user.findUnique({
     where: {
-      email,
+      email: normalizeEmail(email),
     },
   });
+}
+
+export async function createInvitation({
+  email,
+  invitedById,
+}: {
+  email: string;
+  invitedById: string;
+}) {
+  const rawToken = generateRawToken();
+  const normalizedEmail = normalizeEmail(email);
+  const invitation = await prisma.$transaction(async (tx) => {
+    const now = new Date();
+
+    await tx.invitation.updateMany({
+      where: {
+        email: normalizedEmail,
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      data: {
+        revokedAt: now,
+      },
+    });
+
+    return tx.invitation.create({
+      data: {
+        id: randomUUID(),
+        email: normalizedEmail,
+        tokenHash: hashToken(rawToken),
+        invitedById,
+        expiresAt: addDays(now, 7),
+      },
+      select: invitationListSelect,
+    });
+  });
+
+  return {
+    invitation: serializeInvitation(invitation),
+    token: rawToken,
+  };
+}
+
+export async function listInvitations(): Promise<SerializedInvitation[]> {
+  const invitations = await prisma.invitation.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: invitationListSelect,
+  });
+
+  return invitations.map(serializeInvitation);
+}
+
+export async function revokeInvitation(invitationId: string) {
+  const invitation = await prisma.invitation.updateMany({
+    where: {
+      id: invitationId,
+      acceptedAt: null,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  });
+
+  return invitation.count > 0;
+}
+
+export async function getInvitationPreviewByToken(token: string) {
+  const invitation = await prisma.invitation.findUnique({
+    where: {
+      tokenHash: hashToken(token),
+    },
+    select: {
+      email: true,
+      acceptedAt: true,
+      expiresAt: true,
+      revokedAt: true,
+    },
+  });
+
+  if (!invitation || invitationStatus(invitation) !== "PENDING") {
+    return null;
+  }
+
+  return {
+    email: invitation.email,
+    expiresAt: invitation.expiresAt.toISOString(),
+  };
 }
 
 export async function createPasswordResetToken(userId: string) {

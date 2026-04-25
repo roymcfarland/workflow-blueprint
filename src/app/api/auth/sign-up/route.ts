@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { checkRateLimit, parseJsonPayload, rateLimitKey } from "@/lib/api";
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
-import { createUserAccount, findUserByEmail } from "@/lib/data";
+import { createUserAccountWithInvitation } from "@/lib/data";
 import { sendWelcomeEmail } from "@/lib/email";
 import { signUpSchema } from "@/lib/validators";
 
@@ -30,22 +30,29 @@ export async function POST(request: Request) {
   }
 
   try {
-    const existingUser = await findUserByEmail(payload.data.email);
-
-    if (existingUser) {
-      return NextResponse.json(
-        { message: "That email address is already in use." },
-        { status: 409 },
-      );
-    }
-
     const passwordHash = await hash(payload.data.password, 12);
-    const user = await createUserAccount({
+    const result = await createUserAccountWithInvitation({
       email: payload.data.email,
+      inviteToken: payload.data.inviteToken,
       name: payload.data.name,
       passwordHash,
     });
 
+    if (result.status === "invalid-invitation") {
+      return NextResponse.json(
+        { message: "That invitation is invalid or has expired." },
+        { status: 403 },
+      );
+    }
+
+    if (result.status === "email-in-use") {
+      return NextResponse.json(
+        { message: "Unable to create an account with that invitation." },
+        { status: 409 },
+      );
+    }
+
+    const { user } = result;
     const token = await createSessionToken({
       sub: user.id,
       email: user.email,

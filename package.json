@@ -10,6 +10,8 @@
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "db:setup": "npm run db:deploy && npm run db:seed",
+    "admin:bootstrap": "tsx scripts/admin-promote.ts",
+    "admin:promote": "tsx scripts/admin-promote.ts",
     "postinstall": "prisma generate",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint ."

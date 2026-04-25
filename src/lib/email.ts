@@ -205,6 +205,33 @@ This link expires in 24 hours. If you did not request it, you can ignore this em
   });
 }
 
+export async function sendInviteEmail({
+  inviteUrl,
+  to,
+}: {
+  inviteUrl: string;
+  to: string;
+}) {
+  return sendTransactionalEmail({
+    html: emailShell({
+      body: `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;">You have been invited to Workflow Blueprint.</p>
+        <p style="margin:0;font-size:16px;line-height:1.6;">Use the secure link below to create your account. This invitation expires in 7 days.</p>`,
+      ctaHref: inviteUrl,
+      ctaLabel: "Accept Invitation",
+      heading: "You are invited",
+      preview: "Create your Workflow Blueprint account",
+    }),
+    subject: "Your Workflow Blueprint invitation",
+    text: `You have been invited to Workflow Blueprint.
+
+Use this secure link to create your account:
+${inviteUrl}
+
+This invitation expires in 7 days.`,
+    to,
+  });
+}
+
 export async function sendWelcomeEmail({
   dashboardUrl = buildAppUrl("/dashboard"),
   name,

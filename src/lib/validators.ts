@@ -21,6 +21,13 @@ function isValidDateOnly(value: string) {
   );
 }
 
+function requiredTrimmedString(message: string) {
+  return z.preprocess(
+    (value) => (typeof value === "string" ? value : ""),
+    z.string().trim().min(1, message),
+  );
+}
+
 const subtaskSchema = z.object({
   id: z.string().trim().optional(),
   title: z
@@ -45,6 +52,7 @@ export const signUpSchema = z
       .min(2, "Name must be at least 2 characters.")
       .max(80, "Name should stay under 80 characters."),
     email: z.email("Enter a valid email address.").trim().toLowerCase(),
+    inviteToken: requiredTrimmedString("Invite token is required."),
     password: z.string().min(8, "Password must be at least 8 characters."),
     confirmPassword: z.string().min(8, "Please confirm the password."),
   })
@@ -67,6 +75,14 @@ export const resetPasswordSchema = z
     message: "Passwords must match.",
     path: ["confirmPassword"],
   });
+
+export const invitePreviewSchema = z.object({
+  token: requiredTrimmedString("Invite token is required."),
+});
+
+export const adminInvitationSchema = z.object({
+  email: z.email("Enter a valid email address.").trim().toLowerCase(),
+});
 
 export const taskInputSchema = z
   .object({
@@ -199,6 +215,8 @@ export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type InvitePreviewInput = z.infer<typeof invitePreviewSchema>;
+export type AdminInvitationInput = z.infer<typeof adminInvitationSchema>;
 export type TaskInput = z.infer<typeof taskInputSchema>;
 export type TaskReorderInput = z.infer<typeof taskReorderSchema>;
 export type NoteInput = z.infer<typeof noteSchema>;

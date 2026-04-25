@@ -10,12 +10,21 @@ import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
 import type { SignUpInput } from "@/lib/validators";
 
-export function SignUpForm() {
+type SignUpFormProps = {
+  expiresAt: string;
+  inviteToken: string;
+  invitedEmail: string;
+};
+
+export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormProps) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const expiresLabel = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+  }).format(new Date(expiresAt));
   const {
     formState: { errors },
     handleSubmit,
@@ -23,7 +32,8 @@ export function SignUpForm() {
   } = useForm<SignUpInput>({
     defaultValues: {
       confirmPassword: "",
-      email: "",
+      email: invitedEmail,
+      inviteToken,
       name: "",
       password: "",
     },
@@ -55,6 +65,13 @@ export function SignUpForm() {
 
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
+      <input type="hidden" {...register("inviteToken")} />
+
+      <div className="rounded-lg border border-ink-soft bg-white/75 px-4 py-3 text-sm text-ink-muted dark:bg-paper-strong">
+        <p className="font-semibold text-ink">Invitation for {invitedEmail}</p>
+        <p>This invite expires on {expiresLabel}.</p>
+      </div>
+
       <div className="space-y-2">
         <label className="block text-base font-semibold text-ink" htmlFor="name">
           Name
@@ -87,6 +104,7 @@ export function SignUpForm() {
             className="pl-14"
             id="email"
             placeholder="you@company.com"
+            readOnly
             type="email"
             {...register("email", {
               required: "Email is required.",

@@ -3,11 +3,13 @@ import {
   LayoutDashboard,
   Leaf,
   type LucideIcon,
+  UserPlus,
   UserRound,
 } from "lucide-react";
 
 const iconByKey: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
+  invitations: UserPlus,
   labs: FlaskConical,
   organics: Leaf,
   personal: UserRound,

@@ -21,17 +21,25 @@ enum TaskStatus {
   ARCHIVED
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
-  id              String              @id
-  name            String
-  email           String              @unique
-  passwordHash    String
-  avatarLabel     String?
-  themePreference ThemePreference     @default(DAY)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  boards          Board[]
-  resetTokens     PasswordResetToken[]
+  id                  String              @id
+  name                String
+  email               String              @unique
+  passwordHash        String
+  avatarLabel         String?
+  themePreference     ThemePreference     @default(DAY)
+  role                UserRole            @default(USER)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  boards              Board[]
+  resetTokens         PasswordResetToken[]
+  sentInvitations     Invitation[]        @relation("InvitationInviter")
+  acceptedInvitations Invitation[]        @relation("InvitationAcceptedUser")
 }
 
 model Board {
@@ -94,4 +102,22 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
   usedAt    DateTime?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Invitation {
+  id               String    @id
+  email            String
+  tokenHash        String    @unique
+  invitedById      String
+  acceptedByUserId String?   @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  invitedBy        User      @relation("InvitationInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  acceptedBy       User?     @relation("InvitationAcceptedUser", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([invitedById])
 }

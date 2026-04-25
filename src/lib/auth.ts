@@ -117,6 +117,7 @@ export async function getCurrentUser() {
       email: true,
       avatarLabel: true,
       themePreference: true,
+      role: true,
     },
   });
 
@@ -135,6 +136,16 @@ export async function requireCurrentUser() {
 
   if (!user) {
     redirect("/");
+  }
+
+  return user;
+}
+
+export async function requireCurrentAdmin() {
+  const user = await requireCurrentUser();
+
+  if (user.role !== "ADMIN") {
+    redirect("/dashboard");
   }
 
   return user;

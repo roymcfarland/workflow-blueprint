@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { UserRole } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import { useState, useTransition } from "react";
@@ -19,6 +20,7 @@ type ShellUser = {
   avatarLabel: string | null;
   email: string;
   name: string;
+  role: UserRole;
   themePreference: ThemePreference;
 };
 
@@ -44,6 +46,9 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const [isPending, startTransition] = useTransition();
   const navItems = [
     { href: "/dashboard", label: "Dashboard", iconKey: "dashboard" },
+    ...(user.role === "ADMIN"
+      ? [{ href: "/admin/invitations", label: "Admin Invites", iconKey: "invitations" }]
+      : []),
     ...boards.map((board) => ({
       href: `/boards/${board.slug}`,
       label: board.name,

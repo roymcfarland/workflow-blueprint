@@ -115,19 +115,7 @@ export function LoginForm() {
         {isPending ? "Signing In..." : "Sign In"}
       </BlueprintButton>
 
-      <div className="flex items-center gap-4 text-ink-muted">
-        <div className="h-px flex-1 bg-ink-soft" />
-        <span className="text-sm font-semibold uppercase tracking-[0.14em]">or</span>
-        <div className="h-px flex-1 bg-ink-soft" />
-      </div>
-
-      <div className="space-y-4 text-center">
-        <Link
-          className="block text-base font-semibold underline decoration-2 underline-offset-4"
-          href="/sign-up"
-        >
-          Create an account
-        </Link>
+      <div className="text-center">
         <Link
           className="text-base font-semibold underline decoration-2 underline-offset-4"
           href="/forgot-password"
