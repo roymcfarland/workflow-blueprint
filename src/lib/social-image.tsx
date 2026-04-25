@@ -17,12 +17,7 @@ const fontDirectory = join(process.cwd(), "node_modules/@fontsource/manrope/file
 const gridLines = Array.from({ length: 25 }, (_, index) => index);
 const titleWords = ["Workflow", "Blueprint"];
 const columns = ["Ideas", "Next", "Doing", "Done"];
-const cards = [
-  ["Launch plan", "Brand assets"],
-  ["Sprint review", "Customer notes"],
-  ["Workflow map", "Priority queue"],
-  ["Release notes", "Metrics pass"],
-];
+const taskRows = [0, 1];
 
 async function loadFont(fileName: string, weight: 500 | 700) {
   try {
@@ -93,10 +88,10 @@ function BoardPreview() {
       style={{
         display: "flex",
         flexDirection: "column",
-        width: 498,
-        height: 392,
+        width: 430,
+        height: 350,
         border: "3px solid #1f4fcf",
-        borderRadius: 26,
+        borderRadius: 24,
         background: "rgba(255, 255, 255, 0.74)",
         boxShadow: "0 28px 54px rgba(18, 52, 140, 0.18)",
         overflow: "hidden",
@@ -111,10 +106,10 @@ function BoardPreview() {
               alignItems: "center",
               justifyContent: "center",
               width: "25%",
-              height: 58,
+              height: 52,
               borderRight: index === columns.length - 1 ? "none" : "2px solid #1f4fcf",
               color: "#12348c",
-              fontSize: 21,
+              fontSize: 18,
               fontWeight: 700,
               letterSpacing: 0,
               textTransform: "uppercase",
@@ -131,35 +126,49 @@ function BoardPreview() {
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 18,
+              gap: 14,
               width: "25%",
-              padding: "20px 14px",
+              padding: "18px 12px",
               borderRight: columnIndex === columns.length - 1 ? "none" : "2px solid #1f4fcf",
             }}
           >
-            {cards[columnIndex].map((card, cardIndex) => (
+            {taskRows.map((cardIndex) => (
               <div
-                key={card}
+                key={`${column}-${cardIndex}`}
                 style={{
                   display: "flex",
                   flexDirection: "column",
+                  gap: 10,
                   justifyContent: "center",
-                  height: cardIndex === 0 ? 92 : 76,
+                  height: cardIndex === 0 ? 76 : 64,
                   padding: "0 13px",
                   border: "2px solid #1f4fcf",
-                  borderRadius: 16,
+                  borderRadius: 14,
                   background:
                     cardIndex === 0
                       ? "linear-gradient(135deg, #ffffff, #eef4ff)"
                       : "rgba(255, 255, 255, 0.9)",
-                  color: "#17213a",
-                  fontSize: 17,
-                  fontWeight: 700,
-                  lineHeight: 1.16,
                   boxShadow: "0 12px 20px rgba(31, 79, 207, 0.12)",
                 }}
               >
-                {card}
+                <div
+                  style={{
+                    height: 7,
+                    width: cardIndex === 0 ? "82%" : "74%",
+                    borderRadius: 999,
+                    background: "#1f4fcf",
+                    opacity: 0.82,
+                  }}
+                />
+                <div
+                  style={{
+                    height: 7,
+                    width: cardIndex === 0 ? "62%" : "54%",
+                    borderRadius: 999,
+                    background: "#d89020",
+                    opacity: 0.78,
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -173,7 +182,7 @@ function SocialImage({ variant }: { variant: SocialImageVariant }) {
   const eyebrow = variant === "twitter" ? "Share-ready planning" : "Task planning workspace";
   const titleLineStyle = {
     color: "#12348c",
-    fontSize: 77,
+    fontSize: 68,
     fontWeight: 700,
     letterSpacing: 0,
     lineHeight: 0.95,
@@ -198,15 +207,15 @@ function SocialImage({ variant }: { variant: SocialImageVariant }) {
       <div
         style={{
           position: "absolute",
-          left: 64,
-          top: 50,
-          right: 64,
-          bottom: 50,
+          left: 70,
+          top: 54,
+          right: 70,
+          bottom: 54,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 56,
-          padding: "46px 50px",
+          gap: 40,
+          padding: "42px 44px",
           border: "3px solid #1f4fcf",
           borderRadius: 32,
           background: "rgba(255, 255, 255, 0.62)",
@@ -218,18 +227,18 @@ function SocialImage({ variant }: { variant: SocialImageVariant }) {
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
-            width: 474,
+            width: 420,
             height: "100%",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 14,
                 color: "#1f4fcf",
-                fontSize: 23,
+                fontSize: 21,
                 fontWeight: 700,
                 letterSpacing: 0,
                 textTransform: "uppercase",
@@ -237,7 +246,7 @@ function SocialImage({ variant }: { variant: SocialImageVariant }) {
             >
               <div
                 style={{
-                  width: 58,
+                  width: 50,
                   height: 12,
                   borderRadius: 999,
                   background: "#d89020",
@@ -254,9 +263,9 @@ function SocialImage({ variant }: { variant: SocialImageVariant }) {
             </div>
             <div
               style={{
-                maxWidth: 410,
+                maxWidth: 390,
                 color: "#263451",
-                fontSize: 31,
+                fontSize: 27,
                 fontWeight: 500,
                 lineHeight: 1.22,
               }}
@@ -267,16 +276,15 @@ function SocialImage({ variant }: { variant: SocialImageVariant }) {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 18,
+              flexDirection: "column",
+              alignItems: "flex-start",
+              gap: 6,
               color: "#12348c",
-              fontSize: 22,
               fontWeight: 700,
             }}
           >
-            <span>{siteConfig.url.replace(/^https?:\/\//, "")}</span>
-            <span style={{ color: "#d89020" }}>Plan. Execute. Achieve.</span>
+            <span style={{ fontSize: 19 }}>{siteConfig.url.replace(/^https?:\/\//, "")}</span>
+            <span style={{ color: "#d89020", fontSize: 21 }}>Plan. Execute. Achieve.</span>
           </div>
         </div>
         <BoardPreview />
