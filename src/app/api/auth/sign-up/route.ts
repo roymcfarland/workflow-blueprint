@@ -29,16 +29,16 @@ export async function POST(request: Request) {
     return rateLimitResponse;
   }
 
-  const existingUser = await findUserByEmail(payload.data.email);
-
-  if (existingUser) {
-    return NextResponse.json(
-      { message: "That email address is already in use." },
-      { status: 409 },
-    );
-  }
-
   try {
+    const existingUser = await findUserByEmail(payload.data.email);
+
+    if (existingUser) {
+      return NextResponse.json(
+        { message: "That email address is already in use." },
+        { status: 409 },
+      );
+    }
+
     const passwordHash = await hash(payload.data.password, 12);
     const user = await createUserAccount({
       email: payload.data.email,
