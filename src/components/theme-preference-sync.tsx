@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import { useTheme } from "next-themes";
 
+import { useBlueprintTheme } from "@/components/providers/theme-provider";
 import type { ThemePreference } from "@/lib/domain";
 
 export function ThemePreferenceSync({ preference }: { preference: ThemePreference }) {
-  const { setTheme } = useTheme();
+  const { setTheme } = useBlueprintTheme();
 
   useEffect(() => {
     setTheme(preference);

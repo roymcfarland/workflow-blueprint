@@ -2,9 +2,14 @@ import { TaskStatus as PrismaTaskStatus, ThemePreference as PrismaThemePreferenc
 import { hash } from "bcryptjs";
 import { addDays, subDays } from "date-fns";
 
+import { hydrateDatabaseUrlEnv } from "../src/lib/database-url";
 import { prisma } from "../src/lib/db";
 import { demoBoardSeeds, expandDemoSeed } from "../src/lib/demo-data";
 import { demoUser } from "../src/lib/domain";
+import { loadProjectEnv } from "../src/lib/load-env";
+
+loadProjectEnv();
+hydrateDatabaseUrlEnv({ preferDirectConnection: true });
 
 async function seed() {
   const passwordHash = await hash(demoUser.password, 12);

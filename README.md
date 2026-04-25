@@ -31,7 +31,7 @@ Blueprint123!
 
 ## Environment
 
-Create `.env` for local work:
+Create `.env.local` for local work:
 
 ```bash
 DATABASE_URL="postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres?sslmode=require"
@@ -43,7 +43,15 @@ READ_ONLY_API_KEY="replace-with-a-long-random-read-only-api-key"
 READ_ONLY_USER_ID="user_demo_alex_blue"
 ```
 
-`DATABASE_URL` must be a Supabase Postgres connection string. Use a durable Supabase project database for production account creation.
+When the project is linked in Vercel, you can pull local secrets without printing them:
+
+```bash
+npx vercel@latest env pull .env.local --environment=development
+```
+
+`DATABASE_URL` must be a Supabase Postgres connection string. If the Vercel/Supabase integration provides `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` instead, the app will use those automatically.
+Prisma CLI commands prefer `POSTGRES_URL_NON_POOLING` when it is available.
+Use a durable Supabase project database for production account creation.
 `AUTH_SECRET` must be a long random secret in production.
 `NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.

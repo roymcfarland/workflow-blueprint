@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, X } from "lucide-react";
 import { useState, useTransition } from "react";
-import { useTheme } from "next-themes";
 
 import { BoardIcon } from "@/components/board-icon";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintPillToggle } from "@/components/blueprint/pill-toggle";
+import { useBlueprintTheme } from "@/components/providers/theme-provider";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 import type { BoardNavItem } from "@/lib/data";
 import { initialsFromName } from "@/lib/utils";
@@ -37,7 +37,7 @@ const themeOptions = [
 export function AppShell({ boards, children, user }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { setTheme } = useTheme();
+  const { setTheme } = useBlueprintTheme();
   const [desktopOpen, setDesktopOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
