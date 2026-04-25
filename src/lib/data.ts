@@ -8,6 +8,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import {
+  boardDefinitions,
   themePreferenceDbMap,
   themePreferenceUiMap,
   type TaskStatus,
@@ -556,6 +557,64 @@ export async function updateUserProfile(userId: string, input: ProfileInput, pas
     ...user,
     themePreference: themePreferenceToUi(user.themePreference),
   };
+}
+
+function avatarLabelFor(name: string, email: string) {
+  const initials = name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return initials || email[0]?.toUpperCase() || null;
+}
+
+export async function createUserAccount({
+  email,
+  name,
+  passwordHash,
+}: {
+  email: string;
+  name: string;
+  passwordHash: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        id: randomUUID(),
+        avatarLabel: avatarLabelFor(name, email),
+        email,
+        name,
+        passwordHash,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatarLabel: true,
+        themePreference: true,
+      },
+    });
+
+    await tx.board.createMany({
+      data: boardDefinitions.map((board, index) => ({
+        id: randomUUID(),
+        userId: user.id,
+        name: board.name,
+        slug: board.slug,
+        description: board.description,
+        iconKey: board.iconKey,
+        sortOrder: index,
+      })),
+    });
+
+    return {
+      ...user,
+      themePreference: themePreferenceToUi(user.themePreference),
+    };
+  });
 }
 
 export async function findUserByEmail(email: string) {

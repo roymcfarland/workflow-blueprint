@@ -135,10 +135,10 @@ export function ProfileForm({ user }: ProfileFormProps) {
       </div>
 
       <div className="rounded-lg border border-ink-soft bg-white/70 p-4 text-sm text-ink-muted dark:bg-paper-strong">
-        <p className="font-semibold text-ink">Demo environment note</p>
+        <p className="font-semibold text-ink">Account settings</p>
         <p>
-          This build uses a local SQLite database with a seeded demo account, so profile changes and
-          theme preferences persist between sessions on this machine.
+          Profile changes, passwords, and theme preferences are saved to the configured Postgres
+          database.
         </p>
       </div>
 

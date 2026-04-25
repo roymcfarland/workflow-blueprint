@@ -37,6 +37,22 @@ export const signInSchema = z.object({
   rememberMe: z.boolean().default(false),
 });
 
+export const signUpSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(2, "Name must be at least 2 characters.")
+      .max(80, "Name should stay under 80 characters."),
+    email: z.email("Enter a valid email address.").trim().toLowerCase(),
+    password: z.string().min(8, "Password must be at least 8 characters."),
+    confirmPassword: z.string().min(8, "Please confirm the password."),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords must match.",
+    path: ["confirmPassword"],
+  });
+
 export const forgotPasswordSchema = z.object({
   email: z.email("Enter a valid email address.").trim().toLowerCase(),
 });
@@ -180,6 +196,7 @@ export const profileSchema = z
   });
 
 export type SignInInput = z.infer<typeof signInSchema>;
+export type SignUpInput = z.infer<typeof signUpSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type TaskInput = z.infer<typeof taskInputSchema>;

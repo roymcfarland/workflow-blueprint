@@ -72,9 +72,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  outputFileTracingIncludes: {
-    "/*": ["./prisma/dev.db"],
-  },
   poweredByHeader: false,
   reactCompiler: true,
 };

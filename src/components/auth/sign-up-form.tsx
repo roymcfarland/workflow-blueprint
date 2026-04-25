@@ -1,30 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 
 import { BlueprintButton } from "@/components/blueprint/button";
-import { BlueprintCheckbox } from "@/components/blueprint/checkbox";
 import { BlueprintInput } from "@/components/blueprint/input";
-import type { SignInInput } from "@/lib/validators";
+import type { SignUpInput } from "@/lib/validators";
 
-export function LoginForm() {
+export function SignUpForm() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const {
     formState: { errors },
-    register,
     handleSubmit,
-  } = useForm<SignInInput>({
+    register,
+  } = useForm<SignUpInput>({
     defaultValues: {
+      confirmPassword: "",
       email: "",
+      name: "",
       password: "",
-      rememberMe: true,
     },
   });
 
@@ -32,18 +33,18 @@ export function LoginForm() {
     setMessage(null);
 
     startTransition(async () => {
-      const response = await fetch("/api/auth/sign-in", {
-        method: "POST",
+      const response = await fetch("/api/auth/sign-up", {
+        body: JSON.stringify(values),
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(values),
+        method: "POST",
       });
 
       const body = (await response.json()) as { message?: string };
 
       if (!response.ok) {
-        setMessage(body.message ?? "Unable to sign in.");
+        setMessage(body.message ?? "Unable to create account.");
         return;
       }
 
@@ -55,6 +56,26 @@ export function LoginForm() {
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <div className="space-y-2">
+        <label className="block text-base font-semibold text-ink" htmlFor="name">
+          Name
+        </label>
+        <div className="relative">
+          <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <BlueprintInput
+            aria-invalid={errors.name ? "true" : "false"}
+            autoComplete="name"
+            className="pl-14"
+            id="name"
+            placeholder="Your name"
+            {...register("name", {
+              required: "Name is required.",
+            })}
+          />
+        </div>
+        {errors.name ? <p className="text-sm text-rose-600">{errors.name.message}</p> : null}
+      </div>
+
+      <div className="space-y-2">
         <label className="block text-base font-semibold text-ink" htmlFor="email">
           Email
         </label>
@@ -62,9 +83,11 @@ export function LoginForm() {
           <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
           <BlueprintInput
             aria-invalid={errors.email ? "true" : "false"}
+            autoComplete="email"
             className="pl-14"
             id="email"
             placeholder="you@company.com"
+            type="email"
             {...register("email", {
               required: "Email is required.",
             })}
@@ -81,11 +104,16 @@ export function LoginForm() {
           <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
           <BlueprintInput
             aria-invalid={errors.password ? "true" : "false"}
+            autoComplete="new-password"
             className="pl-14 pr-14"
             id="password"
-            placeholder="••••••••"
+            placeholder="At least 8 characters"
             type={showPassword ? "text" : "password"}
             {...register("password", {
+              minLength: {
+                message: "Password must be at least 8 characters.",
+                value: 8,
+              },
               required: "Password is required.",
             })}
           />
@@ -103,7 +131,41 @@ export function LoginForm() {
         ) : null}
       </div>
 
-      <BlueprintCheckbox label="Remember me" {...register("rememberMe")} />
+      <div className="space-y-2">
+        <label className="block text-base font-semibold text-ink" htmlFor="confirmPassword">
+          Confirm password
+        </label>
+        <div className="relative">
+          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <BlueprintInput
+            aria-invalid={errors.confirmPassword ? "true" : "false"}
+            autoComplete="new-password"
+            className="pl-14 pr-14"
+            id="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            {...register("confirmPassword", {
+              required: "Please confirm the password.",
+            })}
+          />
+          <button
+            aria-label={
+              showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"
+            }
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
+            onClick={() => setShowConfirmPassword((value) => !value)}
+            type="button"
+          >
+            {showConfirmPassword ? (
+              <EyeOff className="h-5 w-5" />
+            ) : (
+              <Eye className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+        {errors.confirmPassword ? (
+          <p className="text-sm text-rose-600">{errors.confirmPassword.message}</p>
+        ) : null}
+      </div>
 
       {message ? (
         <p className="rounded-lg border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -112,27 +174,13 @@ export function LoginForm() {
       ) : null}
 
       <BlueprintButton className="w-full text-base" disabled={isPending} type="submit">
-        {isPending ? "Signing In..." : "Sign In"}
+        {isPending ? "Creating Account..." : "Create Account"}
       </BlueprintButton>
 
-      <div className="flex items-center gap-4 text-ink-muted">
-        <div className="h-px flex-1 bg-ink-soft" />
-        <span className="text-sm font-semibold uppercase tracking-[0.14em]">or</span>
-        <div className="h-px flex-1 bg-ink-soft" />
-      </div>
-
-      <div className="space-y-4 text-center">
-        <Link
-          className="block text-base font-semibold underline decoration-2 underline-offset-4"
-          href="/sign-up"
-        >
-          Create an account
-        </Link>
-        <Link
-          className="text-base font-semibold underline decoration-2 underline-offset-4"
-          href="/forgot-password"
-        >
-          Forgot your password?
+      <div className="text-center text-sm text-ink-muted">
+        Already have an account?{" "}
+        <Link className="font-semibold text-ink underline decoration-2 underline-offset-4" href="/">
+          Sign in
         </Link>
       </div>
     </form>

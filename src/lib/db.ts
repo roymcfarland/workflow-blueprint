@@ -10,7 +10,7 @@ let prismaClient: PrismaClient | undefined;
 
 function createPrismaClient() {
   return new PrismaClient({
-    datasourceUrl: resolveDatabaseUrl({ allowFallback: true }),
+    datasourceUrl: resolveDatabaseUrl(),
   });
 }
 

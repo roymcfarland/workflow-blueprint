@@ -9,6 +9,6 @@ export default defineConfig({
     seed: "node --import tsx prisma/seed.ts",
   },
   datasource: {
-    url: resolveDatabaseUrl({ allowFallback: true }),
+    url: resolveDatabaseUrl(),
   },
 });
