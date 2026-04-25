@@ -19,6 +19,7 @@
   --danger: #bf3650;
   --grid: rgba(31, 79, 207, 0.075);
   --grid-strong: rgba(31, 79, 207, 0.13);
+  --grid-size: 32px;
   --surface-shadow: 0 14px 30px rgba(18, 52, 140, 0.08);
   --surface-shadow-strong: 0 20px 44px rgba(18, 52, 140, 0.12);
   --radius-card: 0.9rem;
@@ -72,27 +73,39 @@ body {
 }
 
 html {
+  background-color: var(--background);
   overflow-x: clip;
   scroll-behavior: smooth;
 }
 
 body {
+  position: relative;
+  isolation: isolate;
   margin: 0;
   overflow-x: hidden;
   color: var(--foreground);
   font-family: var(--font-sans);
   background-color: var(--background);
-  background-image:
-    linear-gradient(to right, var(--grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
-  background-size: 32px 32px;
 }
 
-body::before {
+body::before,
+body::after {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
+}
+
+body::before {
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+  background-position: 0 0;
+  z-index: -2;
+}
+
+body::after {
   background:
     linear-gradient(135deg, var(--accent-soft), transparent 34%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0));
@@ -150,8 +163,16 @@ select {
     linear-gradient(to bottom, var(--grid-strong) 1px, transparent 1px);
   background-size:
     auto,
-    32px 32px,
-    32px 32px;
+    var(--grid-size) var(--grid-size),
+    var(--grid-size) var(--grid-size);
+  background-position:
+    0 0,
+    0 0,
+    0 0;
+  background-attachment:
+    scroll,
+    fixed,
+    fixed;
 }
 
 .dark .blueprint-grid-paper {
