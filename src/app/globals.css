@@ -98,18 +98,23 @@ body::after {
 
 body::before {
   background-image:
-    linear-gradient(to right, var(--grid) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+    linear-gradient(to right, var(--grid-strong) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-strong) 1px, transparent 1px);
   background-size: var(--grid-size) var(--grid-size);
   background-position: 0 0;
-  z-index: -2;
+  z-index: 0;
 }
 
 body::after {
   background:
     linear-gradient(135deg, var(--accent-soft), transparent 34%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0));
-  z-index: -1;
+  z-index: 0;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 a {
@@ -180,6 +185,28 @@ select {
     linear-gradient(180deg, rgba(16, 34, 69, 0.86), rgba(16, 34, 69, 0.72)),
     linear-gradient(to right, var(--grid-strong) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-strong) 1px, transparent 1px);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .blueprint-grid-paper {
+    background-color: rgba(255, 255, 255, 0.72);
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.62),
+      rgba(255, 255, 255, 0.42)
+    );
+    background-size: auto;
+    background-attachment: scroll;
+  }
+
+  .dark .blueprint-grid-paper {
+    background-color: rgba(18, 28, 48, 0.7);
+    background-image: linear-gradient(
+      180deg,
+      rgba(16, 34, 69, 0.58),
+      rgba(16, 34, 69, 0.4)
+    );
+  }
 }
 
 .blueprint-fill {
