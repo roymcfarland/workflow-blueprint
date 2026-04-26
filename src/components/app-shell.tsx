@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { UserRole } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, X } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type CSSProperties } from "react";
 
 import { BoardIcon } from "@/components/board-icon";
 import { BlueprintButton } from "@/components/blueprint/button";
@@ -36,6 +36,56 @@ const themeOptions = [
   { label: "Device", value: "system" },
 ] as const;
 
+type SidebarNavItem =
+  | {
+      href: string;
+      iconKey: string;
+      kind: "dashboard";
+      label: string;
+    }
+  | {
+      accentColor: string;
+      href: string;
+      iconKey: string;
+      kind: "board";
+      label: string;
+    };
+
+type BoardAccentStyle = CSSProperties & {
+  "--board-accent"?: string;
+};
+
+function normalizePathname(pathname: string) {
+  return pathname === "/" ? pathname : pathname.replace(/\/$/, "");
+}
+
+function isActiveNavItem(pathname: string, item: SidebarNavItem) {
+  const currentPath = normalizePathname(pathname);
+
+  if (item.kind === "board") {
+    return currentPath === item.href || currentPath.startsWith(`${item.href}/`);
+  }
+
+  return currentPath === item.href;
+}
+
+function getNavItemStyle(item: SidebarNavItem, isActive: boolean): BoardAccentStyle | undefined {
+  if (item.kind !== "board") {
+    return undefined;
+  }
+
+  return {
+    "--board-accent": item.accentColor,
+    ...(isActive
+      ? {
+          backgroundColor: item.accentColor,
+          borderColor: item.accentColor,
+          boxShadow: `0 10px 22px ${item.accentColor}33`,
+        }
+      : {}),
+  };
+}
+
 export function AppShell({ boards, children, user }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -45,13 +95,14 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
   const [isPending, startTransition] = useTransition();
   const isAdmin = user.role === "ADMIN";
-  const navItems = [
-    { href: "/dashboard", label: "Dashboard", iconKey: "dashboard" },
+  const navItems: SidebarNavItem[] = [
+    { href: "/dashboard", iconKey: "dashboard", kind: "dashboard", label: "Dashboard" },
     ...boards.map((board) => ({
       accentColor: getBoardAccentColor(board.slug),
       href: `/boards/${board.slug}`,
-      label: board.name,
       iconKey: board.iconKey,
+      kind: "board" as const,
+      label: board.name,
     })),
   ];
 
@@ -140,30 +191,34 @@ export function AppShell({ boards, children, user }: AppShellProps) {
 
         <nav aria-label="Workspace" className="space-y-1.5 pt-4">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            const activeBoardStyle =
-              isActive && "accentColor" in item
-                ? {
-                    backgroundColor: item.accentColor,
-                    borderColor: item.accentColor,
-                    boxShadow: `0 10px 22px ${item.accentColor}33`,
-                  }
-                : undefined;
+            const isActive = isActiveNavItem(pathname, item);
+            const navItemStyle = getNavItemStyle(item, isActive);
 
             return (
               <Link
                 key={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition sm:text-base",
-                  isActive && !activeBoardStyle && "blueprint-fill border-ink text-white",
-                  isActive && activeBoardStyle && "text-white",
+                  isActive && item.kind === "dashboard" && "blueprint-fill border-ink text-white",
+                  isActive && item.kind === "board" && "text-white",
                   !isActive &&
                     "border-transparent hover:bg-white/70 dark:hover:bg-white/6",
                 )}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
-                style={activeBoardStyle}
+                style={navItemStyle}
               >
+                {item.kind === "board" ? (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "h-2.5 w-2.5 shrink-0 rounded-full border",
+                      isActive
+                        ? "border-white/80 bg-white"
+                        : "border-ink/30 bg-[var(--board-accent)]",
+                    )}
+                  />
+                ) : null}
                 <BoardIcon className="h-5 w-5 shrink-0" iconKey={item.iconKey} />
                 <span className="truncate">{item.label}</span>
               </Link>
