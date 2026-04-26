@@ -7,6 +7,8 @@ import { useForm } from "react-hook-form";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
 import { BlueprintPillToggle } from "@/components/blueprint/pill-toggle";
+import { Field } from "@/components/blueprint/field";
+import { SaveIndicator, type SaveStatus } from "@/components/blueprint/save-indicator";
 import type { ThemePreference } from "@/lib/domain";
 import type { ProfileInput } from "@/lib/validators";
 
@@ -26,7 +28,8 @@ type ProfileFormProps = {
 
 export function ProfileForm({ user }: ProfileFormProps) {
   const router = useRouter();
-  const [message, setMessage] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
   const [isPending, startTransition] = useTransition();
   const {
@@ -46,7 +49,8 @@ export function ProfileForm({ user }: ProfileFormProps) {
   });
 
   const onSubmit = handleSubmit((values) => {
-    setMessage(null);
+    setSaveStatus("saving");
+    setSaveMessage(null);
 
     startTransition(async () => {
       const response = await fetch("/api/profile", {
@@ -59,39 +63,31 @@ export function ProfileForm({ user }: ProfileFormProps) {
       const body = (await response.json()) as { message?: string };
 
       if (!response.ok) {
-        setMessage(body.message ?? "Unable to save profile.");
+        setSaveStatus("error");
+        setSaveMessage(body.message ?? "Unable to save profile.");
         return;
       }
 
-      setMessage("Profile saved");
+      setSaveStatus("saved");
+      setSaveMessage(null);
       router.refresh();
+      setTimeout(() => setSaveStatus("idle"), 1800);
     });
   });
 
   return (
-    <form className="space-y-8" onSubmit={onSubmit}>
-      <div className="auto-fit-grid gap-5 [--auto-fit-min:16rem]">
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Name
-          </label>
+    <form className="space-y-7" onSubmit={onSubmit}>
+      <div className="auto-fit-grid gap-4 [--auto-fit-min:16rem]">
+        <Field error={errors.name?.message} label="Name">
           <BlueprintInput {...register("name")} />
-          {errors.name ? <p className="text-sm text-rose-600">{errors.name.message}</p> : null}
-        </div>
+        </Field>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Email
-          </label>
+        <Field error={errors.email?.message} label="Email">
           <BlueprintInput {...register("email")} />
-          {errors.email ? <p className="text-sm text-rose-600">{errors.email.message}</p> : null}
-        </div>
+        </Field>
       </div>
 
-      <div className="space-y-3">
-        <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-          Theme preference
-        </label>
+      <Field label="Theme preference">
         <BlueprintPillToggle
           onChange={(value) => {
             setThemePreference(value);
@@ -100,37 +96,22 @@ export function ProfileForm({ user }: ProfileFormProps) {
           options={themeOptions}
           value={themePreference}
         />
-      </div>
+      </Field>
 
-      <div className="auto-fit-grid gap-5 [--auto-fit-min:14rem]">
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Current password
-          </label>
-          <BlueprintInput type="password" {...register("currentPassword")} />
-          {errors.currentPassword ? (
-            <p className="text-sm text-rose-600">{errors.currentPassword.message}</p>
-          ) : null}
-        </div>
+      <div className="space-y-3">
+        <p className="blueprint-eyebrow">Change password</p>
+        <div className="auto-fit-grid gap-4 [--auto-fit-min:14rem]">
+          <Field error={errors.currentPassword?.message} label="Current password">
+            <BlueprintInput type="password" {...register("currentPassword")} />
+          </Field>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-            New password
-          </label>
-          <BlueprintInput type="password" {...register("newPassword")} />
-          {errors.newPassword ? (
-            <p className="text-sm text-rose-600">{errors.newPassword.message}</p>
-          ) : null}
-        </div>
+          <Field error={errors.newPassword?.message} label="New password">
+            <BlueprintInput type="password" {...register("newPassword")} />
+          </Field>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Confirm password
-          </label>
-          <BlueprintInput type="password" {...register("confirmPassword")} />
-          {errors.confirmPassword ? (
-            <p className="text-sm text-rose-600">{errors.confirmPassword.message}</p>
-          ) : null}
+          <Field error={errors.confirmPassword?.message} label="Confirm password">
+            <BlueprintInput type="password" {...register("confirmPassword")} />
+          </Field>
         </div>
       </div>
 
@@ -142,15 +123,10 @@ export function ProfileForm({ user }: ProfileFormProps) {
         </p>
       </div>
 
-      {message ? (
-        <p className="blueprint-panel-muted rounded-lg px-4 py-3 text-sm font-semibold text-text-primary">
-          {message}
-        </p>
-      ) : null}
-
-      <div className="flex justify-end">
+      <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SaveIndicator message={saveMessage} status={saveStatus} />
         <BlueprintButton disabled={isPending} type="submit">
-          {isPending ? "Saving..." : "Save Profile"}
+          {isPending ? "Saving…" : "Save profile"}
         </BlueprintButton>
       </div>
     </form>

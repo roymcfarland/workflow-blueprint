@@ -24,7 +24,7 @@ export function BlueprintPillToggle<T extends string>({
 }: BlueprintPillToggleProps<T>) {
   return (
     <div className={cn("flex flex-wrap items-center gap-2 sm:gap-3", className)}>
-      {label ? <span className="blueprint-title text-base text-text-primary">{label}</span> : null}
+      {label ? <span className="blueprint-eyebrow">{label}</span> : null}
       <div className="blueprint-outline inline-flex overflow-hidden p-0.5">
         {options.map((option) => {
           const active = option.value === value;
@@ -33,9 +33,9 @@ export function BlueprintPillToggle<T extends string>({
             <button
               key={option.value}
               className={cn(
-                "min-w-[4rem] rounded-full px-3 py-1.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft",
+                "min-w-[4rem] rounded-full px-3 py-1.5 text-sm font-semibold transition outline-none focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2",
                 active
-                  ? "blueprint-fill text-white"
+                  ? "blueprint-fill-flat text-white"
                   : "text-text-primary hover:bg-surface-control-hover",
               )}
               onClick={() => onChange(option.value)}

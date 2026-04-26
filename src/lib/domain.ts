@@ -9,8 +9,8 @@ export const boardStatuses = [
 export type TaskStatus = (typeof boardStatuses)[number];
 
 export const statusLabels: Record<TaskStatus, string> = {
-  ICE_BOX: "Ice Box",
-  ON_DECK: "On Deck",
+  ICE_BOX: "Backlog",
+  ON_DECK: "Up Next",
   IN_PROGRESS: "In Progress",
   DONE: "Done",
   ARCHIVED: "Archived",

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   FlaskConical,
   LayoutDashboard,
@@ -18,11 +19,13 @@ const iconByKey: Record<string, LucideIcon> = {
 export function BoardIcon({
   className,
   iconKey,
+  style,
 }: {
   className?: string;
   iconKey: string;
+  style?: CSSProperties;
 }) {
   const Icon = iconByKey[iconKey] ?? LayoutDashboard;
 
-  return <Icon className={className} strokeWidth={2.1} />;
+  return <Icon className={className} strokeWidth={2.1} style={style} />;
 }

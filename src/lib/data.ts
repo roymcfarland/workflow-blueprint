@@ -92,6 +92,16 @@ export type BoardSnapshot = {
   tasks: SerializedTask[];
 };
 
+export type DashboardTaskSummary = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  dueDate: string | null;
+  boardSlug: string;
+  boardName: string;
+  boardIconKey: string;
+};
+
 export type DashboardSnapshot = {
   boardBreakdown: Array<{
     slug: string;
@@ -100,12 +110,14 @@ export type DashboardSnapshot = {
     totalTasks: number;
     percentage: number;
   }>;
-  sprintCompletionRate: number;
+  completionRate: number;
   doneCount: number;
   activeTaskCount: number;
   inProgressCount: number;
   closedLastSevenDays: number;
   totalTaskCount: number;
+  overdueTasks: DashboardTaskSummary[];
+  upcomingTasks: DashboardTaskSummary[];
 };
 
 export type InvitationStatus = "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
@@ -364,7 +376,14 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     },
   });
 
-  const allTasks = boards.flatMap((board) => board.tasks);
+  const allTasks = boards.flatMap((board) =>
+    board.tasks.map((task) => ({
+      ...task,
+      boardSlug: board.slug,
+      boardName: board.name,
+      boardIconKey: board.iconKey,
+    })),
+  );
   const activeStatuses: PrismaTaskStatus[] = ["DONE", "IN_PROGRESS", "ON_DECK"];
   const activeTasks = allTasks.filter((task) => activeStatuses.includes(task.status));
   const doneCount = allTasks.filter((task) => task.status === "DONE").length;
@@ -374,6 +393,48 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     (task) => task.completedAt && task.completedAt >= subDays(new Date(), 7),
   ).length;
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sevenDaysFromNow = new Date(today);
+  sevenDaysFromNow.setDate(today.getDate() + 7);
+  sevenDaysFromNow.setHours(23, 59, 59, 999);
+  const openStatuses: PrismaTaskStatus[] = ["IN_PROGRESS", "ON_DECK"];
+
+  function summarize(task: (typeof allTasks)[number]): DashboardTaskSummary {
+    return {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      dueDate: task.dueDate?.toISOString() ?? null,
+      boardSlug: task.boardSlug,
+      boardName: task.boardName,
+      boardIconKey: task.boardIconKey,
+    };
+  }
+
+  const overdueTasks = allTasks
+    .filter(
+      (task) =>
+        openStatuses.includes(task.status) &&
+        task.dueDate !== null &&
+        task.dueDate < today,
+    )
+    .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0))
+    .slice(0, 6)
+    .map(summarize);
+
+  const upcomingTasks = allTasks
+    .filter(
+      (task) =>
+        openStatuses.includes(task.status) &&
+        task.dueDate !== null &&
+        task.dueDate >= today &&
+        task.dueDate <= sevenDaysFromNow,
+    )
+    .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0))
+    .slice(0, 6)
+    .map(summarize);
+
   return {
     boardBreakdown: boards.map((board) => ({
       slug: board.slug,
@@ -382,13 +443,15 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       totalTasks: board.tasks.length,
       percentage: totalTaskCount === 0 ? 0 : Math.round((board.tasks.length / totalTaskCount) * 100),
     })),
-    sprintCompletionRate:
+    completionRate:
       activeTasks.length === 0 ? 0 : Math.round((doneCount / activeTasks.length) * 100),
     doneCount,
     activeTaskCount: activeTasks.length,
     inProgressCount,
     closedLastSevenDays,
     totalTaskCount,
+    overdueTasks,
+    upcomingTasks,
   };
 }
 

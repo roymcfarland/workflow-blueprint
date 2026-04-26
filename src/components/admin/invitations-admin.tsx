@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
+import { Field } from "@/components/blueprint/field";
 import { cn } from "@/lib/utils";
 import type { SerializedInvitation } from "@/lib/data";
 
@@ -42,10 +43,10 @@ function formatDate(value: string) {
 
 function statusClassName(status: SerializedInvitation["status"]) {
   return cn(
-    "inline-flex rounded-lg border px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em]",
+    "inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold",
     status === "PENDING" && "border-line-soft bg-surface-control text-text-primary",
     status === "ACCEPTED" && "border-success/30 bg-success/10 text-success",
-    status === "EXPIRED" && "border-accent/30 bg-accent-soft text-text-primary",
+    status === "EXPIRED" && "border-accent/40 bg-accent-soft text-text-primary",
     status === "REVOKED" && "border-danger/30 bg-danger/10 text-danger",
   );
 }
@@ -118,24 +119,20 @@ export function InvitationsAdmin({ initialInvitations }: InvitationsAdminProps) 
   };
 
   return (
-    <div className="auto-fit-grid gap-6 [--auto-fit-min:24rem]">
+    <div className="auto-fit-grid gap-5 [--auto-fit-min:24rem]">
       <section className="blueprint-surface blueprint-surface-strong p-5 sm:p-6">
         <div className="space-y-5">
-          <div className="space-y-2">
-            <h2 className="blueprint-title text-3xl text-text-primary">Send Invite</h2>
+          <div className="space-y-1.5">
+            <h2 className="blueprint-display text-2xl text-text-primary sm:text-3xl">
+              Send invite
+            </h2>
             <p className="text-sm text-text-muted">
               Invitations are valid for 7 days and can be accepted once.
             </p>
           </div>
 
           <form className="space-y-4" onSubmit={handleCreateInvitation}>
-            <div className="space-y-2">
-              <label
-                className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted"
-                htmlFor="invite-email"
-              >
-                Email
-              </label>
+            <Field htmlFor="invite-email" label="Email">
               <BlueprintInput
                 autoComplete="email"
                 id="invite-email"
@@ -144,11 +141,11 @@ export function InvitationsAdmin({ initialInvitations }: InvitationsAdminProps) 
                 type="email"
                 value={email}
               />
-            </div>
+            </Field>
 
-            <BlueprintButton className="w-full" disabled={isPending || !email.trim()} type="submit">
+            <BlueprintButton className="w-full" disabled={isPending || !email.trim()} type="submit" variant="hero">
               <Send className="h-4 w-4" />
-              {isPending ? "Sending..." : "Send Invite"}
+              {isPending ? "Sending…" : "Send invite"}
             </BlueprintButton>
           </form>
 
@@ -162,7 +159,7 @@ export function InvitationsAdmin({ initialInvitations }: InvitationsAdminProps) 
             <div className="rounded-lg border border-accent/40 bg-accent-soft p-4 text-sm text-text-primary">
               <p className="font-semibold">Local preview link</p>
               <a
-                className="mt-2 block break-all underline decoration-2 underline-offset-4"
+                className="mt-2 block break-all underline decoration-2 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
                 href={previewInviteUrl}
               >
                 {previewInviteUrl}
@@ -173,19 +170,21 @@ export function InvitationsAdmin({ initialInvitations }: InvitationsAdminProps) 
       </section>
 
       <section className="blueprint-surface blueprint-surface-strong overflow-hidden">
-        <div className="border-b border-line-soft p-5 sm:p-6">
-          <h2 className="blueprint-title text-3xl text-text-primary">Invitation Ledger</h2>
+        <div className="border-b border-line-soft px-5 py-4 sm:px-6">
+          <h2 className="blueprint-display text-2xl text-text-primary sm:text-3xl">
+            Invitation ledger
+          </h2>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[46rem] border-collapse text-left text-sm">
-            <thead className="bg-surface-control text-xs uppercase tracking-[0.16em] text-text-muted">
+            <thead className="bg-surface-control text-text-muted">
               <tr>
-                <th className="px-5 py-3 font-bold">Email</th>
-                <th className="px-5 py-3 font-bold">Status</th>
-                <th className="px-5 py-3 font-bold">Invited</th>
-                <th className="px-5 py-3 font-bold">Expires</th>
-                <th className="px-5 py-3 text-right font-bold">Action</th>
+                <th className="blueprint-eyebrow px-5 py-3">Email</th>
+                <th className="blueprint-eyebrow px-5 py-3">Status</th>
+                <th className="blueprint-eyebrow px-5 py-3">Invited</th>
+                <th className="blueprint-eyebrow px-5 py-3">Expires</th>
+                <th className="blueprint-eyebrow px-5 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -198,26 +197,26 @@ export function InvitationsAdmin({ initialInvitations }: InvitationsAdminProps) 
               ) : (
                 invitations.map((invitation) => (
                   <tr className="border-t border-line-soft" key={invitation.id}>
-                    <td className="px-5 py-4">
-                      <div className="space-y-1">
+                    <td className="px-5 py-3">
+                      <div className="space-y-0.5">
                         <p className="font-semibold text-text-primary">{invitation.email}</p>
                         <p className="text-xs text-text-muted">
                           By {invitation.invitedBy.name}
                         </p>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-3">
                       <span className={statusClassName(invitation.status)}>
                         {statusLabels[invitation.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-text-muted">
+                    <td className="px-5 py-3 text-text-muted">
                       {formatDate(invitation.createdAt)}
                     </td>
-                    <td className="px-5 py-4 text-text-muted">
+                    <td className="px-5 py-3 text-text-muted">
                       {formatDate(invitation.expiresAt)}
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-5 py-3 text-right">
                       {invitation.status === "PENDING" ? (
                         <BlueprintButton
                           disabled={isPending}
@@ -228,9 +227,7 @@ export function InvitationsAdmin({ initialInvitations }: InvitationsAdminProps) 
                           Revoke
                         </BlueprintButton>
                       ) : (
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
-                          Closed
-                        </span>
+                        <span className="text-xs font-semibold text-text-muted">Closed</span>
                       )}
                     </td>
                   </tr>

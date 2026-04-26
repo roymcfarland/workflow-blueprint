@@ -18,21 +18,21 @@ function firstSearchValue(value: string | string[] | undefined) {
 
 function InviteOnlyMessage({
   copy,
-  title = "Invite Only",
+  title = "Invite only",
 }: {
   copy: string;
   title?: string;
 }) {
   return (
-    <BlueprintCard className="w-full p-8 text-center sm:p-10">
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <p className="blueprint-title text-4xl text-text-primary sm:text-5xl">{title}</p>
-          <p className="text-lg text-text-muted">{copy}</p>
+    <BlueprintCard className="w-full p-7 text-center sm:p-9">
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <h1 className="blueprint-display text-3xl text-text-primary sm:text-4xl">{title}</h1>
+          <p className="text-base text-text-muted">{copy}</p>
         </div>
 
         <Link
-          className="inline-flex rounded-lg border border-line-strong px-4 py-2.5 font-semibold text-text-primary transition hover:bg-surface-control-hover"
+          className="inline-flex rounded-lg border border-line-strong px-4 py-2.5 font-semibold text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
           href="/"
         >
           Sign in
@@ -60,16 +60,16 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
         ) : !invitation ? (
           <InviteOnlyMessage
             copy="This invitation link is invalid, expired, revoked, or already accepted."
-            title="Invitation Unavailable"
+            title="Invitation unavailable"
           />
         ) : (
-          <BlueprintCard className="w-full p-8 sm:p-10">
-            <div className="space-y-8">
-              <div className="space-y-3 text-center">
-                <p className="blueprint-title text-4xl text-text-primary sm:text-5xl">
-                  Accept Invitation
-                </p>
-                <p className="text-lg text-text-muted">
+          <BlueprintCard className="w-full p-7 sm:p-9">
+            <div className="space-y-7">
+              <div className="space-y-2 text-center">
+                <h1 className="blueprint-display text-3xl text-text-primary sm:text-4xl">
+                  Accept invitation
+                </h1>
+                <p className="text-base text-text-muted">
                   Create your account to open your Workflow Blueprint workspace.
                 </p>
               </div>
@@ -82,7 +82,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
 
               <div className="text-center text-sm text-text-muted">
                 <Link
-                  className="font-semibold text-brand underline decoration-2 underline-offset-4"
+                  className="font-semibold text-brand underline decoration-2 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
                   href="/"
                 >
                   Return to the landing page

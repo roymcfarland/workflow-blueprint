@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
+import { Field } from "@/components/blueprint/field";
 import type { ForgotPasswordInput } from "@/lib/validators";
 
 export function ForgotPasswordForm() {
@@ -43,16 +44,13 @@ export function ForgotPasswordForm() {
   });
 
   return (
-    <form className="space-y-6" onSubmit={onSubmit}>
-      <div className="space-y-2">
-        <label className="block text-base font-semibold text-text-primary" htmlFor="email">
-          Email
-        </label>
+    <form className="space-y-5" onSubmit={onSubmit}>
+      <Field error={errors.email?.message} htmlFor="email" label="Email">
         <div className="relative">
           <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.email ? "true" : "false"}
-            className="pl-14"
+            className="pl-12"
             id="email"
             placeholder="you@company.com"
             {...register("email", {
@@ -60,15 +58,14 @@ export function ForgotPasswordForm() {
             })}
           />
         </div>
-        {errors.email ? <p className="text-sm text-rose-600">{errors.email.message}</p> : null}
-      </div>
+      </Field>
 
       {message ? (
-        <div className="blueprint-panel-muted space-y-3 rounded-lg px-4 py-3 text-sm text-text-primary">
+        <div className="blueprint-panel-muted space-y-2 rounded-lg px-4 py-3 text-sm text-text-primary">
           <p>{message}</p>
           {previewLink ? (
             <Link
-              className="font-semibold underline decoration-2 underline-offset-4"
+              className="font-semibold underline decoration-2 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
               href={previewLink}
             >
               Open preview reset link
@@ -77,12 +74,15 @@ export function ForgotPasswordForm() {
         </div>
       ) : null}
 
-      <BlueprintButton className="w-full" disabled={isPending} type="submit">
-        {isPending ? "Preparing..." : "Prepare Reset Link"}
+      <BlueprintButton className="w-full" disabled={isPending} type="submit" variant="hero">
+        {isPending ? "Preparing…" : "Send reset link"}
       </BlueprintButton>
 
       <div className="text-center text-sm text-text-muted">
-        <Link className="font-semibold text-brand underline decoration-2 underline-offset-4" href="/">
+        <Link
+          className="font-semibold text-brand underline decoration-2 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+          href="/"
+        >
           Back to sign in
         </Link>
       </div>

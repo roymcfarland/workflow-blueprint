@@ -19,6 +19,14 @@ export async function GET(request: Request) {
 
   return readOnlyApiJson(readOnlyDashboardResponseSchema, {
     ok: true,
-    data: dashboard,
+    data: {
+      boardBreakdown: dashboard.boardBreakdown,
+      sprintCompletionRate: dashboard.completionRate,
+      doneCount: dashboard.doneCount,
+      activeTaskCount: dashboard.activeTaskCount,
+      inProgressCount: dashboard.inProgressCount,
+      closedLastSevenDays: dashboard.closedLastSevenDays,
+      totalTaskCount: dashboard.totalTaskCount,
+    },
   });
 }

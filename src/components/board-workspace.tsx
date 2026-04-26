@@ -24,7 +24,11 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
+  NotebookPen,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -41,7 +45,9 @@ import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { BlueprintCheckbox } from "@/components/blueprint/checkbox";
 import { BlueprintInput } from "@/components/blueprint/input";
+import { Field } from "@/components/blueprint/field";
 import { PageTitle } from "@/components/blueprint/page-title";
+import { SaveIndicator, type SaveStatus } from "@/components/blueprint/save-indicator";
 import { BlueprintTextarea } from "@/components/blueprint/textarea";
 import {
   boardStatuses,
@@ -106,6 +112,16 @@ function isDueSoon(task: SerializedTask) {
   sevenDaysFromNow.setHours(23, 59, 59, 999);
 
   return dueDate >= today && dueDate <= sevenDaysFromNow;
+}
+
+function isOverdue(task: SerializedTask) {
+  if (!task.dueDate || !activeBoardStatuses.includes(task.status)) {
+    return false;
+  }
+  const dueDate = new Date(task.dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dueDate < today;
 }
 
 function toggleSetValue(current: Set<string>, value: string) {
@@ -219,13 +235,17 @@ function mergeTask(tasks: SerializedTask[], nextTask: SerializedTask) {
 }
 
 function TaskMeta({ task }: { task: SerializedTask }) {
+  const overdue = isOverdue(task);
+  const dueSoon = !overdue && isDueSoon(task);
+
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-text-muted">
       {task.dueDate ? (
         <span
           className={cn(
             "inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-surface-control px-2 py-1",
-            isDueSoon(task) && "border-accent bg-accent-soft text-text-primary",
+            overdue && "border-danger/40 bg-danger-soft text-danger",
+            dueSoon && "border-accent bg-accent-soft text-text-primary",
           )}
         >
           <CalendarDays className="h-3.5 w-3.5" />
@@ -252,9 +272,7 @@ function CompactToggle<T extends string>({
 }) {
   return (
     <div className="min-w-0 space-y-1">
-      <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-text-muted">
-        {label}
-      </p>
+      <p className="blueprint-eyebrow">{label}</p>
       <div className="grid grid-cols-2 gap-1 rounded-lg border border-line-soft bg-surface-control p-1">
         {options.map((option) => {
           const active = option.value === value;
@@ -263,9 +281,9 @@ function CompactToggle<T extends string>({
             <button
               aria-pressed={active}
               className={cn(
-                "rounded-md px-2.5 py-1.5 text-sm font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft",
+                "rounded-md px-2.5 py-1.5 text-sm font-semibold leading-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2",
                 active
-                  ? "blueprint-fill text-white"
+                  ? "blueprint-fill-flat text-white"
                   : "text-text-primary hover:bg-surface-control-hover",
               )}
               key={option.value}
@@ -283,23 +301,27 @@ function CompactToggle<T extends string>({
 
 function BoardHeaderControls({
   archiveMode,
+  notesOpen,
   onArchiveModeChange,
   onNewTask,
+  onToggleNotes,
   onViewModeChange,
   viewMode,
 }: {
   archiveMode: ArchiveMode;
+  notesOpen: boolean;
   onArchiveModeChange: (value: ArchiveMode) => void;
   onNewTask: () => void;
+  onToggleNotes: () => void;
   onViewModeChange: (value: ViewMode) => void;
   viewMode: ViewMode;
 }) {
   return (
-    <div className="w-full rounded-lg border border-line-strong bg-surface-control p-2.5 shadow-[0_12px_26px_rgba(31,79,207,0.1)] sm:w-auto xl:shrink-0">
+    <div className="w-full rounded-lg border border-line-strong bg-surface-control p-2.5 sm:w-auto xl:shrink-0">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
-        <BlueprintButton className="h-10 shrink-0 px-3.5" onClick={onNewTask}>
+        <BlueprintButton className="h-10 shrink-0 px-3.5" onClick={onNewTask} variant="hero">
           <Plus className="h-4 w-4" />
-          Add Task
+          New task
         </BlueprintButton>
 
         <div className="grid min-w-0 grid-cols-2 gap-2">
@@ -316,6 +338,21 @@ function BoardHeaderControls({
             value={archiveMode}
           />
         </div>
+
+        <BlueprintButton
+          aria-label={notesOpen ? "Hide notes" : "Show notes"}
+          aria-pressed={notesOpen}
+          className="h-10 shrink-0 px-3"
+          onClick={onToggleNotes}
+          variant="outline"
+        >
+          {notesOpen ? (
+            <PanelRightClose className="h-4 w-4" />
+          ) : (
+            <PanelRightOpen className="h-4 w-4" />
+          )}
+          <span className="hidden sm:inline">Notes</span>
+        </BlueprintButton>
       </div>
     </div>
   );
@@ -347,30 +384,45 @@ function SubtaskList({ task }: { task: SerializedTask }) {
 
 function NotesPanel({
   className,
-  minHeightClassName,
   noteDraft,
+  noteStatus,
   noteMessage,
   onChange,
+  onClose,
 }: {
   className?: string;
-  minHeightClassName: string;
   noteDraft: string;
+  noteStatus: SaveStatus;
   noteMessage: string | null;
   onChange: (value: string) => void;
+  onClose?: () => void;
 }) {
   return (
-    <BlueprintCard className={cn("p-0", className)}>
+    <BlueprintCard className={cn("flex flex-col p-0", className)} surface="flat">
       <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
-        <h2 className="blueprint-title text-xl text-text-primary">Notes</h2>
-        {noteMessage ? <p className="text-xs font-semibold text-text-muted">{noteMessage}</p> : null}
+        <div className="flex items-center gap-2 text-text-primary">
+          <NotebookPen className="h-4 w-4" />
+          <h2 className="blueprint-display text-lg">Notes</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <SaveIndicator message={noteMessage} status={noteStatus} />
+          {onClose ? (
+            <button
+              aria-label="Hide notes"
+              className="blueprint-action rounded-md p-1"
+              onClick={onClose}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
-      <div className="p-4">
+      <div className="min-h-0 flex-1 p-4">
         <BlueprintTextarea
-          className={cn(
-            "resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0",
-            minHeightClassName,
-          )}
+          className="h-full min-h-[16rem] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:outline-none"
           onChange={(event) => onChange(event.target.value)}
+          placeholder="Drop links, decisions, and follow-ups here. Saved automatically."
           value={noteDraft}
         />
       </div>
@@ -397,11 +449,10 @@ function TaskPreview({
       <div className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <button
-            className="min-w-0 flex-1 space-y-2 text-left"
+            className="min-w-0 flex-1 space-y-1.5 text-left focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
             onClick={() => onOpen?.(task)}
             type="button"
           >
-            <div className="h-0.5 w-10 rounded-full bg-brand/60" />
             <p className="break-words text-base font-semibold leading-snug">{task.title}</p>
           </button>
           <div className="flex shrink-0 items-center gap-1">
@@ -510,14 +561,14 @@ function BoardColumn({
   });
 
   return (
-    <div className="blueprint-surface min-w-0 overflow-hidden">
+    <div className="blueprint-surface-flat blueprint-surface-strong min-w-0 overflow-hidden">
       <div className="h-2" style={getStatusAccentStyle(status)} />
-      <div className="border-b border-line-soft px-4 py-4">
+      <div className="border-b border-line-soft px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="blueprint-title text-xl text-text-primary">{statusLabels[status]}</h2>
-          </div>
-          <span className="rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary">
+          <h2 className="blueprint-display text-lg text-text-primary sm:text-xl">
+            {statusLabels[status]}
+          </h2>
+          <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
             {tasks.length}
           </span>
         </div>
@@ -525,7 +576,7 @@ function BoardColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "blueprint-scrollbar min-h-[27rem] space-y-3 overflow-y-auto p-3 transition sm:min-h-[32rem] sm:p-4",
+          "blueprint-scrollbar min-h-[26rem] space-y-3 overflow-y-auto p-3 transition sm:min-h-[30rem] sm:p-4",
           isOver && "bg-brand-soft",
         )}
       >
@@ -597,7 +648,7 @@ function SortableSubtaskRow({
         )}
       />
       <input
-        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text-primary outline-none"
+        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
         placeholder="Subtask title"
         {...register(`subtasks.${index}.title`)}
       />
@@ -680,13 +731,13 @@ function TaskDrawer({
   const subtaskDndId = task ? `task-drawer-${task.id}-subtasks` : "task-drawer-new-subtasks";
 
   return (
-    <div className="fixed inset-0 z-[60] flex justify-end bg-[#071733]/30 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex justify-end bg-foreground/30 backdrop-blur-sm">
       <button aria-label="Close task editor" className="flex-1" onClick={onClose} type="button" />
 
       <div className="blueprint-surface blueprint-surface-strong blueprint-scrollbar relative h-full w-full max-w-2xl overflow-y-auto rounded-none border-y-0 border-r-0 px-4 py-5 sm:px-8 sm:py-6">
         <button
           aria-label="Close task editor"
-          className="absolute right-4 top-5 rounded-lg border border-line-strong p-2 text-text-primary transition hover:bg-surface-control-hover sm:right-6 sm:top-6"
+          className="absolute right-4 top-5 rounded-lg border border-line-strong p-2 text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 sm:right-6 sm:top-6"
           onClick={onClose}
           type="button"
         >
@@ -695,10 +746,10 @@ function TaskDrawer({
 
         <div className="space-y-6 pt-10">
           <div className="space-y-2">
-            <p className="blueprint-title text-2xl text-text-primary sm:text-3xl">
-              {task ? "Task Details" : "New Task"}
-            </p>
-            <p className="text-base text-text-muted">Board: {boardName}</p>
+            <p className="blueprint-eyebrow">{boardName}</p>
+            <h2 className="blueprint-display text-2xl text-text-primary sm:text-3xl">
+              {task ? "Edit task" : "New task"}
+            </h2>
           </div>
 
           <form
@@ -714,31 +765,21 @@ function TaskDrawer({
               });
             })}
           >
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-                Title
-              </label>
+            <Field error={errors.title?.message} label="Title">
               <BlueprintInput {...register("title", { required: "Title is required." })} />
-              {errors.title ? <p className="text-sm text-rose-600">{errors.title.message}</p> : null}
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-                Description
-              </label>
+            <Field label="Description">
               <BlueprintTextarea
                 {...register("description")}
                 placeholder="Capture context, outcomes, and any details worth keeping."
               />
-            </div>
+            </Field>
 
             <div className="auto-fit-grid gap-4 [--auto-fit-min:14rem]">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Status
-                </label>
+              <Field label="Status">
                 <select
-                  className="blueprint-control h-12 w-full rounded-lg px-4 outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
+                  className="blueprint-control h-11 w-full rounded-lg px-4 outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
                   {...register("status")}
                 >
                   {boardStatuses.map((status) => (
@@ -747,21 +788,16 @@ function TaskDrawer({
                     </option>
                   ))}
                 </select>
-              </div>
+              </Field>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Due date
-                </label>
+              <Field label="Due date">
                 <BlueprintInput type="date" {...register("dueDate")} />
-              </div>
+              </Field>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Subtasks
-                </label>
+                <p className="text-sm font-semibold text-text-primary">Subtasks</p>
                 <BlueprintButton
                   onClick={() => append({ title: "", isComplete: false })}
                   type="button"
@@ -853,7 +889,7 @@ function TaskDrawer({
                   Cancel
                 </BlueprintButton>
                 <BlueprintButton className="justify-center" disabled={isPending} type="submit">
-                  {isPending ? "Saving..." : "Save Task"}
+                  {isPending ? "Saving…" : "Save task"}
                 </BlueprintButton>
               </div>
             </div>
@@ -864,18 +900,27 @@ function TaskDrawer({
   );
 }
 
-export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
+export function BoardWorkspace({
+  autoOpenNewTask = false,
+  board,
+}: {
+  autoOpenNewTask?: boolean;
+  board: BoardSnapshot;
+}) {
   const [tasks, setTasks] = useState(board.tasks);
   const [viewMode, setViewMode] = useState<ViewMode>("board");
   const [archiveMode, setArchiveMode] = useState<ArchiveMode>("on");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [drawerTask, setDrawerTask] = useState<SerializedTask | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(autoOpenNewTask ?? false);
   const [drawerVersion, setDrawerVersion] = useState(0);
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
   const [noteDraft, setNoteDraft] = useState(board.noteContent);
+  const [noteStatus, setNoteStatus] = useState<SaveStatus>("idle");
   const [noteMessage, setNoteMessage] = useState<string | null>(null);
-  const [flashMessage, setFlashMessage] = useState<string | null>(null);
+  const [taskSaveStatus, setTaskSaveStatus] = useState<SaveStatus>("idle");
+  const [taskSaveMessage, setTaskSaveMessage] = useState<string | null>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
   const boardDndId = `${board.slug}-tasks-dnd`;
   const noteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteAbortRef = useRef<AbortController | null>(null);
@@ -891,12 +936,19 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
     }),
   );
 
+  const openTask = (task: SerializedTask | null) => {
+    setDrawerVersion((value) => value + 1);
+    setDrawerTask(task);
+    setDrawerOpen(true);
+  };
+
   useEffect(() => {
     if (noteDraft === lastSavedNote.current) {
       return;
     }
 
-    setNoteMessage("Saving notes...");
+    setNoteStatus("saving");
+    setNoteMessage(null);
 
     if (noteTimerRef.current) {
       clearTimeout(noteTimerRef.current);
@@ -920,15 +972,20 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
         });
 
         if (!response.ok) {
+          setNoteStatus("error");
           setNoteMessage("Unable to save notes.");
           return;
         }
 
         lastSavedNote.current = content;
-        setNoteMessage("Notes saved");
-        setTimeout(() => setNoteMessage(null), 1600);
+        setNoteStatus("saved");
+        setNoteMessage(null);
+        setTimeout(() => {
+          setNoteStatus((status) => (status === "saved" ? "idle" : status));
+        }, 1600);
       } catch (error) {
         if (!controller.signal.aborted) {
+          setNoteStatus("error");
           setNoteMessage(error instanceof Error ? error.message : "Unable to save notes.");
         }
       } finally {
@@ -950,6 +1007,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
   const grouped = groupTasks(tasks);
   const visibleStatuses =
     archiveMode === "on" ? boardStatuses : boardStatuses.filter((status) => status !== "ARCHIVED");
+  const isEmpty = tasks.length === 0;
 
   async function persistTaskOrder(nextTasks: SerializedTask[]) {
     const response = await fetch("/api/tasks/reorder", {
@@ -990,8 +1048,12 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
     setTasks((current) => mergeTask(current, body.task!));
     setDrawerOpen(false);
     setDrawerTask(null);
-    setFlashMessage(taskId ? "Task updated" : "Task created");
-    setTimeout(() => setFlashMessage(null), 1800);
+    setTaskSaveStatus("saved");
+    setTaskSaveMessage(taskId ? "Task updated" : "Task created");
+    setTimeout(() => {
+      setTaskSaveStatus("idle");
+      setTaskSaveMessage(null);
+    }, 1800);
   }
 
   async function handleDeleteTask(taskId: string) {
@@ -1007,15 +1069,13 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
     setTasks((current) => current.filter((task) => task.id !== taskId));
     setDrawerOpen(false);
     setDrawerTask(null);
-    setFlashMessage("Task removed");
-    setTimeout(() => setFlashMessage(null), 1800);
+    setTaskSaveStatus("saved");
+    setTaskSaveMessage("Task removed");
+    setTimeout(() => {
+      setTaskSaveStatus("idle");
+      setTaskSaveMessage(null);
+    }, 1800);
   }
-
-  const openTask = (task: SerializedTask | null) => {
-    setDrawerVersion((value) => value + 1);
-    setDrawerTask(task);
-    setDrawerOpen(true);
-  };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveTaskId(null);
@@ -1039,165 +1099,193 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
       await persistTaskOrder(nextTasks);
     } catch (error) {
       setTasks(previousTasks);
-      setFlashMessage(error instanceof Error ? error.message : "Unable to reorder tasks.");
-      setTimeout(() => setFlashMessage(null), 2200);
+      setTaskSaveStatus("error");
+      setTaskSaveMessage(
+        error instanceof Error ? error.message : "Unable to reorder tasks.",
+      );
+      setTimeout(() => {
+        setTaskSaveStatus("idle");
+        setTaskSaveMessage(null);
+      }, 2400);
     }
   };
 
   const activeTask = activeTaskId ? tasks.find((task) => task.id === activeTaskId) : null;
 
+  const boardArea = (
+    <DndContext
+      id={boardDndId}
+      collisionDetection={closestCorners}
+      onDragEnd={handleDragEnd}
+      onDragStart={(event) => setActiveTaskId(String(event.active.id))}
+      sensors={sensors}
+    >
+      {viewMode === "board" ? (
+        <div className="blueprint-scrollbar flex min-w-0 snap-none items-start gap-4 overflow-x-auto overscroll-x-contain pb-3">
+          {visibleStatuses.map((status) => (
+            <div className={kanbanLaneItemClassName} key={status}>
+              <BoardColumn
+                expandedTaskIds={expandedTaskIds}
+                onOpenTask={openTask}
+                onToggleExpand={(taskId) =>
+                  setExpandedTaskIds((current) => toggleSetValue(current, taskId))
+                }
+                status={status}
+                tasks={grouped[status]}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {visibleStatuses.map((status) => (
+            <BlueprintCard className="space-y-4 p-4 sm:p-5" key={status} surface="flat">
+              <div className="flex items-center justify-between gap-3 border-b border-line-soft pb-3">
+                <h2 className="blueprint-display text-lg text-text-primary sm:text-xl">
+                  {statusLabels[status]}
+                </h2>
+                <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
+                  {grouped[status].length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                <SortableContext
+                  items={grouped[status].map((task) => task.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {grouped[status].map((task) => (
+                    <div
+                      className="overflow-hidden rounded-lg border border-line-strong bg-surface-control"
+                      key={task.id}
+                    >
+                      <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
+                      <div className="flex items-start justify-between gap-3 p-4">
+                        <div className="space-y-2">
+                          <button
+                            className="break-words text-left text-base font-semibold text-text-primary focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                            onClick={() => openTask(task)}
+                            type="button"
+                          >
+                            {task.title}
+                          </button>
+                          <TaskMeta task={task} />
+                        </div>
+                        {task.subtasks.length > 0 ? (
+                          <button
+                            aria-label={
+                              expandedTaskIds.has(task.id)
+                                ? "Collapse subtasks"
+                                : "Expand subtasks"
+                            }
+                            className="blueprint-action rounded-md p-1"
+                            onClick={() =>
+                              setExpandedTaskIds((current) => toggleSetValue(current, task.id))
+                            }
+                            type="button"
+                          >
+                            {expandedTaskIds.has(task.id) ? (
+                              <ChevronDown className="h-5 w-5" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5" />
+                            )}
+                          </button>
+                        ) : null}
+                      </div>
+                      {expandedTaskIds.has(task.id) && task.subtasks.length > 0 ? (
+                        <div className="px-4 pb-4">
+                          <SubtaskList task={task} />
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </SortableContext>
+                {grouped[status].length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+                    Nothing here yet.
+                  </div>
+                ) : null}
+              </div>
+            </BlueprintCard>
+          ))}
+        </div>
+      )}
+
+      <DragOverlay>
+        {activeTaskId ? (
+          <div className="w-[15rem]">
+            {activeTask ? <TaskPreview task={activeTask} /> : null}
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-4">
-          <PageTitle title={board.name} />
-          {board.description ? (
-            <p className="max-w-3xl text-base font-medium text-text-muted">{board.description}</p>
-          ) : null}
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0 space-y-3">
+          <PageTitle
+            description={board.description ?? undefined}
+            eyebrow="Board"
+            title={board.name}
+          />
         </div>
 
-        <BoardHeaderControls
-          archiveMode={archiveMode}
-          onArchiveModeChange={setArchiveMode}
-          onNewTask={() => openTask(null)}
-          onViewModeChange={setViewMode}
-          viewMode={viewMode}
-        />
+        <div className="flex flex-col items-stretch gap-3 xl:items-end">
+          <BoardHeaderControls
+            archiveMode={archiveMode}
+            notesOpen={notesOpen}
+            onArchiveModeChange={setArchiveMode}
+            onNewTask={() => openTask(null)}
+            onToggleNotes={() => setNotesOpen((value) => !value)}
+            onViewModeChange={setViewMode}
+            viewMode={viewMode}
+          />
+          <div className="flex justify-end">
+            <SaveIndicator message={taskSaveMessage} status={taskSaveStatus} />
+          </div>
+        </div>
       </div>
 
-      {flashMessage ? (
-        <div className="blueprint-panel-muted rounded-lg px-4 py-3 text-sm font-semibold text-text-primary">
-          {flashMessage}
-        </div>
-      ) : null}
-
-      <DndContext
-        id={boardDndId}
-        collisionDetection={closestCorners}
-        onDragEnd={handleDragEnd}
-        onDragStart={(event) => setActiveTaskId(String(event.active.id))}
-        sensors={sensors}
-      >
-        {viewMode === "board" ? (
-          <div className="blueprint-scrollbar flex min-w-0 snap-none items-start gap-4 overflow-x-auto overscroll-x-contain pb-3">
-            {visibleStatuses.map((status) => (
-              <div className={kanbanLaneItemClassName} key={status}>
-                <BoardColumn
-                  expandedTaskIds={expandedTaskIds}
-                  onOpenTask={openTask}
-                  onToggleExpand={(taskId) =>
-                    setExpandedTaskIds((current) => toggleSetValue(current, taskId))
-                  }
-                  status={status}
-                  tasks={grouped[status]}
-                />
-              </div>
-            ))}
-
+      {isEmpty ? (
+        <BlueprintCard className="p-8 text-center sm:p-12" surface="flat">
+          <div className="mx-auto max-w-md space-y-5">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg border border-line-strong bg-surface-control">
+              <Sparkles className="h-6 w-6 text-brand" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="blueprint-display text-3xl text-text-primary">A blank canvas</h2>
+              <p className="text-base text-text-muted">
+                Sketch your first task to start filling out{" "}
+                <span className="font-semibold text-text-primary">{board.name}</span>.
+              </p>
+            </div>
+            <BlueprintButton onClick={() => openTask(null)} variant="hero">
+              <Plus className="h-4 w-4" />
+              New task
+            </BlueprintButton>
+          </div>
+        </BlueprintCard>
+      ) : (
+        <div
+          className={cn(
+            "grid gap-5",
+            notesOpen && "lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]",
+          )}
+        >
+          <div className="min-w-0">{boardArea}</div>
+          {notesOpen ? (
             <NotesPanel
-              className={kanbanLaneItemClassName}
-              minHeightClassName="min-h-[32rem]"
+              className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]"
               noteDraft={noteDraft}
               noteMessage={noteMessage}
+              noteStatus={noteStatus}
               onChange={setNoteDraft}
+              onClose={() => setNotesOpen(false)}
             />
-          </div>
-        ) : (
-          <div className="auto-fit-grid gap-5 [--auto-fit-min:18rem]">
-            <div className="space-y-5">
-              {visibleStatuses.map((status) => (
-                <BlueprintCard className="space-y-4 p-4 sm:p-5" key={status}>
-                  <div className="flex items-center justify-between gap-3 border-b border-line-soft pb-3">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className="h-4 w-4 rounded-sm border border-line-strong"
-                        style={getStatusAccentStyle(status)}
-                      />
-                      <h2 className="blueprint-title text-xl text-text-primary sm:text-2xl">
-                        {statusLabels[status]}
-                      </h2>
-                    </div>
-                    <span className="rounded-md border border-line-soft bg-surface-control px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
-                      {grouped[status].length} tasks
-                    </span>
-                  </div>
-                  <div className="space-y-3">
-                    <SortableContext
-                      items={grouped[status].map((task) => task.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {grouped[status].map((task) => (
-                        <div
-                          className="overflow-hidden rounded-lg border border-line-strong bg-surface-control"
-                          key={task.id}
-                        >
-                          <div
-                            className="h-1.5"
-                            style={getStatusAccentStyle(task.status)}
-                          />
-                          <div className="flex items-start justify-between gap-3 p-4">
-                            <div className="space-y-2">
-                              <button
-                                className="break-words text-left text-lg font-semibold text-text-primary"
-                                onClick={() => openTask(task)}
-                                type="button"
-                              >
-                                {task.title}
-                              </button>
-                              <TaskMeta task={task} />
-                            </div>
-                            {task.subtasks.length > 0 ? (
-                              <button
-                                aria-label={
-                                  expandedTaskIds.has(task.id)
-                                    ? "Collapse subtasks"
-                                    : "Expand subtasks"
-                                }
-                                className="blueprint-action rounded-md p-1"
-                                onClick={() =>
-                                  setExpandedTaskIds((current) => toggleSetValue(current, task.id))
-                                }
-                                type="button"
-                              >
-                                {expandedTaskIds.has(task.id) ? (
-                                  <ChevronDown className="h-5 w-5" />
-                                ) : (
-                                  <ChevronRight className="h-5 w-5" />
-                                )}
-                              </button>
-                            ) : null}
-                          </div>
-                          {expandedTaskIds.has(task.id) && task.subtasks.length > 0 ? (
-                            <div className="px-4 pb-4">
-                              <SubtaskList task={task} />
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </SortableContext>
-                  </div>
-                </BlueprintCard>
-              ))}
-            </div>
-
-            <NotesPanel
-              className="h-fit"
-              minHeightClassName="min-h-[24rem]"
-              noteDraft={noteDraft}
-              noteMessage={noteMessage}
-              onChange={setNoteDraft}
-            />
-          </div>
-        )}
-
-        <DragOverlay>
-          {activeTaskId ? (
-            <div className="w-[15rem]">
-              {activeTask ? <TaskPreview task={activeTask} /> : null}
-            </div>
           ) : null}
-        </DragOverlay>
-      </DndContext>
+        </div>
+      )}
 
       <TaskDrawer
         boardName={board.name}

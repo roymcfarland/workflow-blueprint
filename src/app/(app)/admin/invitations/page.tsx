@@ -9,7 +9,11 @@ export default async function AdminInvitationsPage() {
 
   return (
     <div className="fade-up space-y-6">
-      <PageTitle title="Admin Panel" />
+      <PageTitle
+        description="Send invitations and manage the invite ledger."
+        eyebrow="Admin"
+        title="Invitations"
+      />
       <InvitationsAdmin initialInvitations={invitations} />
     </div>
   );

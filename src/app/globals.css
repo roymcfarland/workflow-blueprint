@@ -2,23 +2,25 @@
 @import "@fontsource/manrope/500.css";
 @import "@fontsource/manrope/600.css";
 @import "@fontsource/manrope/700.css";
+@import "@fontsource/manrope/800.css";
 @import "tailwindcss";
 
 :root {
   --background: #f7f9fd;
   --foreground: #17213a;
-  --paper: rgba(255, 255, 255, 0.92);
+  --paper: rgba(255, 255, 255, 0.94);
   --paper-strong: #ffffff;
   --ink: #1f4fcf;
   --ink-strong: #12348c;
-  --ink-soft: rgba(31, 79, 207, 0.16);
-  --ink-muted: rgba(23, 33, 58, 0.62);
+  --ink-soft: rgba(31, 79, 207, 0.18);
+  --ink-muted: rgba(23, 33, 58, 0.72);
   --accent: #d89020;
-  --accent-soft: rgba(216, 144, 32, 0.15);
+  --accent-strong: #b97813;
+  --accent-soft: rgba(216, 144, 32, 0.18);
   --success: #18795e;
-  --success-soft: rgba(24, 121, 94, 0.12);
+  --success-soft: rgba(24, 121, 94, 0.14);
   --danger: #bf3650;
-  --danger-soft: rgba(191, 54, 80, 0.12);
+  --danger-soft: rgba(191, 54, 80, 0.14);
   --text-primary: var(--ink);
   --text-muted: var(--ink-muted);
   --brand: var(--ink);
@@ -28,12 +30,12 @@
   --line-strong: var(--ink);
   --line-soft: var(--ink-soft);
   --surface-base: var(--paper);
-  --surface-raised: rgba(255, 255, 255, 0.96);
+  --surface-raised: rgba(255, 255, 255, 0.97);
   --surface-strong: var(--paper-strong);
-  --surface-control: rgba(255, 255, 255, 0.88);
+  --surface-control: rgba(255, 255, 255, 0.92);
   --surface-control-hover: var(--paper-strong);
-  --grid: rgba(31, 79, 207, 0.065);
-  --grid-strong: rgba(31, 79, 207, 0.11);
+  --grid: rgba(31, 79, 207, 0.07);
+  --grid-strong: rgba(31, 79, 207, 0.12);
   --grid-size: 32px;
   --surface-shadow: 0 14px 30px rgba(18, 52, 140, 0.08);
   --surface-shadow-strong: 0 20px 44px rgba(18, 52, 140, 0.12);
@@ -45,60 +47,70 @@
     rgba(255, 255, 255, 0.48),
     rgba(255, 255, 255, 0)
   );
+  /* Status scale: cool -> warm -> success -> neutral.
+     Backlog (cool blue) -> Up Next (slate) -> In Progress (amber/warm)
+     -> Done (green) -> Archived (muted). */
   --status-archived: #9aa6bd;
   --status-done: #1a9f72;
-  --status-ice-box: #8cb0ff;
-  --status-in-progress: #d8a034;
-  --status-on-deck: #42aeb1;
+  --status-ice-box: #6f86b5;
+  --status-in-progress: #d89020;
+  --status-on-deck: #4a78d6;
   --radius-card: 0.9rem;
   --radius-note: 0.75rem;
+  --focus-ring-offset: var(--background);
+  --due-soon: var(--accent);
+  --due-soon-soft: var(--accent-soft);
+  --overdue: var(--danger);
+  --overdue-soft: var(--danger-soft);
 }
 
 .dark {
   --background: #11151d;
   --foreground: #eef3f8;
-  --paper: rgba(20, 25, 34, 0.88);
+  --paper: rgba(20, 25, 34, 0.92);
   --paper-strong: rgba(32, 38, 50, 0.98);
   --ink: #8fb0f4;
   --ink-strong: #d4def8;
-  --ink-soft: rgba(143, 176, 244, 0.16);
-  --ink-muted: rgba(222, 230, 241, 0.68);
-  --accent: #d7a852;
-  --accent-soft: rgba(215, 168, 82, 0.14);
+  --ink-soft: rgba(143, 176, 244, 0.2);
+  --ink-muted: rgba(222, 230, 241, 0.74);
+  --accent: #e6b96a;
+  --accent-strong: #f0c87e;
+  --accent-soft: rgba(230, 185, 106, 0.18);
   --success: #72d7b3;
-  --success-soft: rgba(114, 215, 179, 0.13);
+  --success-soft: rgba(114, 215, 179, 0.14);
   --danger: #ff8b9b;
-  --danger-soft: rgba(255, 139, 155, 0.13);
+  --danger-soft: rgba(255, 139, 155, 0.14);
   --text-primary: #eef3f8;
-  --text-muted: rgba(222, 230, 241, 0.68);
+  --text-muted: rgba(222, 230, 241, 0.74);
   --brand: #8fb0f4;
   --brand-strong: #d4def8;
-  --brand-soft: rgba(143, 176, 244, 0.18);
+  --brand-soft: rgba(143, 176, 244, 0.22);
   --brand-fill: #4f72c8;
-  --line-strong: rgba(143, 176, 244, 0.45);
-  --line-soft: rgba(202, 214, 231, 0.16);
-  --surface-base: rgba(20, 25, 34, 0.86);
-  --surface-raised: rgba(27, 33, 43, 0.94);
+  --line-strong: rgba(143, 176, 244, 0.5);
+  --line-soft: rgba(202, 214, 231, 0.18);
+  --surface-base: rgba(20, 25, 34, 0.9);
+  --surface-raised: rgba(27, 33, 43, 0.96);
   --surface-strong: rgba(35, 41, 53, 0.98);
-  --surface-control: rgba(244, 248, 255, 0.075);
-  --surface-control-hover: rgba(244, 248, 255, 0.12);
-  --grid: rgba(142, 160, 192, 0.04);
-  --grid-strong: rgba(142, 160, 192, 0.07);
+  --surface-control: rgba(244, 248, 255, 0.085);
+  --surface-control-hover: rgba(244, 248, 255, 0.13);
+  --grid: rgba(142, 160, 192, 0.06);
+  --grid-strong: rgba(142, 160, 192, 0.09);
   --surface-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
   --surface-shadow-strong: 0 22px 54px rgba(0, 0, 0, 0.36);
   --control-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-  --paper-wash-start: rgba(255, 255, 255, 0.045);
-  --paper-wash-end: rgba(255, 255, 255, 0.012);
+  --paper-wash-start: rgba(255, 255, 255, 0.05);
+  --paper-wash-end: rgba(255, 255, 255, 0.014);
   --ambient-wash: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.04),
+    rgba(230, 185, 106, 0.05),
     rgba(255, 255, 255, 0)
   );
-  --status-archived: #9aa4b2;
+  --status-archived: #8a94a4;
   --status-done: #62cfa4;
-  --status-ice-box: #87a7de;
-  --status-in-progress: #d2a04d;
-  --status-on-deck: #55b8ad;
+  --status-ice-box: #7e96c2;
+  --status-in-progress: #e6b96a;
+  --status-on-deck: #6e92e2;
+  --focus-ring-offset: var(--background);
 }
 
 @theme inline {
@@ -111,6 +123,7 @@
   --color-ink-soft: var(--ink-soft);
   --color-ink-muted: var(--ink-muted);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
@@ -128,6 +141,10 @@
   --color-surface-strong: var(--surface-strong);
   --color-surface-control: var(--surface-control);
   --color-surface-control-hover: var(--surface-control-hover);
+  --color-due-soon: var(--due-soon);
+  --color-due-soon-soft: var(--due-soon-soft);
+  --color-overdue: var(--overdue);
+  --color-overdue-soft: var(--overdue-soft);
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SF Mono", ui-monospace, monospace;
@@ -177,7 +194,7 @@ body::before {
 
 body::after {
   background:
-    linear-gradient(135deg, var(--accent-soft), transparent 34%),
+    linear-gradient(135deg, var(--accent-soft), transparent 40%),
     var(--ambient-wash);
   z-index: 0;
 }
@@ -202,11 +219,30 @@ select {
   background: var(--brand-soft);
 }
 
+/* Display tier: only for the wordmark and primary page titles. */
+.blueprint-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+
+/* Heading tier: section titles inside cards. Sentence case, tighter. */
 .blueprint-title {
   font-family: var(--font-display);
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+/* Eyebrow tier: small uppercase labels for microcopy only. */
+.blueprint-eyebrow {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .auto-fit-grid {
@@ -223,6 +259,14 @@ select {
   background: var(--surface-base);
   box-shadow: var(--surface-shadow);
   backdrop-filter: blur(14px);
+}
+
+/* Inner cards on dense pages: skip the blur for scroll perf. */
+.blueprint-surface-flat {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface-raised);
+  box-shadow: var(--surface-shadow);
 }
 
 .blueprint-surface-strong {
@@ -254,7 +298,7 @@ select {
 
 @media (hover: none), (pointer: coarse) {
   .blueprint-grid-paper {
-    background-color: rgba(255, 255, 255, 0.72);
+    background-color: rgba(255, 255, 255, 0.74);
     background-image: linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.62),
@@ -265,15 +309,22 @@ select {
   }
 
   .dark .blueprint-grid-paper {
-    background-color: rgba(20, 25, 34, 0.76);
+    background-color: rgba(20, 25, 34, 0.78);
     background-image: linear-gradient(
       180deg,
-      rgba(255, 255, 255, 0.035),
-      rgba(255, 255, 255, 0.012)
+      rgba(255, 255, 255, 0.045),
+      rgba(255, 255, 255, 0.015)
     );
   }
 }
 
+/* Default primary button fill: flat brand color. Use everywhere. */
+.blueprint-fill-flat {
+  background-color: var(--brand-fill);
+  color: #ffffff;
+}
+
+/* Hero variant: hatched + ambient. Use for ONE primary CTA per page. */
 .blueprint-fill {
   background-color: var(--brand-fill);
   background-image:
@@ -286,6 +337,13 @@ select {
       transparent 2px,
       transparent 6px
     );
+  color: #ffffff;
+}
+
+/* Action accent: amber fill for time-sensitive actions. */
+.blueprint-fill-accent {
+  background-color: var(--accent);
+  color: #1a1006;
 }
 
 .blueprint-outline {
@@ -305,7 +363,7 @@ select {
 }
 
 .blueprint-note:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--surface-shadow-strong);
 }
 
@@ -322,6 +380,12 @@ select {
 
 .blueprint-control::placeholder {
   color: var(--text-muted);
+}
+
+/* Strong focus indicator: 2px solid brand, 2px offset for WCAG 2.4.7. */
+.blueprint-focus:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .blueprint-panel-muted {

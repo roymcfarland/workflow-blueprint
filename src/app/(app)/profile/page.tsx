@@ -8,19 +8,14 @@ export default async function ProfilePage() {
 
   return (
     <div className="fade-up space-y-6">
-      <PageTitle title="Profile" />
+      <PageTitle
+        description="Update your identity, theme preference, and password from one place."
+        eyebrow="Account"
+        title="Profile"
+      />
 
-      <BlueprintCard className="p-6 lg:p-8">
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <p className="blueprint-title text-3xl text-text-primary">Account Details</p>
-            <p className="text-lg text-text-muted">
-              Update your identity, theme preference, and password from one place.
-            </p>
-          </div>
-
-          <ProfileForm user={user} />
-        </div>
+      <BlueprintCard className="p-5 lg:p-6">
+        <ProfileForm user={user} />
       </BlueprintCard>
     </div>
   );

@@ -10,7 +10,7 @@ export const BlueprintInput = React.forwardRef<
     <input
       ref={ref}
       className={cn(
-        "blueprint-control h-12 w-full rounded-lg px-4 text-base outline-none transition focus-visible:ring-4 focus-visible:ring-brand-soft",
+        "blueprint-control h-11 w-full rounded-lg px-4 text-base outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2",
         className,
       )}
       {...props}

@@ -19,7 +19,7 @@ export function BlueprintCheckbox({
     <label
       className={cn("flex cursor-pointer items-start gap-3 text-sm text-text-primary", className)}
     >
-      <span className="blueprint-control relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md">
+      <span className="blueprint-control relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md focus-within:outline-2 focus-within:outline-brand focus-within:outline-offset-2">
         <input
           checked={checked}
           className="peer absolute inset-0 cursor-pointer opacity-0"

@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
+import { Field } from "@/components/blueprint/field";
 import type { SignUpInput } from "@/lib/validators";
 
 type SignUpFormProps = {
@@ -64,7 +65,7 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
   });
 
   return (
-    <form className="space-y-6" onSubmit={onSubmit}>
+    <form className="space-y-5" onSubmit={onSubmit}>
       <input type="hidden" {...register("inviteToken")} />
 
       <div className="blueprint-panel-muted rounded-lg px-4 py-3 text-sm">
@@ -72,16 +73,13 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
         <p>This invite expires on {expiresLabel}.</p>
       </div>
 
-      <div className="space-y-2">
-        <label className="block text-base font-semibold text-text-primary" htmlFor="name">
-          Name
-        </label>
+      <Field error={errors.name?.message} htmlFor="name" label="Name">
         <div className="relative">
           <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.name ? "true" : "false"}
             autoComplete="name"
-            className="pl-14"
+            className="pl-12"
             id="name"
             placeholder="Your name"
             {...register("name", {
@@ -89,19 +87,15 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
             })}
           />
         </div>
-        {errors.name ? <p className="text-sm text-rose-600">{errors.name.message}</p> : null}
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <label className="block text-base font-semibold text-text-primary" htmlFor="email">
-          Email
-        </label>
+      <Field error={errors.email?.message} htmlFor="email" label="Email">
         <div className="relative">
           <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.email ? "true" : "false"}
             autoComplete="email"
-            className="pl-14"
+            className="pl-12"
             id="email"
             placeholder="you@company.com"
             readOnly
@@ -111,19 +105,15 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
             })}
           />
         </div>
-        {errors.email ? <p className="text-sm text-rose-600">{errors.email.message}</p> : null}
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <label className="block text-base font-semibold text-text-primary" htmlFor="password">
-          Password
-        </label>
+      <Field error={errors.password?.message} htmlFor="password" label="Password">
         <div className="relative">
           <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.password ? "true" : "false"}
             autoComplete="new-password"
-            className="pl-14 pr-14"
+            className="pl-12 pr-12"
             id="password"
             placeholder="At least 8 characters"
             type={showPassword ? "text" : "password"}
@@ -137,28 +127,26 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
           />
           <button
             aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text-primary"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-text-muted transition hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
             onClick={() => setShowPassword((value) => !value)}
             type="button"
           >
             {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
           </button>
         </div>
-        {errors.password ? (
-          <p className="text-sm text-rose-600">{errors.password.message}</p>
-        ) : null}
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <label className="block text-base font-semibold text-text-primary" htmlFor="confirmPassword">
-          Confirm password
-        </label>
+      <Field
+        error={errors.confirmPassword?.message}
+        htmlFor="confirmPassword"
+        label="Confirm password"
+      >
         <div className="relative">
           <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.confirmPassword ? "true" : "false"}
             autoComplete="new-password"
-            className="pl-14 pr-14"
+            className="pl-12 pr-12"
             id="confirmPassword"
             type={showConfirmPassword ? "text" : "password"}
             {...register("confirmPassword", {
@@ -169,7 +157,7 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
             aria-label={
               showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"
             }
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text-primary"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-text-muted transition hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
             onClick={() => setShowConfirmPassword((value) => !value)}
             type="button"
           >
@@ -180,10 +168,7 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
             )}
           </button>
         </div>
-        {errors.confirmPassword ? (
-          <p className="text-sm text-rose-600">{errors.confirmPassword.message}</p>
-        ) : null}
-      </div>
+      </Field>
 
       {message ? (
         <p className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
@@ -191,13 +176,16 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
         </p>
       ) : null}
 
-      <BlueprintButton className="w-full text-base" disabled={isPending} type="submit">
-        {isPending ? "Creating Account..." : "Create Account"}
+      <BlueprintButton className="w-full text-base" disabled={isPending} type="submit" variant="hero">
+        {isPending ? "Creating account…" : "Create account"}
       </BlueprintButton>
 
       <div className="text-center text-sm text-text-muted">
         Already have an account?{" "}
-        <Link className="font-semibold text-brand underline decoration-2 underline-offset-4" href="/">
+        <Link
+          className="font-semibold text-brand underline decoration-2 underline-offset-4 focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+          href="/"
+        >
           Sign in
         </Link>
       </div>
