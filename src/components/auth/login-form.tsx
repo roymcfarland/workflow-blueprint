@@ -55,11 +55,11 @@ export function LoginForm() {
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <div className="space-y-2">
-        <label className="block text-base font-semibold text-ink" htmlFor="email">
+        <label className="block text-base font-semibold text-text-primary" htmlFor="email">
           Email
         </label>
         <div className="relative">
-          <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.email ? "true" : "false"}
             className="pl-14"
@@ -74,11 +74,11 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-2">
-        <label className="block text-base font-semibold text-ink" htmlFor="password">
+        <label className="block text-base font-semibold text-text-primary" htmlFor="password">
           Password
         </label>
         <div className="relative">
-          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.password ? "true" : "false"}
             className="pl-14 pr-14"
@@ -91,7 +91,7 @@ export function LoginForm() {
           />
           <button
             aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text-primary"
             onClick={() => setShowPassword((value) => !value)}
             type="button"
           >
@@ -106,7 +106,7 @@ export function LoginForm() {
       <BlueprintCheckbox label="Remember me" {...register("rememberMe")} />
 
       {message ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
           {message}
         </p>
       ) : null}

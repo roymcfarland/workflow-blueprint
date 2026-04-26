@@ -27,12 +27,12 @@ function InviteOnlyMessage({
     <BlueprintCard className="w-full p-8 text-center sm:p-10">
       <div className="space-y-6">
         <div className="space-y-3">
-          <p className="blueprint-title text-4xl text-ink sm:text-5xl">{title}</p>
-          <p className="text-lg text-ink-muted">{copy}</p>
+          <p className="blueprint-title text-4xl text-text-primary sm:text-5xl">{title}</p>
+          <p className="text-lg text-text-muted">{copy}</p>
         </div>
 
         <Link
-          className="inline-flex rounded-lg border border-ink px-4 py-2.5 font-semibold text-ink transition hover:bg-white/70"
+          className="inline-flex rounded-lg border border-line-strong px-4 py-2.5 font-semibold text-text-primary transition hover:bg-surface-control-hover"
           href="/"
         >
           Sign in
@@ -63,31 +63,33 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
             title="Invitation Unavailable"
           />
         ) : (
-        <BlueprintCard className="w-full p-8 sm:p-10">
-          <div className="space-y-8">
-            <div className="space-y-3 text-center">
-              <p className="blueprint-title text-4xl text-ink sm:text-5xl">Accept Invitation</p>
-              <p className="text-lg text-ink-muted">
-                Create your account to open your Workflow Blueprint workspace.
-              </p>
-            </div>
+          <BlueprintCard className="w-full p-8 sm:p-10">
+            <div className="space-y-8">
+              <div className="space-y-3 text-center">
+                <p className="blueprint-title text-4xl text-text-primary sm:text-5xl">
+                  Accept Invitation
+                </p>
+                <p className="text-lg text-text-muted">
+                  Create your account to open your Workflow Blueprint workspace.
+                </p>
+              </div>
 
-            <SignUpForm
-              expiresAt={invitation.expiresAt}
-              inviteToken={inviteToken}
-              invitedEmail={invitation.email}
-            />
+              <SignUpForm
+                expiresAt={invitation.expiresAt}
+                inviteToken={inviteToken}
+                invitedEmail={invitation.email}
+              />
 
-            <div className="text-center text-sm text-ink-muted">
-              <Link
-                className="font-semibold text-ink underline decoration-2 underline-offset-4"
-                href="/"
-              >
-                Return to the landing page
-              </Link>
+              <div className="text-center text-sm text-text-muted">
+                <Link
+                  className="font-semibold text-brand underline decoration-2 underline-offset-4"
+                  href="/"
+                >
+                  Return to the landing page
+                </Link>
+              </div>
             </div>
-          </div>
-        </BlueprintCard>
+          </BlueprintCard>
         )}
       </div>
     </main>
