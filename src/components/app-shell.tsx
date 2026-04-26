@@ -300,7 +300,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           />
         ) : null}
 
-        <div className="relative flex-1">
+        <div className="relative min-w-0 flex-1">
           {!desktopOpen ? (
             <button
               aria-label="Open navigation"
@@ -323,7 +323,9 @@ export function AppShell({ boards, children, user }: AppShellProps) {
             </button>
           ) : null}
 
-          <main className="min-h-screen px-4 pb-10 pt-16 sm:px-6 lg:px-8 lg:pt-8">{children}</main>
+          <main className="min-h-screen min-w-0 px-4 pb-10 pt-16 sm:px-6 lg:px-8 lg:pt-8">
+            {children}
+          </main>
         </div>
       </div>
     </>

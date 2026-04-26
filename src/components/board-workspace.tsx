@@ -41,7 +41,6 @@ import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { BlueprintCheckbox } from "@/components/blueprint/checkbox";
 import { BlueprintInput } from "@/components/blueprint/input";
-import { BlueprintPillToggle } from "@/components/blueprint/pill-toggle";
 import { PageTitle } from "@/components/blueprint/page-title";
 import { BlueprintTextarea } from "@/components/blueprint/textarea";
 import {
@@ -77,19 +76,6 @@ const statusAccentColors: Record<TaskStatus, string> = {
 const kanbanLaneItemClassName = "w-[min(86vw,21rem)] shrink-0 sm:w-80 lg:w-[21rem]";
 
 const activeBoardStatuses: TaskStatus[] = ["ON_DECK", "IN_PROGRESS", "DONE"];
-
-function countTasksByStatus(tasks: SerializedTask[]) {
-  const counts = Object.fromEntries(boardStatuses.map((status) => [status, 0])) as Record<
-    TaskStatus,
-    number
-  >;
-
-  for (const task of tasks) {
-    counts[task.status] += 1;
-  }
-
-  return counts;
-}
 
 function completedSubtaskCount(task: SerializedTask) {
   return task.subtasks.filter((subtask) => subtask.isComplete).length;
@@ -228,26 +214,6 @@ function mergeTask(tasks: SerializedTask[], nextTask: SerializedTask) {
   return normalizeTasks(nextTasks);
 }
 
-function BoardStat({
-  label,
-  tone,
-  value,
-}: {
-  label: string;
-  tone: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-lg border border-ink-soft bg-white/75 px-3 py-2.5 dark:bg-paper-strong">
-      <div className="mb-2 h-1 rounded-full" style={{ backgroundColor: tone }} />
-      <p className="text-2xl font-semibold leading-none text-ink">{value}</p>
-      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
-        {label}
-      </p>
-    </div>
-  );
-}
-
 function TaskMeta({ task }: { task: SerializedTask }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">
@@ -265,6 +231,88 @@ function TaskMeta({ task }: { task: SerializedTask }) {
       <span className="inline-flex rounded-md border border-ink-soft bg-white/70 px-2 py-1 dark:bg-paper-strong">
         {formatSubtaskSummary(task)}
       </span>
+    </div>
+  );
+}
+
+function CompactToggle<T extends string>({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (value: T) => void;
+  options: readonly { label: string; value: T }[];
+  value: T;
+}) {
+  return (
+    <div className="min-w-0 space-y-1">
+      <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-ink-muted">
+        {label}
+      </p>
+      <div className="grid grid-cols-2 gap-1 rounded-lg border border-ink-soft bg-white/60 p-1 dark:bg-paper">
+        {options.map((option) => {
+          const active = option.value === value;
+
+          return (
+            <button
+              aria-pressed={active}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-sm font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ink-soft",
+                active
+                  ? "blueprint-fill text-white"
+                  : "text-ink hover:bg-white/75 dark:hover:bg-white/6",
+              )}
+              key={option.value}
+              onClick={() => onChange(option.value)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BoardHeaderControls({
+  archiveMode,
+  onArchiveModeChange,
+  onNewTask,
+  onViewModeChange,
+  viewMode,
+}: {
+  archiveMode: ArchiveMode;
+  onArchiveModeChange: (value: ArchiveMode) => void;
+  onNewTask: () => void;
+  onViewModeChange: (value: ViewMode) => void;
+  viewMode: ViewMode;
+}) {
+  return (
+    <div className="w-full rounded-lg border border-ink bg-white/80 p-2.5 shadow-[0_12px_26px_rgba(31,79,207,0.1)] dark:bg-paper-strong sm:w-auto xl:shrink-0">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
+        <BlueprintButton className="h-10 shrink-0 px-3.5" onClick={onNewTask}>
+          <Plus className="h-4 w-4" />
+          Add Task
+        </BlueprintButton>
+
+        <div className="grid min-w-0 grid-cols-2 gap-2">
+          <CompactToggle
+            label="View"
+            onChange={onViewModeChange}
+            options={boardViewOptions}
+            value={viewMode}
+          />
+          <CompactToggle
+            label="Archived"
+            onChange={onArchiveModeChange}
+            options={archiveOptions}
+            value={archiveMode}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -898,8 +946,6 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
   const grouped = groupTasks(tasks);
   const visibleStatuses =
     archiveMode === "on" ? boardStatuses : boardStatuses.filter((status) => status !== "ARCHIVED");
-  const taskCounts = countTasksByStatus(tasks);
-  const dueSoonCount = tasks.filter(isDueSoon).length;
 
   async function persistTaskOrder(nextTasks: SerializedTask[]) {
     const response = await fetch("/api/tasks/reorder", {
@@ -998,45 +1044,21 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
 
   return (
     <div className="space-y-6">
-      <div className="auto-fit-grid items-start gap-5 [--auto-fit-min:18rem]">
-        <div className="space-y-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 space-y-4">
           <PageTitle title={board.name} />
           {board.description ? (
             <p className="max-w-3xl text-base font-medium text-ink-muted">{board.description}</p>
           ) : null}
-          <div className="auto-fit-grid gap-3 [--auto-fit-min:10rem]">
-            <BoardStat label="Total" tone="var(--ink)" value={tasks.length} />
-            <BoardStat label="On Deck" tone={statusAccentColors.ON_DECK} value={taskCounts.ON_DECK} />
-            <BoardStat
-              label="In Progress"
-              tone={statusAccentColors.IN_PROGRESS}
-              value={taskCounts.IN_PROGRESS}
-            />
-            <BoardStat label="Done" tone={statusAccentColors.DONE} value={taskCounts.DONE} />
-            <BoardStat label="Due Soon" tone="var(--accent)" value={dueSoonCount} />
-          </div>
         </div>
 
-        <div className="flex h-fit flex-col gap-3 rounded-lg border border-ink-soft bg-white/70 p-3 dark:bg-paper-strong">
-          <BlueprintButton className="justify-center" onClick={() => openTask(null)}>
-            <Plus className="h-4 w-4" />
-            New Task
-          </BlueprintButton>
-          <div className="space-y-3">
-            <BlueprintPillToggle
-              label="View:"
-              onChange={(value) => setViewMode(value)}
-              options={boardViewOptions}
-              value={viewMode}
-            />
-            <BlueprintPillToggle
-              label="Archived:"
-              onChange={(value) => setArchiveMode(value)}
-              options={archiveOptions}
-              value={archiveMode}
-            />
-          </div>
-        </div>
+        <BoardHeaderControls
+          archiveMode={archiveMode}
+          onArchiveModeChange={setArchiveMode}
+          onNewTask={() => openTask(null)}
+          onViewModeChange={setViewMode}
+          viewMode={viewMode}
+        />
       </div>
 
       {flashMessage ? (
@@ -1053,7 +1075,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
         sensors={sensors}
       >
         {viewMode === "board" ? (
-          <div className="blueprint-scrollbar flex snap-none items-start gap-4 overflow-x-auto pb-3">
+          <div className="blueprint-scrollbar flex min-w-0 snap-none items-start gap-4 overflow-x-auto overscroll-x-contain pb-3">
             {visibleStatuses.map((status) => (
               <div className={kanbanLaneItemClassName} key={status}>
                 <BoardColumn
