@@ -46,7 +46,6 @@ import { PageTitle } from "@/components/blueprint/page-title";
 import { BlueprintTextarea } from "@/components/blueprint/textarea";
 import {
   boardStatuses,
-  statusDescriptions,
   statusLabels,
   type TaskStatus,
 } from "@/lib/domain";
@@ -463,7 +462,6 @@ function BoardColumn({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="blueprint-title text-xl text-ink">{statusLabels[status]}</h2>
-            <p className="mt-1 line-clamp-2 text-xs text-ink-muted">{statusDescriptions[status]}</p>
           </div>
           <span className="rounded-md border border-ink-soft bg-white/75 px-2 py-1 text-sm font-semibold text-ink dark:bg-paper">
             {tasks.length}
