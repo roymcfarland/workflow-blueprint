@@ -6,7 +6,7 @@ import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
 import type { DashboardSnapshot } from "@/lib/data";
 
-const chartPalette = ["#4f78e6", "#d99a22", "#2f9f85", "#5ab7b9"];
+const chartPalette = ["#4f78e6", "#c94f7c", "#2f9f85", "#5ab7b9"];
 const chartCenter = 160;
 const chartRadius = 108;
 const chartStrokeWidth = 42;

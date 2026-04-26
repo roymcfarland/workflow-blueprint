@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
+import PullToRefresh from "@/components/pull-to-refresh";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { siteConfig } from "@/lib/site-config";
 
@@ -61,7 +62,10 @@ export default function RootLayout({
   return (
     <html data-scroll-behavior="smooth" lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <PullToRefresh />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
