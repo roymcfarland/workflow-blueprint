@@ -47,14 +47,18 @@ export const signInSchema = z.object({
 export const signUpSchema = z
   .object({
     name: z
-      .string()
+      .string({ error: "Name is required." })
       .trim()
       .min(2, "Name must be at least 2 characters.")
       .max(80, "Name should stay under 80 characters."),
     email: z.email("Enter a valid email address.").trim().toLowerCase(),
     inviteToken: requiredTrimmedString("Invite token is required."),
-    password: z.string().min(8, "Password must be at least 8 characters."),
-    confirmPassword: z.string().min(8, "Please confirm the password."),
+    password: z
+      .string({ error: "Password must be at least 8 characters." })
+      .min(8, "Password must be at least 8 characters."),
+    confirmPassword: z
+      .string({ error: "Please confirm the password." })
+      .min(8, "Please confirm the password."),
   })
   .refine((value) => value.password === value.confirmPassword, {
     message: "Passwords must match.",

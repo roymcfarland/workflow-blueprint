@@ -88,7 +88,15 @@ export async function setSessionCookie(token: string, rememberMe = false) {
 
 export async function clearSessionCookie() {
   const cookieStore = await cookies();
-  cookieStore.delete(sessionCookieName);
+  // Overwrite with the same attribute set used at issuance so browsers
+  // that match-clear by attribute tuple drop it deterministically.
+  cookieStore.set(sessionCookieName, "", {
+    httpOnly: true,
+    maxAge: 0,
+    path: "/",
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+  });
 }
 
 type SessionPayload = {
