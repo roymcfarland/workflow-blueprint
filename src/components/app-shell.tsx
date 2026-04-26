@@ -13,7 +13,7 @@ import { useBlueprintTheme } from "@/components/providers/theme-provider";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 import type { BoardNavItem } from "@/lib/data";
 import { initialsFromName } from "@/lib/utils";
-import type { ThemePreference } from "@/lib/domain";
+import { getBoardAccentColor, type ThemePreference } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
 type ShellUser = {
@@ -48,6 +48,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", iconKey: "dashboard" },
     ...boards.map((board) => ({
+      accentColor: getBoardAccentColor(board.slug),
       href: `/boards/${board.slug}`,
       label: board.name,
       iconKey: board.iconKey,
@@ -140,18 +141,28 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         <nav aria-label="Workspace" className="space-y-1.5 pt-4">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
+            const activeBoardStyle =
+              isActive && "accentColor" in item
+                ? {
+                    backgroundColor: item.accentColor,
+                    borderColor: item.accentColor,
+                    boxShadow: `0 10px 22px ${item.accentColor}33`,
+                  }
+                : undefined;
 
             return (
               <Link
                 key={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition sm:text-base",
-                  isActive
-                    ? "blueprint-fill text-white"
-                    : "hover:bg-white/70 dark:hover:bg-white/6",
+                  "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition sm:text-base",
+                  isActive && !activeBoardStyle && "blueprint-fill border-ink text-white",
+                  isActive && activeBoardStyle && "text-white",
+                  !isActive &&
+                    "border-transparent hover:bg-white/70 dark:hover:bg-white/6",
                 )}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
+                style={activeBoardStyle}
               >
                 <BoardIcon className="h-5 w-5 shrink-0" iconKey={item.iconKey} />
                 <span className="truncate">{item.label}</span>

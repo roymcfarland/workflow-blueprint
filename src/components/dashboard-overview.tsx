@@ -5,8 +5,8 @@ import { BoardIcon } from "@/components/board-icon";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
 import type { DashboardSnapshot } from "@/lib/data";
+import { getBoardAccentColor } from "@/lib/domain";
 
-const chartPalette = ["#4f78e6", "#c94f7c", "#2f9f85", "#5ab7b9"];
 const chartCenter = 160;
 const chartRadius = 108;
 const chartStrokeWidth = 42;
@@ -19,10 +19,10 @@ function getChartSegments(segments: DashboardSnapshot["boardBreakdown"], totalTa
 
   let offset = 0;
 
-  return segments.map((segment, index) => {
+  return segments.map((segment) => {
     const length = (segment.totalTasks / totalTasks) * chartCircumference;
     const chartSegment = {
-      color: chartPalette[index % chartPalette.length],
+      color: getBoardAccentColor(segment.slug),
       dashArray: `${length} ${chartCircumference - length}`,
       dashOffset: -offset,
       slug: segment.slug,
@@ -132,7 +132,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
 
               <div className="flex flex-col justify-between gap-5">
                 <div className="space-y-3">
-                  {data.boardBreakdown.map((segment, index) => (
+                  {data.boardBreakdown.map((segment) => (
                     <Link
                       className="flex items-center justify-between gap-3 rounded-lg border border-ink-soft bg-white/70 px-3 py-2.5 text-ink transition hover:-translate-y-0.5 hover:border-ink dark:bg-paper-strong"
                       href={`/boards/${segment.slug}`}
@@ -141,7 +141,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
                       <div className="flex min-w-0 items-center gap-3">
                         <span
                           className="h-4 w-4 shrink-0 rounded-sm border border-ink"
-                          style={{ backgroundColor: chartPalette[index % chartPalette.length] }}
+                          style={{ backgroundColor: getBoardAccentColor(segment.slug) }}
                         />
                         <p className="truncate font-semibold">{segment.name}</p>
                       </div>

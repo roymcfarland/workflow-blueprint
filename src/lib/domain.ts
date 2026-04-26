@@ -63,6 +63,20 @@ export const boardDefinitions = [
 
 export type BoardSlug = (typeof boardDefinitions)[number]["slug"];
 
+export const boardAccentColors = {
+  "brightline-labs": "#c94f7c",
+  "elevated-organics": "#2f9f85",
+  personal: "#4f78e6",
+} satisfies Record<BoardSlug, string>;
+
+export const fallbackBoardAccentColor = "#5ab7b9";
+
+export function getBoardAccentColor(slug: string) {
+  return slug in boardAccentColors
+    ? boardAccentColors[slug as BoardSlug]
+    : fallbackBoardAccentColor;
+}
+
 export const boardLabelBySlug = Object.fromEntries(
   boardDefinitions.map((board) => [board.slug, board.name]),
 ) as Record<BoardSlug, string>;

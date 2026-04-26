@@ -74,6 +74,8 @@ const statusAccentColors: Record<TaskStatus, string> = {
   ON_DECK: "#63c7c9",
 };
 
+const kanbanLaneItemClassName = "w-[min(86vw,21rem)] shrink-0 sm:w-80 lg:w-[21rem]";
+
 const activeBoardStatuses: TaskStatus[] = ["ON_DECK", "IN_PROGRESS", "DONE"];
 
 function countTasksByStatus(tasks: SerializedTask[]) {
@@ -1051,22 +1053,23 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
         sensors={sensors}
       >
         {viewMode === "board" ? (
-          <div className="auto-fit-grid gap-4 pb-2 [--auto-fit-min:17rem]">
+          <div className="blueprint-scrollbar flex snap-none items-start gap-4 overflow-x-auto pb-3">
             {visibleStatuses.map((status) => (
-              <BoardColumn
-                expandedTaskIds={expandedTaskIds}
-                key={status}
-                onOpenTask={openTask}
-                onToggleExpand={(taskId) =>
-                  setExpandedTaskIds((current) => toggleSetValue(current, taskId))
-                }
-                status={status}
-                tasks={grouped[status]}
-              />
+              <div className={kanbanLaneItemClassName} key={status}>
+                <BoardColumn
+                  expandedTaskIds={expandedTaskIds}
+                  onOpenTask={openTask}
+                  onToggleExpand={(taskId) =>
+                    setExpandedTaskIds((current) => toggleSetValue(current, taskId))
+                  }
+                  status={status}
+                  tasks={grouped[status]}
+                />
+              </div>
             ))}
 
             <NotesPanel
-              className="min-w-0"
+              className={kanbanLaneItemClassName}
               minHeightClassName="min-h-[32rem]"
               noteDraft={noteDraft}
               noteMessage={noteMessage}
