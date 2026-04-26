@@ -118,7 +118,7 @@ export function InvitationsAdmin({ initialInvitations }: InvitationsAdminProps) 
   };
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(18rem,24rem)_1fr]">
+    <div className="auto-fit-grid gap-6 [--auto-fit-min:24rem]">
       <section className="blueprint-surface blueprint-surface-strong p-5 sm:p-6">
         <div className="space-y-5">
           <div className="space-y-2">

@@ -457,7 +457,7 @@ function BoardColumn({
   });
 
   return (
-    <div className="blueprint-surface min-w-[16rem] overflow-hidden bg-white/85 dark:bg-paper-strong sm:min-w-[17rem]">
+    <div className="blueprint-surface min-w-0 overflow-hidden bg-white/85 dark:bg-paper-strong">
       <div className="h-2" style={{ backgroundColor: statusAccentColors[status] }} />
       <div className="border-b border-ink/20 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
@@ -680,7 +680,7 @@ function TaskDrawer({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="auto-fit-grid gap-4 [--auto-fit-min:14rem]">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
                   Status
@@ -998,13 +998,13 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+      <div className="auto-fit-grid items-start gap-5 [--auto-fit-min:18rem]">
         <div className="space-y-4">
           <PageTitle title={board.name} />
           {board.description ? (
             <p className="max-w-3xl text-base font-medium text-ink-muted">{board.description}</p>
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="auto-fit-grid gap-3 [--auto-fit-min:10rem]">
             <BoardStat label="Total" tone="var(--ink)" value={tasks.length} />
             <BoardStat label="On Deck" tone={statusAccentColors.ON_DECK} value={taskCounts.ON_DECK} />
             <BoardStat
@@ -1017,7 +1017,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-lg border border-ink-soft bg-white/70 p-3 dark:bg-paper-strong xl:min-w-72">
+        <div className="flex h-fit flex-col gap-3 rounded-lg border border-ink-soft bg-white/70 p-3 dark:bg-paper-strong">
           <BlueprintButton className="justify-center" onClick={() => openTask(null)}>
             <Plus className="h-4 w-4" />
             New Task
@@ -1053,7 +1053,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
         sensors={sensors}
       >
         {viewMode === "board" ? (
-          <div className="blueprint-scrollbar flex gap-4 overflow-x-auto pb-2">
+          <div className="auto-fit-grid gap-4 pb-2 [--auto-fit-min:17rem]">
             {visibleStatuses.map((status) => (
               <BoardColumn
                 expandedTaskIds={expandedTaskIds}
@@ -1068,7 +1068,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
             ))}
 
             <NotesPanel
-              className="min-w-[17rem]"
+              className="min-w-0"
               minHeightClassName="min-h-[32rem]"
               noteDraft={noteDraft}
               noteMessage={noteMessage}
@@ -1076,7 +1076,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
             />
           </div>
         ) : (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="auto-fit-grid gap-5 [--auto-fit-min:18rem]">
             <div className="space-y-5">
               {visibleStatuses.map((status) => (
                 <BlueprintCard className="space-y-4 p-4 sm:p-5" key={status}>

@@ -139,6 +139,14 @@ select {
   text-transform: uppercase;
 }
 
+.auto-fit-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--auto-fit-min, 18rem)), 1fr)
+  );
+}
+
 .blueprint-surface {
   border: 1px solid var(--ink);
   border-radius: var(--radius-card);

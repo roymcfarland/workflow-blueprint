@@ -11,10 +11,10 @@ function HeroBoardIllustration() {
   return (
     <div className="relative mx-auto mt-8 w-full max-w-[18.5rem] sm:mt-12 sm:max-w-xl">
       <div className="blueprint-surface blueprint-grid-paper overflow-hidden p-3 sm:p-5">
-        <div className="grid grid-cols-2 border border-ink text-center sm:grid-cols-4">
+        <div className="auto-fit-grid gap-px border border-ink bg-ink text-center [--auto-fit-min:7rem]">
           {columns.map((column) => (
             <div
-              className="border-b border-r border-ink even:border-r-0 last:border-b-0 sm:border-b-0 sm:even:border-r sm:last:border-r-0"
+              className="bg-white/85 dark:bg-paper-strong"
               key={column}
             >
               <div className="blueprint-title whitespace-nowrap border-b border-ink px-1.5 py-2 text-[0.68rem] leading-none text-ink sm:py-3 sm:text-sm">
@@ -51,7 +51,7 @@ export default async function LoginPage() {
   return (
     <div className="min-h-screen px-3 py-3 sm:px-6 sm:py-6 lg:px-8">
       <div className="blueprint-surface blueprint-surface-strong blueprint-grid-paper mx-auto flex min-h-[calc(100svh-1.5rem)] max-w-[96rem] flex-col overflow-hidden sm:min-h-[calc(100vh-3rem)]">
-        <div className="grid min-w-0 flex-1 items-center gap-8 px-4 py-7 sm:px-6 sm:py-10 lg:grid-cols-[1.1fr_0.95fr] lg:px-14 lg:py-12">
+        <div className="auto-fit-grid min-w-0 flex-1 items-center gap-8 px-4 py-7 [--auto-fit-min:28rem] sm:px-6 sm:py-10 lg:px-14 lg:py-12">
           <section className="fade-up min-w-0 space-y-8">
             <div className="space-y-6">
               <div>
@@ -70,7 +70,7 @@ export default async function LoginPage() {
 
             <HeroBoardIllustration />
 
-            <div className="grid gap-4 pt-8 sm:grid-cols-3">
+            <div className="auto-fit-grid gap-4 pt-8 [--auto-fit-min:12rem]">
               {[
                 {
                   icon: CheckCircle2,

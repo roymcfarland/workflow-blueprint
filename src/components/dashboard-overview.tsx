@@ -67,7 +67,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
     <div className="fade-up space-y-6">
       <PageTitle title="Dashboard" />
 
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_1.25fr]">
+      <div className="auto-fit-grid gap-5 [--auto-fit-min:31rem]">
         <BlueprintCard className="p-5 lg:p-6">
           <div className="space-y-6">
             <div>
@@ -77,7 +77,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
               </p>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="auto-fit-grid items-center gap-6 [--auto-fit-min:15rem]">
               <div className="flex aspect-square max-h-72 min-h-56 items-center justify-center">
                 <svg
                   aria-label="Task breakdown by board"
@@ -198,7 +198,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
         </BlueprintCard>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="auto-fit-grid gap-5 [--auto-fit-min:20rem]">
         <DashboardMetricCard
           detail="Across all boards"
           icon={ClipboardList}
@@ -219,7 +219,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
           <h2 className="blueprint-title text-xl text-ink sm:text-2xl">Jump To Board</h2>
           <ArrowRight className="h-5 w-5 text-ink-muted" />
         </div>
-        <div className="grid gap-3 xl:grid-cols-3">
+        <div className="auto-fit-grid gap-3 [--auto-fit-min:18rem]">
           {data.boardBreakdown.map((board) => (
             <Link
               className="rounded-lg border border-ink bg-white/85 p-4 transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,79,207,0.12)] dark:bg-paper-strong"

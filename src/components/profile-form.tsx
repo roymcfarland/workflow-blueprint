@@ -70,7 +70,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
 
   return (
     <form className="space-y-8" onSubmit={onSubmit}>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="auto-fit-grid gap-5 [--auto-fit-min:16rem]">
         <div className="space-y-2">
           <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
             Name
@@ -102,7 +102,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
         />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="auto-fit-grid gap-5 [--auto-fit-min:14rem]">
         <div className="space-y-2">
           <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
             Current password
