@@ -28,7 +28,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type CSSProperties } from "react";
 import {
   Controller,
   useFieldArray,
@@ -65,17 +65,21 @@ const archiveOptions = [
 type ViewMode = (typeof boardViewOptions)[number]["value"];
 type ArchiveMode = (typeof archiveOptions)[number]["value"];
 
-const statusAccentColors: Record<TaskStatus, string> = {
-  ARCHIVED: "#9aa6bd",
-  DONE: "#1a9f72",
-  ICE_BOX: "#8cb0ff",
-  IN_PROGRESS: "#f4b740",
-  ON_DECK: "#63c7c9",
+const statusAccentTokens: Record<TaskStatus, string> = {
+  ARCHIVED: "--status-archived",
+  DONE: "--status-done",
+  ICE_BOX: "--status-ice-box",
+  IN_PROGRESS: "--status-in-progress",
+  ON_DECK: "--status-on-deck",
 };
 
 const kanbanLaneItemClassName = "w-[min(86vw,21rem)] shrink-0 sm:w-80 lg:w-[21rem]";
 
 const activeBoardStatuses: TaskStatus[] = ["ON_DECK", "IN_PROGRESS", "DONE"];
+
+function getStatusAccentStyle(status: TaskStatus): CSSProperties {
+  return { backgroundColor: `var(${statusAccentTokens[status]})` };
+}
 
 function completedSubtaskCount(task: SerializedTask) {
   return task.subtasks.filter((subtask) => subtask.isComplete).length;
@@ -216,19 +220,19 @@ function mergeTask(tasks: SerializedTask[], nextTask: SerializedTask) {
 
 function TaskMeta({ task }: { task: SerializedTask }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">
+    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
       {task.dueDate ? (
         <span
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border border-ink-soft bg-white/70 px-2 py-1 dark:bg-paper-strong",
-            isDueSoon(task) && "border-accent bg-accent-soft text-ink",
+            "inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-surface-control px-2 py-1",
+            isDueSoon(task) && "border-accent bg-accent-soft text-text-primary",
           )}
         >
           <CalendarDays className="h-3.5 w-3.5" />
           {formatShortDate(task.dueDate)}
         </span>
       ) : null}
-      <span className="inline-flex rounded-md border border-ink-soft bg-white/70 px-2 py-1 dark:bg-paper-strong">
+      <span className="inline-flex rounded-md border border-line-soft bg-surface-control px-2 py-1">
         {formatSubtaskSummary(task)}
       </span>
     </div>
@@ -248,10 +252,10 @@ function CompactToggle<T extends string>({
 }) {
   return (
     <div className="min-w-0 space-y-1">
-      <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-ink-muted">
+      <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-text-muted">
         {label}
       </p>
-      <div className="grid grid-cols-2 gap-1 rounded-lg border border-ink-soft bg-white/60 p-1 dark:bg-paper">
+      <div className="grid grid-cols-2 gap-1 rounded-lg border border-line-soft bg-surface-control p-1">
         {options.map((option) => {
           const active = option.value === value;
 
@@ -259,10 +263,10 @@ function CompactToggle<T extends string>({
             <button
               aria-pressed={active}
               className={cn(
-                "rounded-md px-2.5 py-1.5 text-sm font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ink-soft",
+                "rounded-md px-2.5 py-1.5 text-sm font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-soft",
                 active
                   ? "blueprint-fill text-white"
-                  : "text-ink hover:bg-white/75 dark:hover:bg-white/6",
+                  : "text-text-primary hover:bg-surface-control-hover",
               )}
               key={option.value}
               onClick={() => onChange(option.value)}
@@ -291,7 +295,7 @@ function BoardHeaderControls({
   viewMode: ViewMode;
 }) {
   return (
-    <div className="w-full rounded-lg border border-ink bg-white/80 p-2.5 shadow-[0_12px_26px_rgba(31,79,207,0.1)] dark:bg-paper-strong sm:w-auto xl:shrink-0">
+    <div className="w-full rounded-lg border border-line-strong bg-surface-control p-2.5 shadow-[0_12px_26px_rgba(31,79,207,0.1)] sm:w-auto xl:shrink-0">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end">
         <BlueprintButton className="h-10 shrink-0 px-3.5" onClick={onNewTask}>
           <Plus className="h-4 w-4" />
@@ -323,13 +327,13 @@ function SubtaskList({ task }: { task: SerializedTask }) {
   }
 
   return (
-    <div className="space-y-2 border-t border-ink/20 pt-3 text-sm text-ink-muted">
+    <div className="space-y-2 border-t border-line-soft pt-3 text-sm text-text-muted">
       {task.subtasks.map((subtask) => (
         <div className="flex items-start gap-2" key={subtask.id}>
           <span
             className={cn(
-              "mt-1 h-2.5 w-2.5 shrink-0 rounded-full border border-ink",
-              subtask.isComplete && "bg-ink",
+              "mt-1 h-2.5 w-2.5 shrink-0 rounded-full border border-line-strong",
+              subtask.isComplete && "bg-brand",
             )}
           />
           <span className={cn("break-words", subtask.isComplete && "line-through opacity-70")}>
@@ -356,9 +360,9 @@ function NotesPanel({
 }) {
   return (
     <BlueprintCard className={cn("p-0", className)}>
-      <div className="flex items-center justify-between gap-3 border-b border-ink/20 px-4 py-3">
-        <h2 className="blueprint-title text-xl text-ink">Notes</h2>
-        {noteMessage ? <p className="text-xs font-semibold text-ink-muted">{noteMessage}</p> : null}
+      <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
+        <h2 className="blueprint-title text-xl text-text-primary">Notes</h2>
+        {noteMessage ? <p className="text-xs font-semibold text-text-muted">{noteMessage}</p> : null}
       </div>
       <div className="p-4">
         <BlueprintTextarea
@@ -388,8 +392,8 @@ function TaskPreview({
   onToggleExpand?: (taskId: string) => void;
 }) {
   return (
-    <div className="blueprint-note w-full overflow-hidden text-left text-ink">
-      <div className="h-1.5" style={{ backgroundColor: statusAccentColors[task.status] }} />
+    <div className="blueprint-note w-full overflow-hidden text-left text-text-primary">
+      <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
       <div className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <button
@@ -397,14 +401,14 @@ function TaskPreview({
             onClick={() => onOpen?.(task)}
             type="button"
           >
-            <div className="h-0.5 w-10 rounded-full bg-ink/50" />
+            <div className="h-0.5 w-10 rounded-full bg-brand/60" />
             <p className="break-words text-base font-semibold leading-snug">{task.title}</p>
           </button>
           <div className="flex shrink-0 items-center gap-1">
             {task.subtasks.length > 0 ? (
               <button
                 aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
-                className="rounded-md p-1 text-ink-muted transition hover:bg-white/70"
+                className="blueprint-action rounded-md p-1"
                 onClick={(event) => {
                   event.stopPropagation();
                   onToggleExpand?.(task.id);
@@ -418,7 +422,7 @@ function TaskPreview({
                 )}
               </button>
             ) : null}
-            {dragHandle ?? <GripVertical className="h-4 w-4 text-ink-muted" />}
+            {dragHandle ?? <GripVertical className="h-4 w-4 text-text-muted" />}
           </div>
         </div>
 
@@ -466,7 +470,7 @@ function SortableTaskCard({
         dragHandle={
           <button
             aria-label={`Drag ${task.title}`}
-            className="cursor-grab rounded-md p-1 text-ink-muted transition hover:bg-white/70 active:cursor-grabbing"
+            className="blueprint-action cursor-grab rounded-md p-1 active:cursor-grabbing"
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -506,14 +510,14 @@ function BoardColumn({
   });
 
   return (
-    <div className="blueprint-surface min-w-0 overflow-hidden bg-white/85 dark:bg-paper-strong">
-      <div className="h-2" style={{ backgroundColor: statusAccentColors[status] }} />
-      <div className="border-b border-ink/20 px-4 py-4">
+    <div className="blueprint-surface min-w-0 overflow-hidden">
+      <div className="h-2" style={getStatusAccentStyle(status)} />
+      <div className="border-b border-line-soft px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="blueprint-title text-xl text-ink">{statusLabels[status]}</h2>
+            <h2 className="blueprint-title text-xl text-text-primary">{statusLabels[status]}</h2>
           </div>
-          <span className="rounded-md border border-ink-soft bg-white/75 px-2 py-1 text-sm font-semibold text-ink dark:bg-paper">
+          <span className="rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary">
             {tasks.length}
           </span>
         </div>
@@ -522,7 +526,7 @@ function BoardColumn({
         ref={setNodeRef}
         className={cn(
           "blueprint-scrollbar min-h-[27rem] space-y-3 overflow-y-auto p-3 transition sm:min-h-[32rem] sm:p-4",
-          isOver && "bg-ink-soft/15",
+          isOver && "bg-brand-soft",
         )}
       >
         <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
@@ -538,7 +542,7 @@ function BoardColumn({
         </SortableContext>
 
         {tasks.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-ink-soft px-4 py-6 text-center text-sm text-ink-muted">
+          <div className="rounded-lg border border-dashed border-line-soft px-4 py-6 text-center text-sm text-text-muted">
             Drop a task here
           </div>
         ) : null}
@@ -567,7 +571,7 @@ function SortableSubtaskRow({
   return (
     <div
       ref={setNodeRef}
-      className="flex items-center gap-3 rounded-lg border border-ink bg-white/80 px-3 py-2.5 dark:bg-paper-strong"
+      className="flex items-center gap-3 rounded-lg border border-line-strong bg-surface-control px-3 py-2.5"
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -575,7 +579,7 @@ function SortableSubtaskRow({
     >
       <button
         aria-label="Reorder subtask"
-        className="text-ink-muted"
+        className="text-text-muted"
         type="button"
         {...attributes}
         {...listeners}
@@ -593,14 +597,14 @@ function SortableSubtaskRow({
         )}
       />
       <input
-        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-ink outline-none"
+        className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text-primary outline-none"
         placeholder="Subtask title"
         {...register(`subtasks.${index}.title`)}
       />
       {hasId ? <input type="hidden" {...register(`subtasks.${index}.id`)} /> : null}
       <button
         aria-label="Remove subtask"
-        className="text-ink-muted transition hover:text-rose-600"
+        className="text-text-muted transition hover:text-danger"
         onClick={onRemove}
         type="button"
       >
@@ -682,7 +686,7 @@ function TaskDrawer({
       <div className="blueprint-surface blueprint-surface-strong blueprint-scrollbar relative h-full w-full max-w-2xl overflow-y-auto rounded-none border-y-0 border-r-0 px-4 py-5 sm:px-8 sm:py-6">
         <button
           aria-label="Close task editor"
-          className="absolute right-4 top-5 rounded-lg border border-ink p-2 text-ink sm:right-6 sm:top-6"
+          className="absolute right-4 top-5 rounded-lg border border-line-strong p-2 text-text-primary transition hover:bg-surface-control-hover sm:right-6 sm:top-6"
           onClick={onClose}
           type="button"
         >
@@ -691,10 +695,10 @@ function TaskDrawer({
 
         <div className="space-y-6 pt-10">
           <div className="space-y-2">
-            <p className="blueprint-title text-2xl text-ink sm:text-3xl">
+            <p className="blueprint-title text-2xl text-text-primary sm:text-3xl">
               {task ? "Task Details" : "New Task"}
             </p>
-            <p className="text-base text-ink-muted">Board: {boardName}</p>
+            <p className="text-base text-text-muted">Board: {boardName}</p>
           </div>
 
           <form
@@ -711,7 +715,7 @@ function TaskDrawer({
             })}
           >
             <div className="space-y-2">
-              <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+              <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
                 Title
               </label>
               <BlueprintInput {...register("title", { required: "Title is required." })} />
@@ -719,7 +723,7 @@ function TaskDrawer({
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+              <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
                 Description
               </label>
               <BlueprintTextarea
@@ -730,11 +734,11 @@ function TaskDrawer({
 
             <div className="auto-fit-grid gap-4 [--auto-fit-min:14rem]">
               <div className="space-y-2">
-                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
                   Status
                 </label>
                 <select
-                  className="h-12 w-full rounded-lg border border-ink bg-white/90 px-4 text-ink outline-none focus-visible:ring-4 focus-visible:ring-ink-soft dark:bg-paper-strong"
+                  className="blueprint-control h-12 w-full rounded-lg px-4 outline-none focus-visible:ring-4 focus-visible:ring-brand-soft"
                   {...register("status")}
                 >
                   {boardStatuses.map((status) => (
@@ -746,7 +750,7 @@ function TaskDrawer({
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
                   Due date
                 </label>
                 <BlueprintInput type="date" {...register("dueDate")} />
@@ -755,7 +759,7 @@ function TaskDrawer({
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+                <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
                   Subtasks
                 </label>
                 <BlueprintButton
@@ -806,12 +810,12 @@ function TaskDrawer({
             </div>
 
             {message ? (
-              <p className="rounded-lg border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <p className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
                 {message}
               </p>
             ) : null}
 
-            <div className="flex flex-col gap-3 border-t border-ink/20 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 border-t border-line-soft pt-4 sm:flex-row sm:items-center sm:justify-between">
               {task ? (
                 <BlueprintButton
                   className="justify-center"
@@ -1048,7 +1052,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
         <div className="min-w-0 space-y-4">
           <PageTitle title={board.name} />
           {board.description ? (
-            <p className="max-w-3xl text-base font-medium text-ink-muted">{board.description}</p>
+            <p className="max-w-3xl text-base font-medium text-text-muted">{board.description}</p>
           ) : null}
         </div>
 
@@ -1062,7 +1066,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
       </div>
 
       {flashMessage ? (
-        <div className="rounded-lg border border-ink-soft bg-white/75 px-4 py-3 text-sm font-semibold text-ink dark:bg-paper-strong">
+        <div className="blueprint-panel-muted rounded-lg px-4 py-3 text-sm font-semibold text-text-primary">
           {flashMessage}
         </div>
       ) : null}
@@ -1103,17 +1107,17 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
             <div className="space-y-5">
               {visibleStatuses.map((status) => (
                 <BlueprintCard className="space-y-4 p-4 sm:p-5" key={status}>
-                  <div className="flex items-center justify-between gap-3 border-b border-ink/20 pb-3">
+                  <div className="flex items-center justify-between gap-3 border-b border-line-soft pb-3">
                     <div className="flex items-center gap-3">
                       <span
-                        className="h-4 w-4 rounded-sm border border-ink"
-                        style={{ backgroundColor: statusAccentColors[status] }}
+                        className="h-4 w-4 rounded-sm border border-line-strong"
+                        style={getStatusAccentStyle(status)}
                       />
-                      <h2 className="blueprint-title text-xl text-ink sm:text-2xl">
+                      <h2 className="blueprint-title text-xl text-text-primary sm:text-2xl">
                         {statusLabels[status]}
                       </h2>
                     </div>
-                    <span className="rounded-md border border-ink-soft bg-white/70 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted dark:bg-paper-strong">
+                    <span className="rounded-md border border-line-soft bg-surface-control px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
                       {grouped[status].length} tasks
                     </span>
                   </div>
@@ -1124,17 +1128,17 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
                     >
                       {grouped[status].map((task) => (
                         <div
-                          className="overflow-hidden rounded-lg border border-ink bg-white/80 dark:bg-paper-strong"
+                          className="overflow-hidden rounded-lg border border-line-strong bg-surface-control"
                           key={task.id}
                         >
                           <div
                             className="h-1.5"
-                            style={{ backgroundColor: statusAccentColors[task.status] }}
+                            style={getStatusAccentStyle(task.status)}
                           />
                           <div className="flex items-start justify-between gap-3 p-4">
                             <div className="space-y-2">
                               <button
-                                className="break-words text-left text-lg font-semibold text-ink"
+                                className="break-words text-left text-lg font-semibold text-text-primary"
                                 onClick={() => openTask(task)}
                                 type="button"
                               >
@@ -1149,7 +1153,7 @@ export function BoardWorkspace({ board }: { board: BoardSnapshot }) {
                                     ? "Collapse subtasks"
                                     : "Expand subtasks"
                                 }
-                                className="rounded-md p-1 text-ink-muted transition hover:bg-white/70"
+                                className="blueprint-action rounded-md p-1"
                                 onClick={() =>
                                   setExpandedTaskIds((current) => toggleSetValue(current, task.id))
                                 }

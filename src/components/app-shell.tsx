@@ -141,7 +141,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     <aside className="blueprint-surface blueprint-surface-strong flex h-full w-full max-w-none flex-col rounded-none border-y-0 border-l-0 px-5 py-5 sm:px-6 lg:rounded-r-xl">
       <button
         aria-label="Collapse navigation"
-        className="mb-7 hidden h-10 w-10 items-center justify-center rounded-lg border border-ink text-ink transition hover:bg-white/60 lg:flex"
+        className="mb-7 hidden h-10 w-10 items-center justify-center rounded-lg border border-line-strong text-text-primary transition hover:bg-surface-control-hover lg:flex"
         onClick={() => setDesktopOpen(false)}
         type="button"
       >
@@ -150,7 +150,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
 
       <button
         aria-label="Close navigation"
-        className="mb-7 flex h-10 w-10 items-center justify-center rounded-lg border border-ink text-ink transition hover:bg-white/60 lg:hidden"
+        className="mb-7 flex h-10 w-10 items-center justify-center rounded-lg border border-line-strong text-text-primary transition hover:bg-surface-control-hover lg:hidden"
         onClick={() => setMobileOpen(false)}
         type="button"
       >
@@ -159,17 +159,17 @@ export function AppShell({ boards, children, user }: AppShellProps) {
 
       <div className="space-y-4">
         <div>
-          <p className="blueprint-title text-3xl leading-[0.88] text-ink">
+          <p className="blueprint-title text-3xl leading-[0.88] text-text-primary">
             Workflow
           </p>
-          <p className="blueprint-title text-3xl leading-[0.88] text-ink">
+          <p className="blueprint-title text-3xl leading-[0.88] text-text-primary">
             Blueprint
           </p>
         </div>
 
         {isAdmin ? (
           <nav aria-label="Admin panel" className="space-y-2 pt-5">
-            <div className="flex items-center gap-2 text-ink">
+            <div className="flex items-center gap-2 text-text-primary">
               <ShieldCheck className="h-4 w-4" />
               <p className="blueprint-title text-xs leading-none">Admin Panel</p>
             </div>
@@ -177,8 +177,8 @@ export function AppShell({ boards, children, user }: AppShellProps) {
               className={cn(
                 "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition sm:text-base",
                 pathname.startsWith("/admin")
-                  ? "blueprint-fill border-ink text-white"
-                  : "border-accent/50 bg-accent-soft text-ink hover:bg-accent-soft/80",
+                  ? "blueprint-fill border-brand text-white"
+                  : "border-accent/50 bg-accent-soft text-text-primary hover:bg-accent-soft/80",
               )}
               href="/admin/invitations"
               onClick={() => setMobileOpen(false)}
@@ -199,10 +199,9 @@ export function AppShell({ boards, children, user }: AppShellProps) {
                 key={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-semibold transition sm:text-base",
-                  isActive && item.kind === "dashboard" && "blueprint-fill border-ink text-white",
+                  isActive && item.kind === "dashboard" && "blueprint-fill border-brand text-white",
                   isActive && item.kind === "board" && "text-white",
-                  !isActive &&
-                    "border-transparent hover:bg-white/70 dark:hover:bg-white/6",
+                  !isActive && "border-transparent text-text-primary hover:bg-surface-control-hover",
                 )}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
@@ -215,7 +214,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
                       "h-2.5 w-2.5 shrink-0 rounded-full border",
                       isActive
                         ? "border-white/80 bg-white"
-                        : "border-ink/30 bg-[var(--board-accent)]",
+                        : "border-line-soft bg-[var(--board-accent)]",
                     )}
                   />
                 ) : null}
@@ -227,9 +226,9 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         </nav>
       </div>
 
-      <div className="mt-auto space-y-5 border-t border-ink/20 pt-6">
+      <div className="mt-auto space-y-5 border-t border-line-soft pt-6">
         <div className="space-y-3">
-          <p className="blueprint-title text-base text-ink">View Settings</p>
+          <p className="blueprint-title text-base text-text-primary">View Settings</p>
           <BlueprintPillToggle
             onChange={handleThemeChange}
             options={themeOptions}
@@ -238,12 +237,12 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-ink bg-white text-lg font-bold text-ink shadow-[0_10px_20px_rgba(31,79,207,0.1)] dark:bg-paper-strong">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-lg font-bold text-text-primary shadow-[0_10px_20px_rgba(31,79,207,0.1)]">
             {user.avatarLabel ?? initialsFromName(user.name)}
           </div>
           <Link
             aria-label="Open profile settings"
-            className="flex h-14 w-14 items-center justify-center rounded-lg border border-ink bg-white text-ink transition hover:-translate-y-0.5 dark:bg-paper-strong"
+            className="flex h-14 w-14 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-text-primary transition hover:-translate-y-0.5 hover:bg-surface-control-hover"
             href="/profile"
             onClick={() => setMobileOpen(false)}
           >
@@ -251,11 +250,11 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           </Link>
         </div>
 
-        <div className="rounded-lg border border-ink-soft bg-white/75 px-3 py-2.5 text-sm text-ink-muted dark:bg-paper-strong">
+        <div className="blueprint-panel-muted rounded-lg px-3 py-2.5 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="break-words font-semibold text-ink">{user.name}</p>
+            <p className="break-words font-semibold text-text-primary">{user.name}</p>
             {isAdmin ? (
-              <span className="rounded-md border border-accent/40 bg-accent-soft px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-ink">
+              <span className="rounded-md border border-accent/40 bg-accent-soft px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-text-primary">
                 Admin
               </span>
             ) : null}
@@ -304,7 +303,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           {!desktopOpen ? (
             <button
               aria-label="Open navigation"
-              className="fixed left-6 top-6 z-30 hidden h-10 w-10 items-center justify-center rounded-lg border border-ink bg-white/90 text-ink shadow-[0_10px_20px_rgba(31,79,207,0.12)] transition hover:-translate-y-0.5 lg:flex"
+              className="fixed left-6 top-6 z-30 hidden h-10 w-10 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-text-primary shadow-[0_10px_20px_rgba(31,79,207,0.12)] transition hover:-translate-y-0.5 hover:bg-surface-control-hover lg:flex"
               onClick={() => setDesktopOpen(true)}
               type="button"
             >
@@ -315,7 +314,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           {!mobileOpen ? (
             <button
               aria-label="Open mobile navigation"
-              className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-lg border border-ink bg-white/90 text-ink shadow-[0_10px_20px_rgba(31,79,207,0.12)] transition hover:-translate-y-0.5 lg:hidden"
+              className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-text-primary shadow-[0_10px_20px_rgba(31,79,207,0.12)] transition hover:-translate-y-0.5 hover:bg-surface-control-hover lg:hidden"
               onClick={() => setMobileOpen(true)}
               type="button"
             >

@@ -72,7 +72,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
     <form className="space-y-8" onSubmit={onSubmit}>
       <div className="auto-fit-grid gap-5 [--auto-fit-min:16rem]">
         <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
             Name
           </label>
           <BlueprintInput {...register("name")} />
@@ -80,7 +80,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
             Email
           </label>
           <BlueprintInput {...register("email")} />
@@ -89,7 +89,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
       </div>
 
       <div className="space-y-3">
-        <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+        <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
           Theme preference
         </label>
         <BlueprintPillToggle
@@ -104,7 +104,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
 
       <div className="auto-fit-grid gap-5 [--auto-fit-min:14rem]">
         <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
             Current password
           </label>
           <BlueprintInput type="password" {...register("currentPassword")} />
@@ -114,7 +114,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
             New password
           </label>
           <BlueprintInput type="password" {...register("newPassword")} />
@@ -124,7 +124,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-ink-muted">
+          <label className="block text-sm font-semibold uppercase tracking-[0.18em] text-text-muted">
             Confirm password
           </label>
           <BlueprintInput type="password" {...register("confirmPassword")} />
@@ -134,8 +134,8 @@ export function ProfileForm({ user }: ProfileFormProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-ink-soft bg-white/70 p-4 text-sm text-ink-muted dark:bg-paper-strong">
-        <p className="font-semibold text-ink">Account settings</p>
+      <div className="blueprint-panel-muted rounded-lg p-4 text-sm">
+        <p className="font-semibold text-text-primary">Account settings</p>
         <p>
           Profile changes, passwords, and theme preferences are saved to the configured Postgres
           database.
@@ -143,7 +143,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
       </div>
 
       {message ? (
-        <p className="rounded-lg border border-ink-soft bg-white/75 px-4 py-3 text-sm font-semibold text-ink dark:bg-paper-strong">
+        <p className="blueprint-panel-muted rounded-lg px-4 py-3 text-sm font-semibold text-text-primary">
           {message}
         </p>
       ) : null}

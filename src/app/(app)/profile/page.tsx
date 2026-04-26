@@ -13,8 +13,8 @@ export default async function ProfilePage() {
       <BlueprintCard className="p-6 lg:p-8">
         <div className="space-y-6">
           <div className="space-y-2">
-            <p className="blueprint-title text-3xl text-ink">Account Details</p>
-            <p className="text-lg text-ink-muted">
+            <p className="blueprint-title text-3xl text-text-primary">Account Details</p>
+            <p className="text-lg text-text-muted">
               Update your identity, theme preference, and password from one place.
             </p>
           </div>

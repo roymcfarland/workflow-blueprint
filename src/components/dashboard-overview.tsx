@@ -47,13 +47,15 @@ function DashboardMetricCard({
 }) {
   return (
     <BlueprintCard className="flex items-center gap-4 p-5 lg:p-6">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-ink bg-white/85 dark:bg-paper-strong sm:h-14 sm:w-14">
-        <Icon className="h-6 w-6 text-ink" />
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-control sm:h-14 sm:w-14">
+        <Icon className="h-6 w-6 text-brand" />
       </div>
       <div className="min-w-0">
-        <p className="blueprint-title text-lg text-ink sm:text-xl">{label}</p>
-        <p className="text-4xl font-semibold leading-none text-ink sm:text-5xl">{value}</p>
-        <p className="text-sm text-ink-muted">{detail}</p>
+        <p className="blueprint-title text-lg text-text-primary sm:text-xl">{label}</p>
+        <p className="text-4xl font-semibold leading-none text-text-primary sm:text-5xl">
+          {value}
+        </p>
+        <p className="text-sm text-text-muted">{detail}</p>
       </div>
     </BlueprintCard>
   );
@@ -71,8 +73,10 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
         <BlueprintCard className="p-5 lg:p-6">
           <div className="space-y-6">
             <div>
-              <h2 className="blueprint-title text-xl text-ink sm:text-2xl">Task Breakdown</h2>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-muted">
+              <h2 className="blueprint-title text-xl text-text-primary sm:text-2xl">
+                Task Breakdown
+              </h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
                 % of total tasks
               </p>
             </div>
@@ -90,7 +94,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
                     cy={chartCenter}
                     fill="none"
                     r={chartRadius}
-                    stroke="var(--ink-soft)"
+                    stroke="var(--brand-soft)"
                     strokeWidth={chartStrokeWidth}
                   />
                   {chartSegments.map((segment) => (
@@ -108,7 +112,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
                     />
                   ))}
                   <text
-                    fill="var(--ink)"
+                    fill="var(--text-primary)"
                     fontSize="46"
                     fontWeight="700"
                     textAnchor="middle"
@@ -118,7 +122,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
                     {data.totalTaskCount}
                   </text>
                   <text
-                    fill="var(--ink-muted)"
+                    fill="var(--text-muted)"
                     fontSize="16"
                     fontWeight="700"
                     textAnchor="middle"
@@ -134,27 +138,27 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
                 <div className="space-y-3">
                   {data.boardBreakdown.map((segment) => (
                     <Link
-                      className="flex items-center justify-between gap-3 rounded-lg border border-ink-soft bg-white/70 px-3 py-2.5 text-ink transition hover:-translate-y-0.5 hover:border-ink dark:bg-paper-strong"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5 text-text-primary transition hover:-translate-y-0.5 hover:border-line-strong hover:bg-surface-control-hover"
                       href={`/boards/${segment.slug}`}
                       key={segment.slug}
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <span
-                          className="h-4 w-4 shrink-0 rounded-sm border border-ink"
+                          className="h-4 w-4 shrink-0 rounded-sm border border-line-strong"
                           style={{ backgroundColor: getBoardAccentColor(segment.slug) }}
                         />
                         <p className="truncate font-semibold">{segment.name}</p>
                       </div>
-                      <p className="shrink-0 text-sm font-semibold text-ink-muted">
+                      <p className="shrink-0 text-sm font-semibold text-text-muted">
                         {segment.percentage}% ({segment.totalTasks})
                       </p>
                     </Link>
                   ))}
                 </div>
 
-                <div className="border-t border-ink/20 pt-4 text-sm font-semibold uppercase tracking-[0.16em] text-ink-muted">
+                <div className="border-t border-line-soft pt-4 text-sm font-semibold uppercase tracking-[0.16em] text-text-muted">
                   Total Tasks{" "}
-                  <span className="ml-2 text-2xl font-bold tracking-normal text-ink">
+                  <span className="ml-2 text-2xl font-bold tracking-normal text-text-primary">
                     {data.totalTaskCount}
                   </span>
                 </div>
@@ -166,31 +170,31 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
         <BlueprintCard className="p-5 lg:p-6">
           <div className="space-y-7">
             <div className="space-y-2">
-              <h2 className="blueprint-title text-xl text-ink sm:text-2xl">
+              <h2 className="blueprint-title text-xl text-text-primary sm:text-2xl">
                 Sprint Completion Rate
               </h2>
-              <p className="text-base text-ink-muted">Done tasks across active work</p>
+              <p className="text-base text-text-muted">Done tasks across active work</p>
             </div>
 
             <div className="space-y-6">
-              <p className="text-center text-6xl font-semibold leading-none text-ink sm:text-7xl">
+              <p className="text-center text-6xl font-semibold leading-none text-text-primary sm:text-7xl">
                 {data.sprintCompletionRate}%
               </p>
 
               <div className="space-y-3">
-                <div className="h-8 overflow-hidden rounded-lg border border-ink bg-white/70 dark:bg-paper-strong">
+                <div className="h-8 overflow-hidden rounded-lg border border-line-strong bg-surface-control">
                   <div
                     className="blueprint-fill h-full rounded-md"
                     style={{ width: `${data.sprintCompletionRate}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-sm font-semibold uppercase tracking-[0.14em] text-ink-muted">
+                <div className="flex items-center justify-between text-sm font-semibold uppercase tracking-[0.14em] text-text-muted">
                   <span>{data.doneCount} done</span>
                   <span>{data.activeTaskCount} active</span>
                 </div>
               </div>
 
-              <p className="rounded-lg border border-ink-soft bg-white/70 px-3 py-2 text-sm text-ink-muted dark:bg-paper-strong">
+              <p className="blueprint-panel-muted rounded-lg px-3 py-2 text-sm">
                 Active work includes On Deck, In Progress, and Done tasks.
               </p>
             </div>
@@ -216,29 +220,31 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
 
       <BlueprintCard className="space-y-5 p-5 lg:p-6">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="blueprint-title text-xl text-ink sm:text-2xl">Jump To Board</h2>
-          <ArrowRight className="h-5 w-5 text-ink-muted" />
+          <h2 className="blueprint-title text-xl text-text-primary sm:text-2xl">Jump To Board</h2>
+          <ArrowRight className="h-5 w-5 text-text-muted" />
         </div>
         <div className="auto-fit-grid gap-3 [--auto-fit-min:18rem]">
           {data.boardBreakdown.map((board) => (
             <Link
-              className="rounded-lg border border-ink bg-white/85 p-4 transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(31,79,207,0.12)] dark:bg-paper-strong"
+              className="rounded-lg border border-line-strong bg-surface-control p-4 transition hover:-translate-y-0.5 hover:bg-surface-control-hover hover:shadow-[0_14px_28px_rgba(31,79,207,0.12)]"
               href={`/boards/${board.slug}`}
               key={board.slug}
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-ink bg-white/90 dark:bg-paper">
-                    <BoardIcon className="h-5 w-5 text-ink" iconKey={board.iconKey} />
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-control">
+                    <BoardIcon className="h-5 w-5 text-brand" iconKey={board.iconKey} />
                   </div>
                   <div className="min-w-0">
-                    <p className="blueprint-title truncate text-lg text-ink">{board.name}</p>
-                    <p className="text-sm text-ink-muted">
+                    <p className="blueprint-title truncate text-lg text-text-primary">
+                      {board.name}
+                    </p>
+                    <p className="text-sm text-text-muted">
                       {board.totalTasks} tasks - {board.percentage}% of total
                     </p>
                   </div>
                 </div>
-                <ArrowRight className="h-5 w-5 shrink-0 text-ink" />
+                <ArrowRight className="h-5 w-5 shrink-0 text-brand" />
               </div>
             </Link>
           ))}

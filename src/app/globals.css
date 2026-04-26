@@ -16,33 +16,89 @@
   --accent: #d89020;
   --accent-soft: rgba(216, 144, 32, 0.15);
   --success: #18795e;
+  --success-soft: rgba(24, 121, 94, 0.12);
   --danger: #bf3650;
-  --grid: rgba(31, 79, 207, 0.075);
-  --grid-strong: rgba(31, 79, 207, 0.13);
+  --danger-soft: rgba(191, 54, 80, 0.12);
+  --text-primary: var(--ink);
+  --text-muted: var(--ink-muted);
+  --brand: var(--ink);
+  --brand-strong: var(--ink-strong);
+  --brand-soft: var(--ink-soft);
+  --brand-fill: var(--brand);
+  --line-strong: var(--ink);
+  --line-soft: var(--ink-soft);
+  --surface-base: var(--paper);
+  --surface-raised: rgba(255, 255, 255, 0.96);
+  --surface-strong: var(--paper-strong);
+  --surface-control: rgba(255, 255, 255, 0.88);
+  --surface-control-hover: var(--paper-strong);
+  --grid: rgba(31, 79, 207, 0.065);
+  --grid-strong: rgba(31, 79, 207, 0.11);
   --grid-size: 32px;
   --surface-shadow: 0 14px 30px rgba(18, 52, 140, 0.08);
   --surface-shadow-strong: 0 20px 44px rgba(18, 52, 140, 0.12);
+  --control-shadow: 0 8px 18px rgba(31, 79, 207, 0.06);
+  --paper-wash-start: rgba(255, 255, 255, 0.88);
+  --paper-wash-end: rgba(255, 255, 255, 0.72);
+  --ambient-wash: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.48),
+    rgba(255, 255, 255, 0)
+  );
+  --status-archived: #9aa6bd;
+  --status-done: #1a9f72;
+  --status-ice-box: #8cb0ff;
+  --status-in-progress: #d8a034;
+  --status-on-deck: #42aeb1;
   --radius-card: 0.9rem;
   --radius-note: 0.75rem;
 }
 
 .dark {
-  --background: #0d1424;
-  --foreground: #eff5ff;
-  --paper: rgba(18, 28, 48, 0.9);
-  --paper-strong: rgba(22, 34, 58, 0.98);
-  --ink: #9ab7ff;
-  --ink-strong: #c5d6ff;
-  --ink-soft: rgba(154, 183, 255, 0.18);
-  --ink-muted: rgba(229, 237, 255, 0.7);
-  --accent: #edba58;
-  --accent-soft: rgba(237, 186, 88, 0.16);
-  --success: #64d7ad;
-  --danger: #ff7f94;
-  --grid: rgba(154, 183, 255, 0.095);
-  --grid-strong: rgba(154, 183, 255, 0.15);
+  --background: #11151d;
+  --foreground: #eef3f8;
+  --paper: rgba(20, 25, 34, 0.88);
+  --paper-strong: rgba(32, 38, 50, 0.98);
+  --ink: #8fb0f4;
+  --ink-strong: #d4def8;
+  --ink-soft: rgba(143, 176, 244, 0.16);
+  --ink-muted: rgba(222, 230, 241, 0.68);
+  --accent: #d7a852;
+  --accent-soft: rgba(215, 168, 82, 0.14);
+  --success: #72d7b3;
+  --success-soft: rgba(114, 215, 179, 0.13);
+  --danger: #ff8b9b;
+  --danger-soft: rgba(255, 139, 155, 0.13);
+  --text-primary: #eef3f8;
+  --text-muted: rgba(222, 230, 241, 0.68);
+  --brand: #8fb0f4;
+  --brand-strong: #d4def8;
+  --brand-soft: rgba(143, 176, 244, 0.18);
+  --brand-fill: #4f72c8;
+  --line-strong: rgba(143, 176, 244, 0.45);
+  --line-soft: rgba(202, 214, 231, 0.16);
+  --surface-base: rgba(20, 25, 34, 0.86);
+  --surface-raised: rgba(27, 33, 43, 0.94);
+  --surface-strong: rgba(35, 41, 53, 0.98);
+  --surface-control: rgba(244, 248, 255, 0.075);
+  --surface-control-hover: rgba(244, 248, 255, 0.12);
+  --grid: rgba(142, 160, 192, 0.04);
+  --grid-strong: rgba(142, 160, 192, 0.07);
   --surface-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
   --surface-shadow-strong: 0 22px 54px rgba(0, 0, 0, 0.36);
+  --control-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  --paper-wash-start: rgba(255, 255, 255, 0.045);
+  --paper-wash-end: rgba(255, 255, 255, 0.012);
+  --ambient-wash: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0)
+  );
+  --status-archived: #9aa4b2;
+  --status-done: #62cfa4;
+  --status-ice-box: #87a7de;
+  --status-in-progress: #d2a04d;
+  --status-on-deck: #55b8ad;
 }
 
 @theme inline {
@@ -57,7 +113,21 @@
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-line-strong: var(--line-strong);
+  --color-line-soft: var(--line-soft);
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-strong: var(--surface-strong);
+  --color-surface-control: var(--surface-control);
+  --color-surface-control-hover: var(--surface-control-hover);
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SF Mono", ui-monospace, monospace;
@@ -108,7 +178,7 @@ body::before {
 body::after {
   background:
     linear-gradient(135deg, var(--accent-soft), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0));
+    var(--ambient-wash);
   z-index: 0;
 }
 
@@ -129,7 +199,7 @@ select {
 }
 
 ::selection {
-  background: rgba(31, 80, 242, 0.18);
+  background: var(--brand-soft);
 }
 
 .blueprint-title {
@@ -148,30 +218,24 @@ select {
 }
 
 .blueprint-surface {
-  border: 1px solid var(--ink);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-card);
-  background: var(--paper);
+  background: var(--surface-base);
   box-shadow: var(--surface-shadow);
   backdrop-filter: blur(14px);
 }
 
 .blueprint-surface-strong {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.88)),
-    var(--paper);
+    linear-gradient(180deg, var(--surface-strong), var(--surface-raised)),
+    var(--surface-base);
   box-shadow: var(--surface-shadow-strong);
 }
 
-.dark .blueprint-surface-strong {
-  background:
-    linear-gradient(180deg, rgba(16, 34, 69, 0.98), rgba(16, 34, 69, 0.88)),
-    var(--paper);
-}
-
 .blueprint-grid-paper {
-  background-color: var(--paper);
+  background-color: var(--surface-base);
   background-image:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.72)),
+    linear-gradient(180deg, var(--paper-wash-start), var(--paper-wash-end)),
     linear-gradient(to right, var(--grid-strong) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-strong) 1px, transparent 1px);
   background-size:
@@ -188,13 +252,6 @@ select {
     fixed;
 }
 
-.dark .blueprint-grid-paper {
-  background-image:
-    linear-gradient(180deg, rgba(16, 34, 69, 0.86), rgba(16, 34, 69, 0.72)),
-    linear-gradient(to right, var(--grid-strong) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid-strong) 1px, transparent 1px);
-}
-
 @media (hover: none), (pointer: coarse) {
   .blueprint-grid-paper {
     background-color: rgba(255, 255, 255, 0.72);
@@ -208,19 +265,19 @@ select {
   }
 
   .dark .blueprint-grid-paper {
-    background-color: rgba(18, 28, 48, 0.7);
+    background-color: rgba(20, 25, 34, 0.76);
     background-image: linear-gradient(
       180deg,
-      rgba(16, 34, 69, 0.58),
-      rgba(16, 34, 69, 0.4)
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.012)
     );
   }
 }
 
 .blueprint-fill {
-  background-color: var(--ink);
+  background-color: var(--brand-fill);
   background-image:
-    linear-gradient(135deg, transparent, rgba(244, 183, 64, 0.2)),
+    linear-gradient(135deg, transparent, var(--accent-soft)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
     repeating-linear-gradient(
       -55deg,
@@ -232,28 +289,63 @@ select {
 }
 
 .blueprint-outline {
-  border: 1px solid var(--ink);
+  border: 1px solid var(--line-strong);
   border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--surface-control);
 }
 
 .blueprint-note {
-  border: 1px solid var(--ink);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-note);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 12px 24px rgba(31, 79, 207, 0.08);
+  background: var(--surface-raised);
+  box-shadow: var(--surface-shadow);
   transition:
     transform 160ms ease,
     box-shadow 160ms ease;
 }
 
-.dark .blueprint-note {
-  background: rgba(11, 24, 51, 0.95);
-}
-
 .blueprint-note:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 30px rgba(31, 79, 207, 0.13);
+  box-shadow: var(--surface-shadow-strong);
+}
+
+.blueprint-control {
+  border: 1px solid var(--line-strong);
+  background: var(--surface-control);
+  box-shadow: var(--control-shadow);
+  color: var(--text-primary);
+}
+
+.blueprint-control:hover {
+  background: var(--surface-control-hover);
+}
+
+.blueprint-control::placeholder {
+  color: var(--text-muted);
+}
+
+.blueprint-panel-muted {
+  border: 1px solid var(--line-soft);
+  background: var(--surface-control);
+  color: var(--text-muted);
+}
+
+.blueprint-chip {
+  border: 1px solid var(--line-soft);
+  background: var(--surface-control);
+  color: var(--text-muted);
+}
+
+.blueprint-action {
+  color: var(--text-muted);
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.blueprint-action:hover {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
 }
 
 .blueprint-scrollbar::-webkit-scrollbar {
@@ -268,7 +360,7 @@ select {
 .blueprint-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 999px;
   border: 2px solid transparent;
-  background: rgba(31, 80, 242, 0.24);
+  background: var(--brand-soft);
   background-clip: padding-box;
 }
 

@@ -67,17 +67,17 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
     <form className="space-y-6" onSubmit={onSubmit}>
       <input type="hidden" {...register("inviteToken")} />
 
-      <div className="rounded-lg border border-ink-soft bg-white/75 px-4 py-3 text-sm text-ink-muted dark:bg-paper-strong">
-        <p className="font-semibold text-ink">Invitation for {invitedEmail}</p>
+      <div className="blueprint-panel-muted rounded-lg px-4 py-3 text-sm">
+        <p className="font-semibold text-text-primary">Invitation for {invitedEmail}</p>
         <p>This invite expires on {expiresLabel}.</p>
       </div>
 
       <div className="space-y-2">
-        <label className="block text-base font-semibold text-ink" htmlFor="name">
+        <label className="block text-base font-semibold text-text-primary" htmlFor="name">
           Name
         </label>
         <div className="relative">
-          <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.name ? "true" : "false"}
             autoComplete="name"
@@ -93,11 +93,11 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
       </div>
 
       <div className="space-y-2">
-        <label className="block text-base font-semibold text-ink" htmlFor="email">
+        <label className="block text-base font-semibold text-text-primary" htmlFor="email">
           Email
         </label>
         <div className="relative">
-          <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.email ? "true" : "false"}
             autoComplete="email"
@@ -115,11 +115,11 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
       </div>
 
       <div className="space-y-2">
-        <label className="block text-base font-semibold text-ink" htmlFor="password">
+        <label className="block text-base font-semibold text-text-primary" htmlFor="password">
           Password
         </label>
         <div className="relative">
-          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.password ? "true" : "false"}
             autoComplete="new-password"
@@ -137,7 +137,7 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
           />
           <button
             aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text-primary"
             onClick={() => setShowPassword((value) => !value)}
             type="button"
           >
@@ -150,11 +150,11 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
       </div>
 
       <div className="space-y-2">
-        <label className="block text-base font-semibold text-ink" htmlFor="confirmPassword">
+        <label className="block text-base font-semibold text-text-primary" htmlFor="confirmPassword">
           Confirm password
         </label>
         <div className="relative">
-          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-muted" />
+          <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
           <BlueprintInput
             aria-invalid={errors.confirmPassword ? "true" : "false"}
             autoComplete="new-password"
@@ -169,7 +169,7 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
             aria-label={
               showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"
             }
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted transition hover:text-text-primary"
             onClick={() => setShowConfirmPassword((value) => !value)}
             type="button"
           >
@@ -186,7 +186,7 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
       </div>
 
       {message ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <p className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
           {message}
         </p>
       ) : null}
@@ -195,9 +195,9 @@ export function SignUpForm({ expiresAt, inviteToken, invitedEmail }: SignUpFormP
         {isPending ? "Creating Account..." : "Create Account"}
       </BlueprintButton>
 
-      <div className="text-center text-sm text-ink-muted">
+      <div className="text-center text-sm text-text-muted">
         Already have an account?{" "}
-        <Link className="font-semibold text-ink underline decoration-2 underline-offset-4" href="/">
+        <Link className="font-semibold text-brand underline decoration-2 underline-offset-4" href="/">
           Sign in
         </Link>
       </div>
