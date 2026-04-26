@@ -28,6 +28,10 @@ function getPrismaClient() {
   return prismaClient;
 }
 
+// Lazily-resolved Prisma client. The proxy exists so `resolveDatabaseUrl` is
+// only invoked on first real use — `prisma generate` and parts of the Vercel
+// build import this module without a populated DATABASE_URL, and we don't want
+// those to fail. The cost is one bound-method lookup per call.
 export const prisma = new Proxy({} as PrismaClient, {
   get(_target, property) {
     const client = getPrismaClient();

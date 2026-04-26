@@ -4,10 +4,13 @@ const isDevelopment = process.env.NODE_ENV === "development";
 const isProductionDeployment = process.env.VERCEL_ENV === "production";
 type HeaderConfig = Awaited<ReturnType<NonNullable<NextConfig["headers"]>>>[number]["headers"];
 
-const cspDirectives = [
+// Baseline CSP applied to every response. The proxy at src/proxy.ts overrides
+// this with a nonce-based CSP for HTML page responses. API routes and static
+// assets keep this strict default since they never need to execute scripts.
+const baselineCspDirectives = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self'${isDevelopment ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self'",
   "img-src 'self' blob: data:",
   "font-src 'self'",
   "connect-src 'self'",
@@ -22,24 +25,42 @@ const cspDirectives = [
 ];
 
 if (isProductionDeployment) {
-  cspDirectives.push("upgrade-insecure-requests");
+  baselineCspDirectives.push("upgrade-insecure-requests");
 }
 
-const contentSecurityPolicy = cspDirectives.join("; ");
+const baselineContentSecurityPolicy = baselineCspDirectives.join("; ");
+
+const permissionsPolicy = [
+  "accelerometer=()",
+  "browsing-topics=()",
+  "camera=()",
+  "display-capture=()",
+  "fullscreen=(self)",
+  "geolocation=()",
+  "gyroscope=()",
+  "interest-cohort=()",
+  "magnetometer=()",
+  "microphone=()",
+  "payment=()",
+  "usb=()",
+].join(", ");
 
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
-    value: contentSecurityPolicy,
+    value: baselineContentSecurityPolicy,
   },
   {
     key: "Cross-Origin-Opener-Policy",
     value: "same-origin",
   },
   {
+    key: "Cross-Origin-Resource-Policy",
+    value: "same-origin",
+  },
+  {
     key: "Permissions-Policy",
-    value:
-      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()",
+    value: permissionsPolicy,
   },
   {
     key: "Referrer-Policy",
@@ -47,7 +68,7 @@ const securityHeaders = [
   },
   {
     key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains",
+    value: "max-age=63072000; includeSubDomains; preload",
   },
   {
     key: "X-Content-Type-Options",

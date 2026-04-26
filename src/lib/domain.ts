@@ -91,7 +91,6 @@ export const demoUser = {
   id: "user_demo_alex_blue",
   name: "Alex Blue",
   email: "alex@workflowblueprint.app",
-  password: "Blueprint123!",
   avatarLabel: "AB",
   themePreference: "day" as ThemePreference,
 };

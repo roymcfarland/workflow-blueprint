@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { checkRateLimit, parseJsonPayload, rateLimitKey, requireApiAdmin } from "@/lib/api";
-import { createInvitation, findUserByEmail, listInvitations } from "@/lib/data";
+import { recordAdminAudit } from "@/lib/audit";
+import { createInvitation, listInvitations, userExistsByEmail } from "@/lib/data";
 import { buildAppUrl, sendInviteEmail } from "@/lib/email";
 import { adminInvitationSchema } from "@/lib/validators";
 
-export async function GET() {
-  const currentUser = await requireApiAdmin();
+export async function GET(request: Request) {
+  const currentUser = await requireApiAdmin(request);
 
   if (!currentUser.ok) {
     return currentUser.response;
@@ -21,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const currentUser = await requireApiAdmin();
+  const currentUser = await requireApiAdmin(request);
 
   if (!currentUser.ok) {
     return currentUser.response;
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     return payload.response;
   }
 
-  const rateLimitResponse = checkRateLimit({
+  const rateLimitResponse = await checkRateLimit({
     key: rateLimitKey(request, "admin-invitation", `${currentUser.data.id}:${payload.data.email}`),
     limit: 10,
     windowMs: 15 * 60 * 1000,
@@ -47,9 +48,7 @@ export async function POST(request: Request) {
     return rateLimitResponse;
   }
 
-  const existingUser = await findUserByEmail(payload.data.email);
-
-  if (existingUser) {
+  if (await userExistsByEmail(payload.data.email)) {
     return NextResponse.json(
       { message: "That email address already has an account." },
       { status: 409 },
@@ -60,6 +59,17 @@ export async function POST(request: Request) {
     email: payload.data.email,
     invitedById: currentUser.data.id,
   });
+
+  await recordAdminAudit({
+    actor: currentUser.data.email,
+    action: "invitation.create",
+    target: invitation.email,
+    metadata: {
+      invitationId: invitation.id,
+      expiresAt: invitation.expiresAt,
+    },
+  });
+
   const inviteUrl = buildAppUrl(`/sign-up?invite=${encodeURIComponent(token)}`);
   const isProduction = process.env.NODE_ENV === "production";
   let message = "Invitation sent.";

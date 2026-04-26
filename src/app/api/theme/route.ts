@@ -5,7 +5,7 @@ import { updateUserTheme } from "@/lib/data";
 import { themePreferenceSchema } from "@/lib/validators";
 
 export async function PATCH(request: Request) {
-  const user = await requireApiUser();
+  const user = await requireApiUser(request);
 
   if (!user.ok) {
     return user.response;

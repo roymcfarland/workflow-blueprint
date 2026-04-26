@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { createInterface } from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
+
 import { UserRole } from "@prisma/client";
 
 import { hydrateDatabaseUrlEnv } from "../src/lib/database-url";
@@ -18,28 +22,101 @@ function adminEmailsFromEnvironment() {
     .filter(Boolean);
 }
 
+function actorLabel() {
+  return (
+    process.env.ADMIN_PROMOTE_ACTOR?.trim() ||
+    process.env.USER ||
+    process.env.LOGNAME ||
+    "scripts/admin-promote"
+  );
+}
+
+async function confirm(question: string) {
+  if (process.env.ADMIN_PROMOTE_NONINTERACTIVE === "true") {
+    return true;
+  }
+
+  const rl = createInterface({ input, output });
+  const answer = (await rl.question(question)).trim().toLowerCase();
+  rl.close();
+
+  return answer === "y" || answer === "yes";
+}
+
 async function promoteAdmins() {
-  const emails = [...new Set([...process.argv.slice(2).map(normalizeEmail), ...adminEmailsFromEnvironment()])];
+  const emails = [
+    ...new Set([
+      ...process.argv.slice(2).map(normalizeEmail),
+      ...adminEmailsFromEnvironment(),
+    ]),
+  ].filter(Boolean);
 
   if (emails.length === 0) {
     throw new Error("Pass at least one email or configure ADMIN_EMAILS.");
   }
 
-  const result = await prisma.user.updateMany({
+  const matches = await prisma.user.findMany({
     where: {
-      email: {
-        in: emails,
-      },
+      email: { in: emails },
+      role: { not: UserRole.ADMIN },
     },
-    data: {
-      role: UserRole.ADMIN,
-    },
+    select: { id: true, email: true, role: true },
   });
 
-  console.log(`Promoted ${result.count} account(s) to ADMIN.`);
+  if (matches.length === 0) {
+    console.log("Nothing to do — every requested account is already ADMIN or does not exist.");
+    return;
+  }
 
-  if (result.count !== emails.length) {
-    console.log("One or more emails did not match an existing account.");
+  console.log("About to promote the following accounts to ADMIN:");
+  for (const match of matches) {
+    console.log(`  - ${match.email}`);
+  }
+
+  const proceed = await confirm("Continue? [y/N] ");
+
+  if (!proceed) {
+    console.log("Aborted.");
+    return;
+  }
+
+  const actor = actorLabel();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.updateMany({
+      where: {
+        id: { in: matches.map((match) => match.id) },
+      },
+      data: {
+        role: UserRole.ADMIN,
+      },
+    });
+
+    await tx.adminAuditLog.createMany({
+      data: matches.map((match) => ({
+        id: randomUUID(),
+        actor,
+        action: "user.promote_admin",
+        target: match.email,
+        metadata: {
+          userId: match.id,
+          previousRole: match.role,
+        },
+      })),
+    });
+  });
+
+  console.log(`Promoted ${matches.length} account(s) to ADMIN.`);
+
+  if (matches.length !== emails.length) {
+    const unmatched = emails.filter(
+      (email) => !matches.some((match) => match.email === email),
+    );
+    if (unmatched.length > 0) {
+      console.log(
+        `The following email(s) did not match a user that needed promotion: ${unmatched.join(", ")}`,
+      );
+    }
   }
 }
 

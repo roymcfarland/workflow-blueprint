@@ -10,7 +10,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> },
 ) {
-  const user = await requireApiUser();
+  const user = await requireApiUser(request);
 
   if (!user.ok) {
     return user.response;
@@ -55,10 +55,10 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ taskId: string }> },
 ) {
-  const user = await requireApiUser();
+  const user = await requireApiUser(request);
 
   if (!user.ok) {
     return user.response;

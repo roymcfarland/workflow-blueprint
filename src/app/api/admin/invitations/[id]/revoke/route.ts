@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { requireApiAdmin } from "@/lib/api";
+import { recordAdminAudit } from "@/lib/audit";
 import { revokeInvitation } from "@/lib/data";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const currentUser = await requireApiAdmin();
+  const currentUser = await requireApiAdmin(request);
 
   if (!currentUser.ok) {
     return currentUser.response;
@@ -22,6 +23,15 @@ export async function POST(
       { status: 404 },
     );
   }
+
+  await recordAdminAudit({
+    actor: currentUser.data.email,
+    action: "invitation.revoke",
+    target: revoked.email,
+    metadata: {
+      invitationId: revoked.id,
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }

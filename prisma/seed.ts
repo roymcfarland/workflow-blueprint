@@ -11,8 +11,42 @@ import { loadProjectEnv } from "../src/lib/load-env";
 loadProjectEnv();
 hydrateDatabaseUrlEnv({ preferDirectConnection: true });
 
+function resolveSeedPassword() {
+  const password = process.env.DEMO_USER_PASSWORD?.trim();
+
+  if (!password) {
+    throw new Error(
+      "DEMO_USER_PASSWORD must be set to seed the demo account. Choose a strong, non-default password.",
+    );
+  }
+
+  if (password.length < 12) {
+    throw new Error("DEMO_USER_PASSWORD must be at least 12 characters.");
+  }
+
+  return password;
+}
+
+function assertSeedAllowed() {
+  const isProductionRuntime =
+    process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+
+  if (!isProductionRuntime) {
+    return;
+  }
+
+  const allowProductionSeed = process.env.ALLOW_PRODUCTION_SEED === "true";
+
+  if (!allowProductionSeed) {
+    throw new Error(
+      "Refusing to seed the demo account in production. Set ALLOW_PRODUCTION_SEED=true to override.",
+    );
+  }
+}
+
 async function seed() {
-  const passwordHash = await hash(demoUser.password, 12);
+  assertSeedAllowed();
+  const passwordHash = await hash(resolveSeedPassword(), 12);
 
   const user = await prisma.user.upsert({
     where: {

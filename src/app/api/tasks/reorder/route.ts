@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { taskReorderSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
-  const user = await requireApiUser();
+  const user = await requireApiUser(request);
 
   if (!user.ok) {
     return user.response;

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const rateLimitResponse = checkRateLimit({
+  const rateLimitResponse = await checkRateLimit({
     key: rateLimitKey(request, "invite-preview", payload.data.token),
     limit: 30,
     windowMs: 15 * 60 * 1000,

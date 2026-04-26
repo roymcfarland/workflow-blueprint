@@ -3,6 +3,10 @@ import Link from "next/link";
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 import { BlueprintCard } from "@/components/blueprint/card";
 
+// Required so the nonce-based CSP set by src/proxy.ts is honored on every
+// request. Static prerenders cannot have per-request nonces.
+export const dynamic = "force-dynamic";
+
 export default function ForgotPasswordPage() {
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">

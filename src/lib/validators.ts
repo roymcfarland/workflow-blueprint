@@ -186,14 +186,6 @@ export const profileSchema = z
       return;
     }
 
-    if (!value.currentPassword) {
-      context.addIssue({
-        code: "custom",
-        message: "Current password is required to change it.",
-        path: ["currentPassword"],
-      });
-    }
-
     if (!value.newPassword || value.newPassword.length < 8) {
       context.addIssue({
         code: "custom",

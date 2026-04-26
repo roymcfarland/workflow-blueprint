@@ -22,11 +22,11 @@ npm run dev
 
 The dev server starts Next.js on `127.0.0.1`. Run `npm run db:deploy` before the first deploy, and run `npm run db:seed` only when you want the demo account and starter boards in the configured database.
 
-Demo credentials:
+The seed command reads the demo account password from the required `DEMO_USER_PASSWORD` environment variable and refuses to run when `NODE_ENV=production` or `VERCEL_ENV=production` unless `ALLOW_PRODUCTION_SEED=true` is also set. Choose a unique value per environment and rotate it.
 
 ```text
-alex@workflowblueprint.app
-Blueprint123!
+DEMO_USER_PASSWORD="choose-a-strong-password-of-12-or-more-chars"
+npm run db:seed
 ```
 
 ## Environment
@@ -75,7 +75,41 @@ If the Supabase runtime URL uses a pooler and migration deployment fails, tempor
 
 ## Private Read-Only API
 
-Private read-only endpoints require either an `Authorization: Bearer <READ_ONLY_API_KEY>` header or an `X-API-Key: <READ_ONLY_API_KEY>` header. They return JSON only, do not mutate data, and are intentionally not CORS-enabled for browser calls from other origins.
+The read-only API exposes a single user's planning data as JSON for use by tools, dashboards, or private agents. It never mutates data and is intentionally not CORS-enabled for browser calls from other origins.
+
+### Authentication
+
+Every request must include the `READ_ONLY_API_KEY` configured in the environment, in either form:
+
+```http
+Authorization: Bearer <READ_ONLY_API_KEY>
+```
+
+```http
+X-API-Key: <READ_ONLY_API_KEY>
+```
+
+Keys are compared with a SHA-256 + `timingSafeEqual` to avoid leaking the secret through timing differences. The endpoints are entirely separate from the cookie-based session used by the web app — there is no overlap between the two auth systems.
+
+If `READ_ONLY_API_KEY` is unset the routes respond with `503 Read-only API is not configured`. The user surfaced through the API is selected by `READ_ONLY_USER_ID`; when omitted it falls back to the seeded demo user (`user_demo_alex_blue`).
+
+### Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/read-only/dashboard` | Aggregate view: user profile, board list, recent tasks |
+| `GET` | `/api/read-only/boards` | All boards owned by the configured user |
+| `GET` | `/api/read-only/boards/[slug]` | A single board by slug, including tasks and note |
+
+Every response is validated against a Zod schema before it is sent. If a response would fail validation the request is rejected with `500 Read-only API response failed validation` so a malformed payload never reaches a downstream consumer.
+
+### Rate limits and headers
+
+- Rate limit: **240 requests per minute per IP**, enforced via a Postgres-backed bucket. Exceeded requests return `429 Too Many Attempts` with a `Retry-After` header.
+- Every response includes `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
+- Authentication failures include `WWW-Authenticate: Bearer realm="read-only-api"`.
+
+### Examples
 
 ```bash
 curl -i \
@@ -96,20 +130,27 @@ Production uses the same paths under `https://www.workflowblueprint.io`.
 ## Scripts
 
 ```bash
-npm run dev       # start the local Next.js server
-npm run build     # production build and type check
-npm run lint      # ESLint / Next core web vitals checks
-npm run db:deploy # apply checked-in Prisma migrations
-npm run db:migrate # create and apply a development migration
-npm run db:push   # push schema directly for non-migration development
-npm run db:seed   # seed the demo account and boards
+npm run dev          # start the local Next.js server
+npm run build        # local production build and type check (no migrations)
+npm run vercel-build # Vercel uses this: applies Prisma migrations, then builds
+npm run lint         # ESLint / Next core web vitals checks
+npm run db:deploy    # apply checked-in Prisma migrations
+npm run db:migrate   # create and apply a development migration
+npm run db:push      # push schema directly for non-migration development
+npm run db:seed      # seed the demo account and boards
 ```
+
+Vercel automatically runs `vercel-build` instead of `build` when it is present, so each production deployment applies any pending Prisma migrations before the new code starts handling requests. Local `npm run build` deliberately does not migrate so it cannot accidentally touch a remote database.
 
 ## Security Notes
 
-- API routes use shared JSON parsing and schema validation helpers.
+- API routes use shared JSON parsing and Zod schema validation helpers.
 - Private read-only API responses are validated before being returned.
 - Authenticated API routes return JSON `401` responses instead of page redirects.
-- Sign-up, sign-in, and password reset endpoints include a lightweight in-memory rate limit.
-- Password reset tokens are stored hashed and claimed atomically before the password changes.
-- Development reset links are returned only outside production; production sends reset links through Resend.
+- Sign-up, sign-in, password reset, invitation, and read-only API endpoints share a Postgres-backed distributed rate limiter (`RateLimitBucket` table) so limits hold across serverless instances.
+- Mutating routes verify the request `Origin`/`Referer` matches `NEXT_PUBLIC_SITE_URL` and the session cookie is `SameSite=strict`, providing a CSRF defense.
+- HTML responses get a per-request nonce-based Content Security Policy (`'strict-dynamic'`); API and static responses get a stricter baseline CSP.
+- Session JWTs include the user's `passwordChangedAt` timestamp so password changes/resets revoke every existing session.
+- Password reset and invitation tokens are stored hashed and claimed atomically inside transactions before any state changes.
+- Development reset links are returned only outside production; production sends reset and invitation links through Resend.
+- Admin actions (invitation create/revoke, role promotion) write an `AdminAuditLog` row recording actor, action, target, and timestamp.

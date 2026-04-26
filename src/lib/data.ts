@@ -229,6 +229,10 @@ async function findTaskForUser(userId: string, taskId: string) {
   });
 }
 
+// Single-user app: in practice only one client per user creates tasks at a
+// time, so the read-then-insert here cannot realistically race. If that
+// changes, switch to either a serializable transaction or a raw
+// `INSERT ... SELECT MAX(sort_order)+1` to make this fully race-free.
 async function nextSortOrderForStatus(boardId: string, status: PrismaTaskStatus) {
   const current = await prisma.task.findFirst({
     where: {
@@ -635,7 +639,7 @@ export async function updateUserProfile(userId: string, input: ProfileInput, pas
       name: input.name,
       email: input.email,
       themePreference: themePreferenceToDb(input.themePreference),
-      ...(passwordHash ? { passwordHash } : {}),
+      ...(passwordHash ? { passwordHash, passwordChangedAt: new Date() } : {}),
     },
     select: {
       id: true,
@@ -644,6 +648,7 @@ export async function updateUserProfile(userId: string, input: ProfileInput, pas
       avatarLabel: true,
       themePreference: true,
       role: true,
+      passwordChangedAt: true,
     },
   });
 
@@ -693,6 +698,7 @@ async function createUserWithStarterBoards(
       avatarLabel: true,
       themePreference: true,
       role: true,
+      passwordChangedAt: true,
     },
   });
 
@@ -814,7 +820,25 @@ export async function findUserByEmail(email: string) {
     where: {
       email: normalizeEmail(email),
     },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      passwordHash: true,
+      passwordChangedAt: true,
+    },
   });
+}
+
+export async function userExistsByEmail(email: string) {
+  const user = await prisma.user.findUnique({
+    where: {
+      email: normalizeEmail(email),
+    },
+    select: { id: true },
+  });
+
+  return Boolean(user);
 }
 
 export async function createInvitation({
@@ -873,18 +897,27 @@ export async function listInvitations(): Promise<SerializedInvitation[]> {
 }
 
 export async function revokeInvitation(invitationId: string) {
-  const invitation = await prisma.invitation.updateMany({
-    where: {
-      id: invitationId,
-      acceptedAt: null,
-      revokedAt: null,
-    },
-    data: {
-      revokedAt: new Date(),
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.invitation.updateMany({
+      where: {
+        id: invitationId,
+        acceptedAt: null,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
 
-  return invitation.count > 0;
+    if (result.count === 0) {
+      return null;
+    }
+
+    return tx.invitation.findUnique({
+      where: { id: invitationId },
+      select: { id: true, email: true },
+    });
+  });
 }
 
 export async function getInvitationPreviewByToken(token: string) {
@@ -911,7 +944,7 @@ export async function getInvitationPreviewByToken(token: string) {
 }
 
 export async function createPasswordResetToken(userId: string) {
-  const rawToken = randomUUID();
+  const rawToken = generateRawToken();
   const expiresAt = addDays(new Date(), 1);
 
   await prisma.passwordResetToken.create({
@@ -945,16 +978,17 @@ export async function resetPasswordWithToken(token: string, passwordHash: string
       return null;
     }
 
+    const now = new Date();
     const claimedToken = await tx.passwordResetToken.updateMany({
       where: {
         id: resetToken.id,
         usedAt: null,
         expiresAt: {
-          gt: new Date(),
+          gt: now,
         },
       },
       data: {
-        usedAt: new Date(),
+        usedAt: now,
       },
     });
 
@@ -962,15 +996,22 @@ export async function resetPasswordWithToken(token: string, passwordHash: string
       return null;
     }
 
-    await tx.user.update({
+    const user = await tx.user.update({
       where: {
         id: resetToken.userId,
       },
       data: {
         passwordHash,
+        passwordChangedAt: now,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        passwordChangedAt: true,
       },
     });
 
-    return resetToken.userId;
+    return user;
   });
 }

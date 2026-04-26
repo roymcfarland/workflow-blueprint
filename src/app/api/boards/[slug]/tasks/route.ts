@@ -9,7 +9,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const user = await requireApiUser();
+  const user = await requireApiUser(request);
 
   if (!user.ok) {
     return user.response;

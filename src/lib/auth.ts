@@ -15,18 +15,27 @@ type SessionClaims = {
   sub: string;
   email: string;
   name: string;
+  passwordChangedAt: Date;
 };
 
 type CookieOptions = {
   maxAge: number;
 };
 
+const minimumProductionSecretLength = 32;
+const devFallbackSecret = "workflow-blueprint-dev-fallback-secret";
 const textEncoder = new TextEncoder();
 
 function getAuthSecret() {
-  const secret = process.env.AUTH_SECRET;
+  const secret = process.env.AUTH_SECRET?.trim();
 
   if (secret) {
+    if (process.env.NODE_ENV === "production" && secret.length < minimumProductionSecretLength) {
+      throw new Error(
+        `AUTH_SECRET must be at least ${minimumProductionSecretLength} characters in production.`,
+      );
+    }
+
     return textEncoder.encode(secret);
   }
 
@@ -34,7 +43,7 @@ function getAuthSecret() {
     throw new Error("AUTH_SECRET must be configured in production.");
   }
 
-  return textEncoder.encode("workflow-blueprint-dev-fallback-secret");
+  return textEncoder.encode(devFallbackSecret);
 }
 
 function cookieConfig(rememberMe = false): CookieOptions {
@@ -55,6 +64,7 @@ export async function createSessionToken(user: SessionClaims, rememberMe = false
   return new SignJWT({
     email: user.email,
     name: user.name,
+    pwdAt: Math.floor(user.passwordChangedAt.getTime() / 1000),
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.sub)
@@ -71,7 +81,7 @@ export async function setSessionCookie(token: string, rememberMe = false) {
     httpOnly: true,
     maxAge: config.maxAge,
     path: "/",
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
   });
 }
@@ -81,7 +91,14 @@ export async function clearSessionCookie() {
   cookieStore.delete(sessionCookieName);
 }
 
-export async function readSession() {
+type SessionPayload = {
+  userId: string;
+  email: unknown;
+  name: unknown;
+  passwordChangedAtSeconds: number | null;
+};
+
+async function readSessionPayload(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(sessionCookieName)?.value;
 
@@ -92,20 +109,42 @@ export async function readSession() {
   try {
     const { payload } = await jwtVerify(token, getAuthSecret());
 
+    if (typeof payload.sub !== "string") {
+      return null;
+    }
+
+    const passwordChangedAtSeconds =
+      typeof payload.pwdAt === "number" && Number.isFinite(payload.pwdAt) ? payload.pwdAt : null;
+
     return {
       userId: payload.sub,
       email: payload.email,
       name: payload.name,
+      passwordChangedAtSeconds,
     };
   } catch {
     return null;
   }
 }
 
-export async function getCurrentUser() {
-  const session = await readSession();
+export async function readSession() {
+  const payload = await readSessionPayload();
 
-  if (!session?.userId) {
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    userId: payload.userId,
+    email: payload.email,
+    name: payload.name,
+  };
+}
+
+export async function getCurrentUser() {
+  const session = await readSessionPayload();
+
+  if (!session) {
     return null;
   }
 
@@ -118,6 +157,7 @@ export async function getCurrentUser() {
       avatarLabel: true,
       themePreference: true,
       role: true,
+      passwordChangedAt: true,
     },
   });
 
@@ -125,9 +165,26 @@ export async function getCurrentUser() {
     return null;
   }
 
+  // Reject sessions issued before the most recent password change. New tokens
+  // include the user's passwordChangedAt as a `pwdAt` claim. Old tokens (no
+  // claim) are also rejected so password changes/resets fully invalidate them.
+  const currentPwdAtSeconds = Math.floor(user.passwordChangedAt.getTime() / 1000);
+
+  if (
+    session.passwordChangedAtSeconds === null ||
+    session.passwordChangedAtSeconds < currentPwdAtSeconds
+  ) {
+    return null;
+  }
+
   return {
-    ...user,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatarLabel: user.avatarLabel,
+    role: user.role,
     themePreference: themePreferenceToUi(user.themePreference),
+    passwordChangedAt: user.passwordChangedAt,
   };
 }
 

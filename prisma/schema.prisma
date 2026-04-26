@@ -34,6 +34,7 @@ model User {
   avatarLabel         String?
   themePreference     ThemePreference     @default(DAY)
   role                UserRole            @default(USER)
+  passwordChangedAt   DateTime            @default(now())
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   boards              Board[]
@@ -120,4 +121,25 @@ model Invitation {
 
   @@index([email])
   @@index([invitedById])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
+
+model AdminAuditLog {
+  id        String   @id
+  actor     String
+  action    String
+  target    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
 }

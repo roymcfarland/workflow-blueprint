@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import type { ZodType } from "zod";
 
 import { getCurrentUser } from "@/lib/auth";
+import { siteConfig } from "@/lib/site-config";
+
+export { checkRateLimit } from "@/lib/rate-limit";
+export type { RateLimitOptions } from "@/lib/rate-limit";
 
 type ApiResult<T> =
   | {
@@ -13,24 +17,47 @@ type ApiResult<T> =
       response: NextResponse;
     };
 
-type RateLimitOptions = {
-  key: string;
-  limit: number;
-  windowMs: number;
-};
-
-const globalForRateLimit = globalThis as unknown as {
-  rateLimitBuckets?: Map<string, { count: number; resetAt: number }>;
-};
-
-const rateLimitBuckets = globalForRateLimit.rateLimitBuckets ?? new Map();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForRateLimit.rateLimitBuckets = rateLimitBuckets;
-}
-
 export function apiError(message: string, status = 400) {
   return NextResponse.json({ message }, { status });
+}
+
+const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function originFromHeader(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+export function assertSameOriginRequest(request: Request) {
+  if (safeMethods.has(request.method)) {
+    return null;
+  }
+
+  const expectedOrigin = siteConfig.url;
+  const originHeader = originFromHeader(request.headers.get("origin"));
+
+  if (originHeader) {
+    if (originHeader !== expectedOrigin) {
+      return apiError("Cross-origin requests are not allowed.", 403);
+    }
+
+    return null;
+  }
+
+  const refererOrigin = originFromHeader(request.headers.get("referer"));
+
+  if (refererOrigin && refererOrigin !== expectedOrigin) {
+    return apiError("Cross-origin requests are not allowed.", 403);
+  }
+
+  return null;
 }
 
 export async function parseJsonPayload<T>(
@@ -64,7 +91,18 @@ export async function parseJsonPayload<T>(
   };
 }
 
-export async function requireApiUser() {
+export async function requireApiUser(request?: Request) {
+  if (request) {
+    const originResponse = assertSameOriginRequest(request);
+
+    if (originResponse) {
+      return {
+        ok: false as const,
+        response: originResponse,
+      };
+    }
+  }
+
   const user = await getCurrentUser();
 
   if (!user) {
@@ -80,8 +118,8 @@ export async function requireApiUser() {
   };
 }
 
-export async function requireApiAdmin() {
-  const user = await requireApiUser();
+export async function requireApiAdmin(request?: Request) {
+  const user = await requireApiUser(request);
 
   if (!user.ok) {
     return user;
@@ -102,36 +140,4 @@ export function rateLimitKey(request: Request, scope: string, identifier?: strin
   const ipAddress = forwardedFor || request.headers.get("x-real-ip") || "local";
 
   return [scope, ipAddress, identifier?.toLowerCase()].filter(Boolean).join(":");
-}
-
-export function checkRateLimit({ key, limit, windowMs }: RateLimitOptions) {
-  const now = Date.now();
-  const bucket = rateLimitBuckets.get(key);
-
-  if (!bucket || bucket.resetAt <= now) {
-    rateLimitBuckets.set(key, {
-      count: 1,
-      resetAt: now + windowMs,
-    });
-
-    return null;
-  }
-
-  bucket.count += 1;
-
-  if (bucket.count <= limit) {
-    return null;
-  }
-
-  const retryAfterSeconds = Math.ceil((bucket.resetAt - now) / 1000);
-
-  return NextResponse.json(
-    { message: "Too many attempts. Please try again shortly." },
-    {
-      headers: {
-        "Retry-After": String(retryAfterSeconds),
-      },
-      status: 429,
-    },
-  );
 }

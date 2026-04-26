@@ -2,18 +2,29 @@ import { compare } from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
-import { checkRateLimit, parseJsonPayload, rateLimitKey } from "@/lib/api";
+import {
+  assertSameOriginRequest,
+  checkRateLimit,
+  parseJsonPayload,
+  rateLimitKey,
+} from "@/lib/api";
 import { findUserByEmail } from "@/lib/data";
 import { signInSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
+  const originResponse = assertSameOriginRequest(request);
+
+  if (originResponse) {
+    return originResponse;
+  }
+
   const payload = await parseJsonPayload(request, signInSchema, "Unable to sign in.");
 
   if (!payload.ok) {
     return payload.response;
   }
 
-  const rateLimitResponse = checkRateLimit({
+  const rateLimitResponse = await checkRateLimit({
     key: rateLimitKey(request, "sign-in", payload.data.email),
     limit: 8,
     windowMs: 15 * 60 * 1000,
@@ -46,6 +57,7 @@ export async function POST(request: Request) {
       sub: user.id,
       email: user.email,
       name: user.name,
+      passwordChangedAt: user.passwordChangedAt,
     },
     payload.data.rememberMe,
   );

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { checkRateLimit, parseJsonPayload, rateLimitKey } from "@/lib/api";
+import {
+  assertSameOriginRequest,
+  checkRateLimit,
+  parseJsonPayload,
+  rateLimitKey,
+} from "@/lib/api";
 import { createPasswordResetToken, findUserByEmail } from "@/lib/data";
 import { buildAppUrl, sendPasswordResetEmail } from "@/lib/email";
 import { forgotPasswordSchema } from "@/lib/validators";
@@ -8,6 +13,12 @@ import { forgotPasswordSchema } from "@/lib/validators";
 const passwordResetMessage = "If that account exists, a reset link has been sent.";
 
 export async function POST(request: Request) {
+  const originResponse = assertSameOriginRequest(request);
+
+  if (originResponse) {
+    return originResponse;
+  }
+
   const payload = await parseJsonPayload(
     request,
     forgotPasswordSchema,
@@ -18,7 +29,7 @@ export async function POST(request: Request) {
     return payload.response;
   }
 
-  const rateLimitResponse = checkRateLimit({
+  const rateLimitResponse = await checkRateLimit({
     key: rateLimitKey(request, "forgot-password", payload.data.email),
     limit: 5,
     windowMs: 15 * 60 * 1000,

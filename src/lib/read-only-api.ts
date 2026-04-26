@@ -85,8 +85,10 @@ export function readOnlyApiJson<T>(schema: ZodType<T>, data: T, init?: ResponseI
   });
 }
 
-export function requireReadOnlyApiAccess(request: Request): ApiResult<{ userId: string }> {
-  const rateLimitResponse = checkRateLimit({
+export async function requireReadOnlyApiAccess(
+  request: Request,
+): Promise<ApiResult<{ userId: string }>> {
+  const rateLimitResponse = await checkRateLimit({
     key: rateLimitKey(request, "read-only-api"),
     ...readOnlyRateLimit,
   });
@@ -128,7 +130,7 @@ export function requireReadOnlyApiAccess(request: Request): ApiResult<{ userId: 
 }
 
 export async function requireReadOnlyApiUser(request: Request) {
-  const access = requireReadOnlyApiAccess(request);
+  const access = await requireReadOnlyApiAccess(request);
 
   if (!access.ok) {
     return access;
