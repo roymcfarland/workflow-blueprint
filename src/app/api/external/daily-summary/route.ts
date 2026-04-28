@@ -52,8 +52,19 @@ function jsonError(message: string, status: number, extraHeaders?: HeadersInit) 
   return jsonResponse({ ok: false, error: message }, status, extraHeaders);
 }
 
-function getConfiguredApiKey() {
-  return process.env.EXTERNAL_API_KEY?.trim() ?? "";
+function getExpectedApiKeys() {
+  const external = process.env.EXTERNAL_API_KEY?.trim() ?? "";
+  const readOnly = process.env.READ_ONLY_API_KEY?.trim() ?? "";
+
+  if (external) {
+    return [external];
+  }
+
+  if (readOnly) {
+    return [readOnly];
+  }
+
+  return [];
 }
 
 function externalUserId() {
@@ -91,15 +102,26 @@ function readBearerToken(request: Request): BearerResult {
   return { kind: "ok", token };
 }
 
-function tokensMatch(submitted: string, configured: string) {
-  if (!submitted || !configured) {
+function tokenMatchesAny(submitted: string, configuredKeys: string[]) {
+  if (!submitted || configuredKeys.length === 0) {
     return false;
   }
 
   const submittedHash = createHash("sha256").update(submitted).digest();
-  const configuredHash = createHash("sha256").update(configured).digest();
 
-  return timingSafeEqual(submittedHash, configuredHash);
+  for (const configured of configuredKeys) {
+    if (!configured) {
+      continue;
+    }
+
+    const configuredHash = createHash("sha256").update(configured).digest();
+
+    if (timingSafeEqual(submittedHash, configuredHash)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // Stable 48-bit positive integer derived from the UUID string. The OpenAPI
@@ -150,9 +172,9 @@ export async function GET(request: Request) {
     return rateLimitResponse;
   }
 
-  const configured = getConfiguredApiKey();
+  const expectedKeys = getExpectedApiKeys();
 
-  if (!configured) {
+  if (expectedKeys.length === 0) {
     return jsonError("External API is not configured.", 503);
   }
 
@@ -171,7 +193,7 @@ export async function GET(request: Request) {
       break;
   }
 
-  if (!tokensMatch(bearer.token, configured)) {
+  if (!tokenMatchesAny(bearer.token, expectedKeys)) {
     return jsonError("Invalid API key.", 403);
   }
 

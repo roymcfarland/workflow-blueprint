@@ -58,7 +58,7 @@ Use a durable Supabase project database for production account creation.
 `NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
 `READ_ONLY_API_KEY` enables the private read-only API. `READ_ONLY_USER_ID` selects which account is exposed through that API and defaults to the seeded demo user when omitted.
-`EXTERNAL_API_KEY` enables the external `/api/external/daily-summary` route consumed by `www.roymcfarland.news`. `EXTERNAL_USER_ID` selects which account that route surfaces; when unset it falls back to `READ_ONLY_USER_ID`, and finally to the seeded demo user.
+`EXTERNAL_API_KEY` enables the external `/api/external/daily-summary` route consumed by `www.roymcfarland.news`. If it is unset, that route also accepts the same secret as `READ_ONLY_API_KEY` so one key can unlock both private APIs. When `EXTERNAL_API_KEY` is set, only it is checked for the daily summary (the read-only API still uses `READ_ONLY_API_KEY`). `EXTERNAL_USER_ID` selects which account that route surfaces; when unset it falls back to `READ_ONLY_USER_ID`, and finally to the seeded demo user.
 
 ## Supabase Database Setup
 
@@ -134,15 +134,16 @@ Production uses the same paths under `https://www.workflowblueprint.io`.
 
 `GET /api/external/daily-summary` is a separate, single-purpose endpoint consumed once per day by the morning briefing job at `www.roymcfarland.news`. It is dynamic (`force-dynamic`, `revalidate = 0`, `Cache-Control: no-store`) so the consumer never sees stale data, and it always returns JSON — including for auth failures — so an HTML 404 can never reach the consumer.
 
-Authentication uses an `EXTERNAL_API_KEY` Bearer token, compared with SHA-256 + `timingSafeEqual`:
+Authentication uses a Bearer token compared with SHA-256 + `timingSafeEqual`. The expected secret is `EXTERNAL_API_KEY` when that variable is set; otherwise it falls back to `READ_ONLY_API_KEY` so a single shared key can match what an older consumer already sends.
 
 - Missing or malformed `Authorization` header → `401` JSON.
 - Wrong key → `403` JSON.
-- Unset `EXTERNAL_API_KEY` → `503` JSON.
+- Neither `EXTERNAL_API_KEY` nor `READ_ONLY_API_KEY` is set → `503` JSON.
 
 The response shape is generated from this OpenAPI contract: top-level `generatedAt`, a `summary` block with `totalActive`, `completionRate` (string `"NN%"`), `byStatus` (camelCase keys), and `byCategory` (camelCase keys), plus `inProgress`, `onDeck`, `iceBox`, and `recentlyCompleted` task arrays. `Task.status` and `Task.category` use hyphenated enum values (`in-progress`, `elevated-organics`, …) and ids are stable 48-bit hashes of the underlying UUIDs.
 
 ```bash
+# Uses EXTERNAL_API_KEY when set; otherwise the same value as READ_ONLY_API_KEY.
 curl -i \
   -H "Authorization: Bearer $EXTERNAL_API_KEY" \
   https://www.workflowblueprint.io/api/external/daily-summary
