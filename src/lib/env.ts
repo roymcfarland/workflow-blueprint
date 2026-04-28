@@ -34,6 +34,8 @@ const baseEnvSchema = z.object({
   EMAIL_FROM: optionalString,
   READ_ONLY_API_KEY: optionalString,
   READ_ONLY_USER_ID: optionalString,
+  EXTERNAL_API_KEY: optionalString,
+  EXTERNAL_USER_ID: optionalString,
 });
 
 let validated = false;
