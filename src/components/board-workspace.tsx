@@ -29,6 +29,7 @@ import {
   PanelRightOpen,
   Plus,
   Sparkles,
+  SquarePen,
   Trash2,
   X,
 } from "lucide-react";
@@ -82,6 +83,7 @@ const statusAccentTokens: Record<TaskStatus, string> = {
 const kanbanLaneItemClassName = "w-[min(86vw,21rem)] shrink-0 sm:w-80 lg:w-[21rem]";
 
 const activeBoardStatuses: TaskStatus[] = ["ON_DECK", "IN_PROGRESS", "DONE"];
+const defaultNewTaskStatus: TaskStatus = "ON_DECK";
 
 function getStatusAccentStyle(status: TaskStatus): CSSProperties {
   return { backgroundColor: `var(${statusAccentTokens[status]})` };
@@ -232,6 +234,20 @@ function mergeTask(tasks: SerializedTask[], nextTask: SerializedTask) {
     : [...tasks, nextTask];
 
   return normalizeTasks(nextTasks);
+}
+
+function taskToInput(task: SerializedTask, title = task.title): TaskInput {
+  return {
+    title,
+    description: task.description ?? null,
+    status: task.status,
+    dueDate: task.dueDate ? task.dueDate.slice(0, 10) : null,
+    subtasks: task.subtasks.map((subtask) => ({
+      id: subtask.id,
+      title: subtask.title,
+      isComplete: subtask.isComplete,
+    })),
+  };
 }
 
 function TaskMeta({ task }: { task: SerializedTask }) {
@@ -435,12 +451,14 @@ function TaskPreview({
   task,
   expanded,
   onOpen,
+  onRename,
   onToggleExpand,
 }: {
   dragHandle?: React.ReactNode;
   task: SerializedTask;
   expanded?: boolean;
   onOpen?: (task: SerializedTask) => void;
+  onRename?: (task: SerializedTask, title: string) => Promise<void>;
   onToggleExpand?: (taskId: string) => void;
 }) {
   return (
@@ -448,13 +466,17 @@ function TaskPreview({
       <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
       <div className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
-          <button
-            className="min-w-0 flex-1 space-y-1.5 text-left focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-            onClick={() => onOpen?.(task)}
-            type="button"
-          >
-            <p className="break-words text-base font-semibold leading-snug">{task.title}</p>
-          </button>
+          <div className="min-w-0 flex-1">
+            {onRename ? (
+              <EditableTaskTitle
+                className="break-words text-base font-semibold leading-snug text-text-primary"
+                onRename={onRename}
+                task={task}
+              />
+            ) : (
+              <p className="break-words text-base font-semibold leading-snug">{task.title}</p>
+            )}
+          </div>
           <div className="flex shrink-0 items-center gap-1">
             {task.subtasks.length > 0 ? (
               <button
@@ -473,6 +495,7 @@ function TaskPreview({
                 )}
               </button>
             ) : null}
+            {onOpen ? <TaskDetailsButton onOpen={onOpen} task={task} /> : null}
             {dragHandle ?? <GripVertical className="h-4 w-4 text-text-muted" />}
           </div>
         </div>
@@ -488,11 +511,13 @@ function TaskPreview({
 function SortableTaskCard({
   expanded,
   onOpen,
+  onRename,
   onToggleExpand,
   task,
 }: {
   expanded: boolean;
   onOpen: (task: SerializedTask) => void;
+  onRename: (task: SerializedTask, title: string) => Promise<void>;
   onToggleExpand: (taskId: string) => void;
   task: SerializedTask;
 }) {
@@ -536,6 +561,7 @@ function SortableTaskCard({
         }
         expanded={expanded}
         onOpen={onOpen}
+        onRename={onRename}
         onToggleExpand={onToggleExpand}
         task={task}
       />
@@ -543,15 +569,184 @@ function SortableTaskCard({
   );
 }
 
+function EditableTaskTitle({
+  className,
+  onRename,
+  task,
+}: {
+  className?: string;
+  onRename: (task: SerializedTask, title: string) => Promise<void>;
+  task: SerializedTask;
+}) {
+  const [draft, setDraft] = useState(task.title);
+  const [editing, setEditing] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const skipBlurSaveRef = useRef(false);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const cancel = () => {
+    skipBlurSaveRef.current = true;
+    setDraft(task.title);
+    setMessage(null);
+    setEditing(false);
+  };
+
+  const save = () => {
+    if (isPending) {
+      return;
+    }
+
+    const title = draft.trim();
+
+    if (!title) {
+      setMessage("Task title is required.");
+      inputRef.current?.focus();
+      return;
+    }
+
+    if (title === task.title) {
+      setDraft(task.title);
+      setMessage(null);
+      setEditing(false);
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await onRename(task, title);
+        setDraft(title);
+        setMessage(null);
+        setEditing(false);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Unable to rename task.");
+      }
+    });
+  };
+
+  if (editing) {
+    return (
+      <div className="space-y-1">
+        <input
+          aria-label={`Task title for ${task.title}`}
+          className="blueprint-control h-9 w-full rounded-md px-2 text-base font-semibold text-text-primary outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+          disabled={isPending}
+          maxLength={180}
+          onBlur={() => {
+            if (skipBlurSaveRef.current) {
+              skipBlurSaveRef.current = false;
+              return;
+            }
+
+            save();
+          }}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setMessage(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancel();
+              event.currentTarget.blur();
+            }
+          }}
+          ref={inputRef}
+          value={draft}
+        />
+        {message ? <p className="text-xs font-semibold text-danger">{message}</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      aria-label={`Rename ${task.title}`}
+      className={cn(
+        "block w-full text-left transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2",
+        className,
+      )}
+      onClick={() => {
+        setDraft(task.title);
+        setEditing(true);
+      }}
+      title="Rename task"
+      type="button"
+    >
+      {task.title}
+    </button>
+  );
+}
+
+function TaskDetailsButton({
+  onOpen,
+  task,
+}: {
+  onOpen: (task: SerializedTask) => void;
+  task: SerializedTask;
+}) {
+  return (
+    <button
+      aria-label={`Open ${task.title} details`}
+      className="blueprint-action rounded-md p-1"
+      onClick={() => onOpen(task)}
+      title="Open details"
+      type="button"
+    >
+      <SquarePen className="h-4 w-4" />
+    </button>
+  );
+}
+
+function AddTaskToStatusButton({
+  onNewTask,
+  status,
+}: {
+  onNewTask: (status: TaskStatus) => void;
+  status: TaskStatus;
+}) {
+  const label = `Add task to ${statusLabels[status]}`;
+
+  return (
+    <BlueprintButton
+      aria-label={label}
+      className="h-8 w-8 shrink-0 px-0 py-0"
+      onClick={() => onNewTask(status)}
+      title={label}
+      type="button"
+      variant="outline"
+    >
+      <Plus className="h-4 w-4" />
+      <span className="sr-only">{label}</span>
+    </BlueprintButton>
+  );
+}
+
 function BoardColumn({
   expandedTaskIds,
+  onNewTask,
   onOpenTask,
+  onRenameTask,
   onToggleExpand,
   status,
   tasks,
 }: {
   expandedTaskIds: Set<string>;
+  onNewTask: (status: TaskStatus) => void;
   onOpenTask: (task: SerializedTask) => void;
+  onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
   onToggleExpand: (taskId: string) => void;
   status: TaskStatus;
   tasks: SerializedTask[];
@@ -568,9 +763,12 @@ function BoardColumn({
           <h2 className="blueprint-display text-lg text-text-primary sm:text-xl">
             {statusLabels[status]}
           </h2>
-          <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
-            {tasks.length}
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
+              {tasks.length}
+            </span>
+            <AddTaskToStatusButton onNewTask={onNewTask} status={status} />
+          </div>
         </div>
       </div>
       <div
@@ -586,6 +784,7 @@ function BoardColumn({
               expanded={expandedTaskIds.has(task.id)}
               key={task.id}
               onOpen={onOpenTask}
+              onRename={onRenameTask}
               onToggleExpand={onToggleExpand}
               task={task}
             />
@@ -667,6 +866,7 @@ function SortableSubtaskRow({
 
 function TaskDrawer({
   boardName,
+  initialStatus,
   onClose,
   onDelete,
   onSave,
@@ -674,6 +874,7 @@ function TaskDrawer({
   task,
 }: {
   boardName: string;
+  initialStatus: TaskStatus;
   onClose: () => void;
   onDelete: (taskId: string) => Promise<void>;
   onSave: (values: TaskInput, taskId?: string) => Promise<void>;
@@ -693,7 +894,7 @@ function TaskDrawer({
     defaultValues: {
       title: "",
       description: null,
-      status: "ON_DECK",
+      status: initialStatus,
       dueDate: null,
       subtasks: [],
     },
@@ -712,7 +913,7 @@ function TaskDrawer({
     reset({
       title: task?.title ?? "",
       description: task?.description ?? null,
-      status: task?.status ?? "ON_DECK",
+      status: task?.status ?? initialStatus,
       dueDate: task?.dueDate ? task.dueDate.slice(0, 10) : null,
       subtasks:
         task?.subtasks.map((subtask) => ({
@@ -721,7 +922,7 @@ function TaskDrawer({
           isComplete: subtask.isComplete,
         })) ?? [],
     });
-  }, [open, reset, task]);
+  }, [initialStatus, open, reset, task]);
 
   if (!open) {
     return null;
@@ -912,6 +1113,7 @@ export function BoardWorkspace({
   const [archiveMode, setArchiveMode] = useState<ArchiveMode>("on");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [drawerTask, setDrawerTask] = useState<SerializedTask | null>(null);
+  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(defaultNewTaskStatus);
   const [drawerOpen, setDrawerOpen] = useState(autoOpenNewTask ?? false);
   const [drawerVersion, setDrawerVersion] = useState(0);
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
@@ -936,9 +1138,16 @@ export function BoardWorkspace({
     }),
   );
 
-  const openTask = (task: SerializedTask | null) => {
+  const openTask = (task: SerializedTask) => {
     setDrawerVersion((value) => value + 1);
     setDrawerTask(task);
+    setDrawerOpen(true);
+  };
+
+  const openNewTask = (status: TaskStatus = defaultNewTaskStatus) => {
+    setDrawerVersion((value) => value + 1);
+    setNewTaskStatus(status);
+    setDrawerTask(null);
     setDrawerOpen(true);
   };
 
@@ -1056,6 +1265,10 @@ export function BoardWorkspace({
     }, 1800);
   }
 
+  async function handleRenameTask(task: SerializedTask, title: string) {
+    await handleSaveTask(taskToInput(task, title), task.id);
+  }
+
   async function handleDeleteTask(taskId: string) {
     const response = await fetch(`/api/tasks/${taskId}`, {
       method: "DELETE",
@@ -1126,7 +1339,9 @@ export function BoardWorkspace({
             <div className={kanbanLaneItemClassName} key={status}>
               <BoardColumn
                 expandedTaskIds={expandedTaskIds}
+                onNewTask={openNewTask}
                 onOpenTask={openTask}
+                onRenameTask={handleRenameTask}
                 onToggleExpand={(taskId) =>
                   setExpandedTaskIds((current) => toggleSetValue(current, taskId))
                 }
@@ -1144,9 +1359,12 @@ export function BoardWorkspace({
                 <h2 className="blueprint-display text-lg text-text-primary sm:text-xl">
                   {statusLabels[status]}
                 </h2>
-                <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
-                  {grouped[status].length}
-                </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
+                    {grouped[status].length}
+                  </span>
+                  <AddTaskToStatusButton onNewTask={openNewTask} status={status} />
+                </div>
               </div>
               <div className="space-y-3">
                 <SortableContext
@@ -1160,36 +1378,37 @@ export function BoardWorkspace({
                     >
                       <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
                       <div className="flex items-start justify-between gap-3 p-4">
-                        <div className="space-y-2">
-                          <button
-                            className="break-words text-left text-base font-semibold text-text-primary focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-                            onClick={() => openTask(task)}
-                            type="button"
-                          >
-                            {task.title}
-                          </button>
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <EditableTaskTitle
+                            className="break-words text-base font-semibold text-text-primary"
+                            onRename={handleRenameTask}
+                            task={task}
+                          />
                           <TaskMeta task={task} />
                         </div>
-                        {task.subtasks.length > 0 ? (
-                          <button
-                            aria-label={
-                              expandedTaskIds.has(task.id)
-                                ? "Collapse subtasks"
-                                : "Expand subtasks"
-                            }
-                            className="blueprint-action rounded-md p-1"
-                            onClick={() =>
-                              setExpandedTaskIds((current) => toggleSetValue(current, task.id))
-                            }
-                            type="button"
-                          >
-                            {expandedTaskIds.has(task.id) ? (
-                              <ChevronDown className="h-5 w-5" />
-                            ) : (
-                              <ChevronRight className="h-5 w-5" />
-                            )}
-                          </button>
-                        ) : null}
+                        <div className="flex shrink-0 items-center gap-1">
+                          {task.subtasks.length > 0 ? (
+                            <button
+                              aria-label={
+                                expandedTaskIds.has(task.id)
+                                  ? "Collapse subtasks"
+                                  : "Expand subtasks"
+                              }
+                              className="blueprint-action rounded-md p-1"
+                              onClick={() =>
+                                setExpandedTaskIds((current) => toggleSetValue(current, task.id))
+                              }
+                              type="button"
+                            >
+                              {expandedTaskIds.has(task.id) ? (
+                                <ChevronDown className="h-5 w-5" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5" />
+                              )}
+                            </button>
+                          ) : null}
+                          <TaskDetailsButton onOpen={openTask} task={task} />
+                        </div>
                       </div>
                       {expandedTaskIds.has(task.id) && task.subtasks.length > 0 ? (
                         <div className="px-4 pb-4">
@@ -1236,7 +1455,7 @@ export function BoardWorkspace({
             archiveMode={archiveMode}
             notesOpen={notesOpen}
             onArchiveModeChange={setArchiveMode}
-            onNewTask={() => openTask(null)}
+            onNewTask={() => openNewTask()}
             onToggleNotes={() => setNotesOpen((value) => !value)}
             onViewModeChange={setViewMode}
             viewMode={viewMode}
@@ -1260,35 +1479,36 @@ export function BoardWorkspace({
                 <span className="font-semibold text-text-primary">{board.name}</span>.
               </p>
             </div>
-            <BlueprintButton onClick={() => openTask(null)} variant="hero">
+            <BlueprintButton onClick={() => openNewTask()} variant="hero">
               <Plus className="h-4 w-4" />
               New task
             </BlueprintButton>
           </div>
         </BlueprintCard>
-      ) : (
-        <div
-          className={cn(
-            "grid gap-5",
-            notesOpen && "lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]",
-          )}
-        >
-          <div className="min-w-0">{boardArea}</div>
-          {notesOpen ? (
-            <NotesPanel
-              className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]"
-              noteDraft={noteDraft}
-              noteMessage={noteMessage}
-              noteStatus={noteStatus}
-              onChange={setNoteDraft}
-              onClose={() => setNotesOpen(false)}
-            />
-          ) : null}
-        </div>
-      )}
+      ) : null}
+
+      <div
+        className={cn(
+          "grid gap-5",
+          notesOpen && "lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]",
+        )}
+      >
+        <div className="min-w-0">{boardArea}</div>
+        {notesOpen ? (
+          <NotesPanel
+            className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]"
+            noteDraft={noteDraft}
+            noteMessage={noteMessage}
+            noteStatus={noteStatus}
+            onChange={setNoteDraft}
+            onClose={() => setNotesOpen(false)}
+          />
+        ) : null}
+      </div>
 
       <TaskDrawer
         boardName={board.name}
+        initialStatus={newTaskStatus}
         key={drawerVersion}
         onClose={() => {
           setDrawerOpen(false);
