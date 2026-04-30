@@ -1,7 +1,12 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { parseJsonPayload, requireApiUser } from "@/lib/api";
+import {
+  checkRateLimit,
+  parseJsonPayload,
+  rateLimitKey,
+  requireApiUser,
+} from "@/lib/api";
 import { reorderTasksForUser } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { taskReorderSchema } from "@/lib/validators";
@@ -11,6 +16,16 @@ export async function POST(request: Request) {
 
   if (!user.ok) {
     return user.response;
+  }
+
+  const rateLimitResponse = await checkRateLimit({
+    key: rateLimitKey(request, "tasks-reorder", user.data.id),
+    limit: 180,
+    windowMs: 60_000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const payload = await parseJsonPayload(request, taskReorderSchema, "Unable to reorder tasks.");

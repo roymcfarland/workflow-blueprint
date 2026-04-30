@@ -1,7 +1,12 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { parseJsonPayload, requireApiUser } from "@/lib/api";
+import {
+  checkRateLimit,
+  parseJsonPayload,
+  rateLimitKey,
+  requireApiUser,
+} from "@/lib/api";
 import { createTaskForBoard } from "@/lib/data";
 import { taskInputSchema } from "@/lib/validators";
 
@@ -13,6 +18,16 @@ export async function POST(
 
   if (!user.ok) {
     return user.response;
+  }
+
+  const rateLimitResponse = await checkRateLimit({
+    key: rateLimitKey(request, "tasks-create", user.data.id),
+    limit: 120,
+    windowMs: 60_000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const { slug } = await params;

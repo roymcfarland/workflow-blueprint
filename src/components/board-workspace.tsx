@@ -72,6 +72,36 @@ const archiveOptions = [
 type ViewMode = (typeof boardViewOptions)[number]["value"];
 type ArchiveMode = (typeof archiveOptions)[number]["value"];
 
+function formatApiFailure(
+  response: Response,
+  message: string | undefined,
+  fallback: string,
+): string {
+  const base = message?.trim() ? message.trim() : fallback;
+  if (response.status === 429) {
+    const retry = response.headers.get("Retry-After");
+    return retry ? `${base} Try again in ${retry}s.` : base;
+  }
+  return base;
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const apply = () => setReduced(mq.matches);
+
+    apply();
+    mq.addEventListener("change", apply);
+
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  return reduced;
+}
+
 const statusAccentTokens: Record<TaskStatus, string> = {
   ARCHIVED: "--status-archived",
   DONE: "--status-done",
@@ -453,6 +483,7 @@ function TaskPreview({
   onOpen,
   onRename,
   onToggleExpand,
+  presentation,
 }: {
   dragHandle?: React.ReactNode;
   task: SerializedTask;
@@ -460,6 +491,8 @@ function TaskPreview({
   onOpen?: (task: SerializedTask) => void;
   onRename?: (task: SerializedTask, title: string) => Promise<void>;
   onToggleExpand?: (taskId: string) => void;
+  /** When true, a non-interactive grip is shown for drag overlay visuals only. */
+  presentation?: boolean;
 }) {
   return (
     <div className="blueprint-note w-full overflow-hidden text-left text-text-primary">
@@ -496,7 +529,14 @@ function TaskPreview({
               </button>
             ) : null}
             {onOpen ? <TaskDetailsButton onOpen={onOpen} task={task} /> : null}
-            {dragHandle ?? <GripVertical className="h-4 w-4 text-text-muted" />}
+            {dragHandle ??
+              (presentation ? (
+                <span aria-hidden className="inline-flex text-text-muted">
+                  <GripVertical className="h-4 w-4" />
+                </span>
+              ) : (
+                <GripVertical aria-hidden className="h-4 w-4 text-text-muted" />
+              ))}
           </div>
         </div>
 
@@ -532,13 +572,14 @@ function SortableTaskCard({
   } = useSortable({
     id: task.id,
   });
+  const reduceMotion = usePrefersReducedMotion();
 
   return (
     <div
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition: reduceMotion ? undefined : transition,
       }}
       className={cn(isDragging && "opacity-60")}
     >
@@ -565,6 +606,92 @@ function SortableTaskCard({
         onToggleExpand={onToggleExpand}
         task={task}
       />
+    </div>
+  );
+}
+
+function SortableListTaskRow({
+  expanded,
+  onOpen,
+  onRename,
+  onToggleExpand,
+  task,
+}: {
+  expanded: boolean;
+  onOpen: (task: SerializedTask) => void;
+  onRename: (task: SerializedTask, title: string) => Promise<void>;
+  onToggleExpand: (taskId: string) => void;
+  task: SerializedTask;
+}) {
+  const reduceMotion = usePrefersReducedMotion();
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: reduceMotion ? undefined : transition,
+      }}
+      className={cn(isDragging && "opacity-60")}
+    >
+      <div className="overflow-hidden rounded-lg border border-line-strong bg-surface-control">
+        <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
+        <div className="flex items-start justify-between gap-3 p-4">
+          <div className="min-w-0 flex-1 space-y-2">
+            <EditableTaskTitle
+              className="break-words text-base font-semibold text-text-primary"
+              onRename={onRename}
+              task={task}
+            />
+            <TaskMeta task={task} />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {task.subtasks.length > 0 ? (
+              <button
+                aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
+                className="blueprint-action rounded-md p-1"
+                onClick={() => onToggleExpand(task.id)}
+                type="button"
+              >
+                {expanded ? (
+                  <ChevronDown className="h-5 w-5" />
+                ) : (
+                  <ChevronRight className="h-5 w-5" />
+                )}
+              </button>
+            ) : null}
+            <TaskDetailsButton onOpen={onOpen} task={task} />
+            <button
+              aria-label={`Drag ${task.title}`}
+              className="blueprint-action cursor-grab rounded-md p-1 active:cursor-grabbing"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              ref={setActivatorNodeRef}
+              type="button"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-5 w-5 text-text-muted" />
+            </button>
+          </div>
+        </div>
+        {expanded && task.subtasks.length > 0 ? (
+          <div className="px-4 pb-4">
+            <SubtaskList task={task} />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -991,8 +1118,14 @@ function TaskDrawer({
                 </select>
               </Field>
 
-              <Field label="Due date">
-                <BlueprintInput type="date" {...register("dueDate")} />
+              <Field label="Due date (optional)">
+                <BlueprintInput
+                  type="date"
+                  {...register("dueDate", {
+                    setValueAs: (value) =>
+                      value === "" || value === undefined ? null : value,
+                  })}
+                />
               </Field>
             </div>
 
@@ -1127,6 +1260,8 @@ export function BoardWorkspace({
   const noteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteAbortRef = useRef<AbortController | null>(null);
   const lastSavedNote = useRef(board.noteContent);
+  const reorderGenerationRef = useRef(0);
+  const reorderPersistChainRef = useRef(Promise.resolve());
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -1181,8 +1316,11 @@ export function BoardWorkspace({
         });
 
         if (!response.ok) {
+          const errBody = (await response.json().catch(() => null)) as { message?: string } | null;
           setNoteStatus("error");
-          setNoteMessage("Unable to save notes.");
+          setNoteMessage(
+            formatApiFailure(response, errBody?.message, "Unable to save notes."),
+          );
           return;
         }
 
@@ -1219,22 +1357,37 @@ export function BoardWorkspace({
   const isEmpty = tasks.length === 0;
 
   async function persistTaskOrder(nextTasks: SerializedTask[]) {
-    const response = await fetch("/api/tasks/reorder", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        items: nextTasks.map((task) => ({
-          taskId: task.id,
-          status: task.status,
-          sortOrder: task.sortOrder,
-        })),
-      }),
+    const previous = reorderPersistChainRef.current;
+    let release!: () => void;
+    reorderPersistChainRef.current = new Promise<void>((resolve) => {
+      release = resolve;
     });
 
-    if (!response.ok) {
-      throw new Error("Unable to persist task order.");
+    await previous;
+
+    try {
+      const response = await fetch("/api/tasks/reorder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: nextTasks.map((task) => ({
+            taskId: task.id,
+            status: task.status,
+            sortOrder: task.sortOrder,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(
+          formatApiFailure(response, body?.message, "Unable to persist task order."),
+        );
+      }
+    } finally {
+      release();
     }
   }
 
@@ -1251,7 +1404,9 @@ export function BoardWorkspace({
     const body = (await response.json()) as { message?: string; task?: SerializedTask };
 
     if (!response.ok || !body.task) {
-      throw new Error(body.message ?? "Unable to save task.");
+      throw new Error(
+        formatApiFailure(response, body.message, "Unable to save task."),
+      );
     }
 
     setTasks((current) => mergeTask(current, body.task!));
@@ -1276,7 +1431,7 @@ export function BoardWorkspace({
     const body = (await response.json()) as { message?: string };
 
     if (!response.ok) {
-      throw new Error(body.message ?? "Unable to delete task.");
+      throw new Error(formatApiFailure(response, body.message, "Unable to delete task."));
     }
 
     setTasks((current) => current.filter((task) => task.id !== taskId));
@@ -1299,6 +1454,7 @@ export function BoardWorkspace({
       return;
     }
 
+    const generation = ++reorderGenerationRef.current;
     const previousTasks = tasks;
     const nextTasks = reorderTasks(previousTasks, String(active.id), String(over.id));
 
@@ -1311,7 +1467,9 @@ export function BoardWorkspace({
     try {
       await persistTaskOrder(nextTasks);
     } catch (error) {
-      setTasks(previousTasks);
+      if (reorderGenerationRef.current === generation) {
+        setTasks(previousTasks);
+      }
       setTaskSaveStatus("error");
       setTaskSaveMessage(
         error instanceof Error ? error.message : "Unable to reorder tasks.",
@@ -1372,50 +1530,16 @@ export function BoardWorkspace({
                   strategy={verticalListSortingStrategy}
                 >
                   {grouped[status].map((task) => (
-                    <div
-                      className="overflow-hidden rounded-lg border border-line-strong bg-surface-control"
+                    <SortableListTaskRow
+                      expanded={expandedTaskIds.has(task.id)}
                       key={task.id}
-                    >
-                      <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
-                      <div className="flex items-start justify-between gap-3 p-4">
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <EditableTaskTitle
-                            className="break-words text-base font-semibold text-text-primary"
-                            onRename={handleRenameTask}
-                            task={task}
-                          />
-                          <TaskMeta task={task} />
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          {task.subtasks.length > 0 ? (
-                            <button
-                              aria-label={
-                                expandedTaskIds.has(task.id)
-                                  ? "Collapse subtasks"
-                                  : "Expand subtasks"
-                              }
-                              className="blueprint-action rounded-md p-1"
-                              onClick={() =>
-                                setExpandedTaskIds((current) => toggleSetValue(current, task.id))
-                              }
-                              type="button"
-                            >
-                              {expandedTaskIds.has(task.id) ? (
-                                <ChevronDown className="h-5 w-5" />
-                              ) : (
-                                <ChevronRight className="h-5 w-5" />
-                              )}
-                            </button>
-                          ) : null}
-                          <TaskDetailsButton onOpen={openTask} task={task} />
-                        </div>
-                      </div>
-                      {expandedTaskIds.has(task.id) && task.subtasks.length > 0 ? (
-                        <div className="px-4 pb-4">
-                          <SubtaskList task={task} />
-                        </div>
-                      ) : null}
-                    </div>
+                      onOpen={openTask}
+                      onRename={handleRenameTask}
+                      onToggleExpand={(taskId) =>
+                        setExpandedTaskIds((current) => toggleSetValue(current, taskId))
+                      }
+                      task={task}
+                    />
                   ))}
                 </SortableContext>
                 {grouped[status].length === 0 ? (
@@ -1432,7 +1556,7 @@ export function BoardWorkspace({
       <DragOverlay>
         {activeTaskId ? (
           <div className="w-[15rem]">
-            {activeTask ? <TaskPreview task={activeTask} /> : null}
+            {activeTask ? <TaskPreview presentation task={activeTask} /> : null}
           </div>
         ) : null}
       </DragOverlay>

@@ -1,7 +1,12 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { parseJsonPayload, requireApiUser } from "@/lib/api";
+import {
+  checkRateLimit,
+  parseJsonPayload,
+  rateLimitKey,
+  requireApiUser,
+} from "@/lib/api";
 import { deleteTaskForUser, updateTaskForUser } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { taskInputSchema } from "@/lib/validators";
@@ -14,6 +19,16 @@ export async function PATCH(
 
   if (!user.ok) {
     return user.response;
+  }
+
+  const rateLimitResponse = await checkRateLimit({
+    key: rateLimitKey(request, "tasks-update", user.data.id),
+    limit: 120,
+    windowMs: 60_000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const { taskId } = await params;
@@ -62,6 +77,16 @@ export async function DELETE(
 
   if (!user.ok) {
     return user.response;
+  }
+
+  const rateLimitResponse = await checkRateLimit({
+    key: rateLimitKey(request, "tasks-delete", user.data.id),
+    limit: 120,
+    windowMs: 60_000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const { taskId } = await params;

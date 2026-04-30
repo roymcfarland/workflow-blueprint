@@ -102,14 +102,18 @@ export const taskInputSchema = z
       .nullable()
       .transform((value) => (value ? value : null)),
     status: z.enum(boardStatuses),
-    dueDate: z
-      .string()
-      .trim()
-      .nullable()
-      .transform((value) => (value ? value : null))
-      .refine((value) => value === null || isValidDateOnly(value), {
-        message: "Enter a valid due date.",
-      }),
+    dueDate: z.preprocess((value) => {
+      if (value === undefined || value === null) {
+        return null;
+      }
+      if (typeof value !== "string") {
+        return null;
+      }
+      const trimmed = value.trim();
+      return trimmed === "" ? null : trimmed;
+    }, z.union([z.null(), z.string()]).refine((value) => value === null || isValidDateOnly(value), {
+      message: "Enter a valid due date.",
+    })),
     subtasks: z.array(subtaskSchema).max(50, "Tasks can include up to 50 subtasks.").default([]),
   })
   .superRefine((value, context) => {
@@ -134,13 +138,16 @@ export const taskInputSchema = z
 
 export const taskReorderSchema = z
   .object({
-    items: z.array(
-      z.object({
-        taskId: z.string().trim().min(1),
-        status: z.enum(boardStatuses),
-        sortOrder: z.number().int().min(0),
-      }),
-    ),
+    items: z
+      .array(
+        z.object({
+          taskId: z.string().trim().min(1),
+          status: z.enum(boardStatuses),
+          sortOrder: z.number().int().min(0),
+        }),
+      )
+      .min(1, "Reorder payload must include at least one task.")
+      .max(400, "Reorder payload is too large."),
   })
   .superRefine((value, context) => {
     const taskIds = new Set<string>();

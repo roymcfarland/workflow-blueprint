@@ -229,24 +229,17 @@ async function findBoardForUser(userId: string, slug: string) {
   });
 }
 
-async function findTaskForUser(userId: string, taskId: string) {
-  return prisma.task.findFirst({
-    where: {
-      id: taskId,
-      board: {
-        userId,
-      },
-    },
-    include: taskInclude,
-  });
-}
+type DbClient = Omit<
+  Prisma.TransactionClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+>;
 
-// Single-user app: in practice only one client per user creates tasks at a
-// time, so the read-then-insert here cannot realistically race. If that
-// changes, switch to either a serializable transaction or a raw
-// `INSERT ... SELECT MAX(sort_order)+1` to make this fully race-free.
-async function nextSortOrderForStatus(boardId: string, status: PrismaTaskStatus) {
-  const current = await prisma.task.findFirst({
+async function nextSortOrderForStatus(
+  db: DbClient,
+  boardId: string,
+  status: PrismaTaskStatus,
+) {
+  const current = await db.task.findFirst({
     where: {
       boardId,
       status,
@@ -493,122 +486,150 @@ export async function getBoardSnapshot(userId: string, slug: string): Promise<Bo
 }
 
 export async function createTaskForBoard(userId: string, boardSlug: string, input: TaskInput) {
-  const board = await findBoardForUser(userId, boardSlug);
+  return prisma.$transaction(
+    async (tx) => {
+      const board = await tx.board.findFirst({
+        where: {
+          slug: boardSlug,
+          userId,
+        },
+      });
 
-  if (!board) {
-    throw new Error("Board not found.");
-  }
+      if (!board) {
+        throw new Error("Board not found.");
+      }
 
-  const { completedAt, archivedAt } = statusDates(input.status);
-  const sortOrder = await nextSortOrderForStatus(board.id, input.status as PrismaTaskStatus);
+      const { completedAt, archivedAt } = statusDates(input.status);
+      const sortOrder = await nextSortOrderForStatus(
+        tx,
+        board.id,
+        input.status as PrismaTaskStatus,
+      );
 
-  const task = await prisma.task.create({
-    data: {
-      id: randomUUID(),
-      boardId: board.id,
-      title: input.title,
-      description: input.description,
-      status: input.status as PrismaTaskStatus,
-      sortOrder,
-      dueDate: parseDueDate(input.dueDate),
-      completedAt,
-      archivedAt,
-      subtasks: {
-        create: input.subtasks.map((subtask, index) => ({
+      const task = await tx.task.create({
+        data: {
           id: randomUUID(),
-          title: subtask.title,
-          isComplete: subtask.isComplete,
-          sortOrder: index,
-        })),
-      },
-    },
-    include: taskInclude,
-  });
+          boardId: board.id,
+          title: input.title,
+          description: input.description,
+          status: input.status as PrismaTaskStatus,
+          sortOrder,
+          dueDate: parseDueDate(input.dueDate),
+          completedAt,
+          archivedAt,
+          subtasks: {
+            create: input.subtasks.map((subtask, index) => ({
+              id: randomUUID(),
+              title: subtask.title,
+              isComplete: subtask.isComplete,
+              sortOrder: index,
+            })),
+          },
+        },
+        include: taskInclude,
+      });
 
-  return serializeTask(task);
+      return serializeTask(task);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 export async function updateTaskForUser(userId: string, taskId: string, input: TaskInput) {
-  const task = await findTaskForUser(userId, taskId);
-
-  if (!task) {
-    throw new Error("Task not found.");
-  }
-
-  const nextStatus = input.status as PrismaTaskStatus;
-  const sortOrder =
-    task.status === nextStatus
-      ? task.sortOrder
-      : await nextSortOrderForStatus(task.boardId, nextStatus);
-  const { completedAt, archivedAt } = statusDates(input.status, task);
-  const existingSubtaskIds = new Set(task.subtasks.map((subtask) => subtask.id));
-  const submittedIds = new Set(
-    input.subtasks
-      .map((subtask) => subtask.id)
-      .filter((value): value is string => Boolean(value && existingSubtaskIds.has(value))),
-  );
-
-  const updatedTask = await prisma.task.update({
-    where: {
-      id: taskId,
-    },
-    data: {
-      title: input.title,
-      description: input.description,
-      status: nextStatus,
-      sortOrder,
-      dueDate: parseDueDate(input.dueDate),
-      completedAt,
-      archivedAt,
-      subtasks: {
-        deleteMany: {
-          id: {
-            in: task.subtasks
-              .filter((subtask) => !submittedIds.has(subtask.id))
-              .map((subtask) => subtask.id),
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.findFirst({
+        where: {
+          id: taskId,
+          board: {
+            userId,
           },
         },
-        upsert: input.subtasks.map((subtask, index) => {
-          const subtaskId =
-            subtask.id && existingSubtaskIds.has(subtask.id) ? subtask.id : randomUUID();
+        include: taskInclude,
+      });
 
-          return {
-            where: {
-              id: subtaskId,
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
+      const nextStatus = input.status as PrismaTaskStatus;
+      const sortOrder =
+        task.status === nextStatus
+          ? task.sortOrder
+          : await nextSortOrderForStatus(tx, task.boardId, nextStatus);
+      const { completedAt, archivedAt } = statusDates(input.status, task);
+      const existingSubtaskIds = new Set(task.subtasks.map((subtask) => subtask.id));
+      const submittedIds = new Set(
+        input.subtasks
+          .map((subtask) => subtask.id)
+          .filter((value): value is string => Boolean(value && existingSubtaskIds.has(value))),
+      );
+
+      const updatedTask = await tx.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          title: input.title,
+          description: input.description,
+          status: nextStatus,
+          sortOrder,
+          dueDate: parseDueDate(input.dueDate),
+          completedAt,
+          archivedAt,
+          subtasks: {
+            deleteMany: {
+              id: {
+                in: task.subtasks
+                  .filter((subtask) => !submittedIds.has(subtask.id))
+                  .map((subtask) => subtask.id),
+              },
             },
-            update: {
-              title: subtask.title,
-              isComplete: subtask.isComplete,
-              sortOrder: index,
-            },
-            create: {
-              id: subtaskId,
-              title: subtask.title,
-              isComplete: subtask.isComplete,
-              sortOrder: index,
-            },
-          };
-        }),
-      },
+            upsert: input.subtasks.map((subtask, index) => {
+              const subtaskId =
+                subtask.id && existingSubtaskIds.has(subtask.id) ? subtask.id : randomUUID();
+
+              return {
+                where: {
+                  id: subtaskId,
+                },
+                update: {
+                  title: subtask.title,
+                  isComplete: subtask.isComplete,
+                  sortOrder: index,
+                },
+                create: {
+                  id: subtaskId,
+                  title: subtask.title,
+                  isComplete: subtask.isComplete,
+                  sortOrder: index,
+                },
+              };
+            }),
+          },
+        },
+        include: taskInclude,
+      });
+
+      return serializeTask(updatedTask);
     },
-    include: taskInclude,
-  });
-
-  return serializeTask(updatedTask);
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 export async function deleteTaskForUser(userId: string, taskId: string) {
-  const task = await findTaskForUser(userId, taskId);
-
-  if (!task) {
-    throw new Error("Task not found.");
-  }
-
-  await prisma.task.delete({
+  const deleted = await prisma.task.deleteMany({
     where: {
       id: taskId,
+      board: {
+        userId,
+      },
     },
   });
+
+  if (deleted.count === 0) {
+    throw new Error("Task not found.");
+  }
 }
 
 export async function reorderTasksForUser(userId: string, input: TaskReorderInput) {
@@ -628,30 +649,42 @@ export async function reorderTasksForUser(userId: string, input: TaskReorderInpu
     throw new Error("One or more tasks could not be found.");
   }
 
+  const boardIds = new Set(tasks.map((task) => task.boardId));
+
+  if (boardIds.size !== 1) {
+    throw new Error("Tasks must belong to a single board.");
+  }
+
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
 
   await prisma.$transaction(
-    input.items.map((item) => {
-      const task = tasksById.get(item.taskId);
+    async (tx) => {
+      for (const item of input.items) {
+        const task = tasksById.get(item.taskId);
 
-      if (!task) {
-        throw new Error("One or more tasks could not be found.");
+        if (!task) {
+          throw new Error("One or more tasks could not be found.");
+        }
+
+        const { completedAt, archivedAt } = statusDates(item.status, task);
+
+        await tx.task.update({
+          where: {
+            id: item.taskId,
+            board: {
+              userId,
+            },
+          },
+          data: {
+            status: item.status as PrismaTaskStatus,
+            sortOrder: item.sortOrder,
+            completedAt,
+            archivedAt,
+          },
+        });
       }
-
-      const { completedAt, archivedAt } = statusDates(item.status, task);
-
-      return prisma.task.update({
-        where: {
-          id: item.taskId,
-        },
-        data: {
-          status: item.status as PrismaTaskStatus,
-          sortOrder: item.sortOrder,
-          completedAt,
-          archivedAt,
-        },
-      });
-    }),
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
 
