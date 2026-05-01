@@ -1,4 +1,4 @@
-import { boardStatuses, themePreferences } from "@/lib/domain";
+import { boardStatuses, itemPriorities, themePreferences } from "@/lib/domain";
 import { z } from "zod";
 
 function isValidDateOnly(value: string) {
@@ -36,6 +36,7 @@ const subtaskSchema = z.object({
     .min(1, "Subtask title is required.")
     .max(180, "Subtask titles should stay under 180 characters."),
   isComplete: z.boolean().default(false),
+  priority: z.enum(itemPriorities).default("NONE"),
 });
 
 export const signInSchema = z.object({
@@ -114,6 +115,7 @@ export const taskInputSchema = z
     }, z.union([z.null(), z.string()]).refine((value) => value === null || isValidDateOnly(value), {
       message: "Enter a valid due date.",
     })),
+    priority: z.enum(itemPriorities).default("NONE"),
     subtasks: z.array(subtaskSchema).max(50, "Tasks can include up to 50 subtasks.").default([]),
   })
   .superRefine((value, context) => {

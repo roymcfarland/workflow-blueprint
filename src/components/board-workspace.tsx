@@ -1,15 +1,20 @@
 "use client";
 
 import {
-  closestCorners,
+  closestCenter,
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -33,7 +38,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition, type CSSProperties, type RefObject } from "react";
 import {
   Controller,
   useFieldArray,
@@ -52,7 +57,10 @@ import { SaveIndicator, type SaveStatus } from "@/components/blueprint/save-indi
 import { BlueprintTextarea } from "@/components/blueprint/textarea";
 import {
   boardStatuses,
+  itemPriorities,
+  priorityLabels,
   statusLabels,
+  type ItemPriority,
   type TaskStatus,
 } from "@/lib/domain";
 import type { BoardSnapshot, SerializedTask } from "@/lib/data";
@@ -156,18 +164,6 @@ function isOverdue(task: SerializedTask) {
   return dueDate < today;
 }
 
-function toggleSetValue(current: Set<string>, value: string) {
-  const next = new Set(current);
-
-  if (next.has(value)) {
-    next.delete(value);
-  } else {
-    next.add(value);
-  }
-
-  return next;
-}
-
 function groupTasks(tasks: SerializedTask[]) {
   return Object.fromEntries(
     boardStatuses.map((status) => [
@@ -204,6 +200,21 @@ function parseColumnId(value: string): TaskStatus | null {
   return boardStatuses.includes(status) ? status : null;
 }
 
+/** Stable signature for persisted order across columns — ignores numeric sortOrder churn. */
+function tasksBoardLayoutSignature(tasks: SerializedTask[]): string {
+  const grouped = groupTasks(tasks);
+  return boardStatuses.map((status) => grouped[status].map((task) => task.id).join(",")).join("|");
+}
+
+/** Prefer pointer containment (scrollable lanes, dense columns), fall back for gaps between lanes. */
+const kanbanCollisionDetection: CollisionDetection = (args) => {
+  const within = pointerWithin(args);
+  if (within.length > 0) {
+    return within;
+  }
+  return closestCenter(args);
+};
+
 function reorderTasks(tasks: SerializedTask[], activeId: string, overId: string) {
   const activeTask = tasks.find((task) => task.id === activeId);
 
@@ -214,9 +225,16 @@ function reorderTasks(tasks: SerializedTask[], activeId: string, overId: string)
   const grouped = groupTasks(tasks);
   const activeStatus = activeTask.status;
   const overTask = tasks.find((task) => task.id === overId);
+  const droppedOnColumnOnly = Boolean(parseColumnId(overId));
+
   const destinationStatus = overTask?.status ?? parseColumnId(overId);
 
   if (!destinationStatus) {
+    return tasks;
+  }
+
+  // Dropping onto the lane chrome of the column you're already in is a no-op (avoids snapping to bottom).
+  if (activeStatus === destinationStatus && !overTask && droppedOnColumnOnly) {
     return tasks;
   }
 
@@ -224,6 +242,10 @@ function reorderTasks(tasks: SerializedTask[], activeId: string, overId: string)
     const currentGroup = grouped[activeStatus];
     const activeIndex = currentGroup.findIndex((task) => task.id === activeId);
     const overIndex = currentGroup.findIndex((task) => task.id === overId);
+
+    if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
+      return tasks;
+    }
 
     grouped[activeStatus] = arrayMove(currentGroup, activeIndex, overIndex).map((task, index) => ({
       ...task,
@@ -272,12 +294,43 @@ function taskToInput(task: SerializedTask, title = task.title): TaskInput {
     description: task.description ?? null,
     status: task.status,
     dueDate: task.dueDate ? task.dueDate.slice(0, 10) : null,
+    priority: task.priority,
     subtasks: task.subtasks.map((subtask) => ({
       id: subtask.id,
       title: subtask.title,
       isComplete: subtask.isComplete,
+      priority: subtask.priority,
     })),
   };
+}
+
+const priorityBadgeClass: Record<ItemPriority, string> = {
+  NONE: "",
+  LOW: "border-line-soft bg-surface-control text-text-muted",
+  MEDIUM: "border-accent/40 bg-accent-soft text-text-primary",
+  HIGH: "border-warning/40 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
+  URGENT: "border-danger/50 bg-danger-soft text-danger",
+};
+
+function PriorityBadge({ priority }: { priority: ItemPriority }) {
+  if (priority === "NONE") {
+    return null;
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+        priorityBadgeClass[priority],
+      )}
+    >
+      {priorityLabels[priority]}
+    </span>
+  );
+}
+
+function prioritySelectClassName() {
+  return "blueprint-control h-8 min-w-[5.75rem] shrink-0 rounded-md px-2 text-xs outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2";
 }
 
 function TaskMeta({ task }: { task: SerializedTask }) {
@@ -286,6 +339,7 @@ function TaskMeta({ task }: { task: SerializedTask }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-text-muted">
+      <PriorityBadge priority={task.priority} />
       {task.dueDate ? (
         <span
           className={cn(
@@ -404,30 +458,6 @@ function BoardHeaderControls({
   );
 }
 
-function SubtaskList({ task }: { task: SerializedTask }) {
-  if (task.subtasks.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="space-y-2 border-t border-line-soft pt-3 text-sm text-text-muted">
-      {task.subtasks.map((subtask) => (
-        <div className="flex items-start gap-2" key={subtask.id}>
-          <span
-            className={cn(
-              "mt-1 h-2.5 w-2.5 shrink-0 rounded-full border border-line-strong",
-              subtask.isComplete && "bg-brand",
-            )}
-          />
-          <span className={cn("break-words", subtask.isComplete && "line-through opacity-70")}>
-            {subtask.title}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function NotesPanel({
   className,
   noteDraft,
@@ -476,21 +506,338 @@ function NotesPanel({
   );
 }
 
+type PanelSubtaskRow = {
+  key: string;
+  serverId?: string;
+  title: string;
+  isComplete: boolean;
+  priority: ItemPriority;
+};
+
+function rowsFromTask(task: SerializedTask): PanelSubtaskRow[] {
+  return [...task.subtasks]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((s) => ({
+      key: s.id,
+      serverId: s.id,
+      title: s.title,
+      isComplete: s.isComplete,
+      priority: s.priority,
+    }));
+}
+
+/** Bumps when server task shape changes so the panel remounts and picks up fresh state without a sync effect. */
+function subtasksPanelSyncKey(task: SerializedTask): string {
+  return `${task.id}:${task.priority}:${task.subtasks
+    .map((s) => `${s.id}:${s.sortOrder}:${s.title}:${s.priority}:${s.isComplete}`)
+    .join("|")}`;
+}
+
+function buildTaskInputFromPanel(
+  task: SerializedTask,
+  taskPriority: ItemPriority,
+  rows: PanelSubtaskRow[],
+): TaskInput {
+  return {
+    ...taskToInput(task),
+    priority: taskPriority,
+    subtasks: rows.map((r) => ({
+      ...(r.serverId ? { id: r.serverId } : {}),
+      title: r.title.trim() || "Untitled",
+      isComplete: r.isComplete,
+      priority: r.priority,
+    })),
+  };
+}
+
+function PanelSubtaskEditorRow({
+  onPriorityChange,
+  onRemove,
+  onTitleCommit,
+  onToggleComplete,
+  row,
+}: {
+  row: PanelSubtaskRow;
+  onPriorityChange: (priority: ItemPriority) => void;
+  onRemove: () => void;
+  onTitleCommit: (title: string) => void;
+  onToggleComplete: () => void;
+}) {
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
+    useSortable({ id: row.key });
+  const [editing, setEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="flex items-center gap-2 rounded-md border border-line-soft bg-surface-base px-2 py-1.5"
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      <button
+        aria-label="Reorder subtask"
+        className="shrink-0 text-text-muted"
+        ref={setActivatorNodeRef}
+        type="button"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <input
+        checked={row.isComplete}
+        className="h-4 w-4 shrink-0 rounded border-line-strong accent-brand"
+        onChange={onToggleComplete}
+        type="checkbox"
+      />
+      {editing ? (
+        <input
+          autoFocus
+          className="min-w-0 flex-1 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand"
+          maxLength={180}
+          onBlur={() => {
+            onTitleCommit(draftTitle.trim() || "Untitled");
+            setEditing(false);
+          }}
+          onChange={(e) => setDraftTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setDraftTitle(row.title);
+              setEditing(false);
+            }
+          }}
+          value={draftTitle}
+        />
+      ) : (
+        <button
+          className={cn(
+            "min-w-0 flex-1 truncate rounded px-1 text-left text-sm font-semibold text-text-primary transition hover:bg-surface-control-hover",
+            row.isComplete && "text-text-muted line-through",
+          )}
+          onClick={() => {
+            setDraftTitle(row.title);
+            setEditing(true);
+          }}
+          type="button"
+        >
+          {row.title || "Untitled"}
+        </button>
+      )}
+      <select
+        aria-label="Subtask priority"
+        className={prioritySelectClassName()}
+        onChange={(e) => onPriorityChange(e.target.value as ItemPriority)}
+        value={row.priority}
+      >
+        {itemPriorities.map((p) => (
+          <option key={p} value={p}>
+            {priorityLabels[p]}
+          </option>
+        ))}
+      </select>
+      <button
+        aria-label="Remove subtask"
+        className="shrink-0 text-text-muted transition hover:text-danger"
+        onClick={onRemove}
+        type="button"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function SubtasksCardPanel({
+  onSave,
+  onClose,
+  panelRef,
+  placement = "dropdown",
+  task,
+}: {
+  onClose: () => void;
+  onSave: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  panelRef: RefObject<HTMLDivElement | null>;
+  placement?: "dropdown" | "inline";
+  task: SerializedTask;
+}) {
+  const [rows, setRows] = useState(() => rowsFromTask(task));
+  const [taskPriority, setTaskPriority] = useState(task.priority);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const subtaskSensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+  );
+
+  const persist = async (nextRows: PanelSubtaskRow[], prio: ItemPriority) => {
+    setError(null);
+    setSaving(true);
+    try {
+      await onSave(buildTaskInputFromPanel(task, prio, nextRows), task.id, { closeDrawer: false });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const subtaskDndId = `card-subtasks-${task.id}`;
+
+  return (
+    <div
+      ref={panelRef}
+      className={cn(
+        "max-h-[min(24rem,70vh)] overflow-y-auto rounded-lg border border-line-strong bg-surface-flat p-3 shadow-lg",
+        placement === "dropdown" && "absolute left-0 right-0 top-full z-50 mt-1",
+        placement === "inline" && "mt-2",
+      )}
+      role="region"
+      aria-label={`Subtasks for ${task.title}`}
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-2">
+        <label className="flex flex-wrap items-center gap-2 text-xs font-semibold text-text-muted">
+          <span>Task priority</span>
+          <select
+            className={prioritySelectClassName()}
+            disabled={saving}
+            onChange={(e) => {
+              const p = e.target.value as ItemPriority;
+              setTaskPriority(p);
+              void persist(rows, p);
+            }}
+            value={taskPriority}
+          >
+            {itemPriorities.map((p) => (
+              <option key={p} value={p}>
+                {priorityLabels[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-center gap-2">
+          {saving ? <span className="text-xs text-text-muted">Saving…</span> : null}
+          <button
+            aria-label="Close subtasks"
+            className="blueprint-action rounded-md p-1 text-text-muted"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <DndContext
+        id={subtaskDndId}
+        collisionDetection={closestCenter}
+        onDragEnd={(event) => {
+          const { active, over } = event;
+          if (!over || active.id === over.id) {
+            return;
+          }
+          const oldIndex = rows.findIndex((r) => r.key === active.id);
+          const newIndex = rows.findIndex((r) => r.key === over.id);
+          if (oldIndex < 0 || newIndex < 0) {
+            return;
+          }
+          const next = arrayMove(rows, oldIndex, newIndex);
+          setRows(next);
+          void persist(next, taskPriority);
+        }}
+        sensors={subtaskSensors}
+      >
+        <SortableContext items={rows.map((r) => r.key)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <PanelSubtaskEditorRow
+                key={row.key}
+                onPriorityChange={(priority) => {
+                  const next = rows.map((r) => (r.key === row.key ? { ...r, priority } : r));
+                  setRows(next);
+                  void persist(next, taskPriority);
+                }}
+                onRemove={() => {
+                  const next = rows.filter((r) => r.key !== row.key);
+                  setRows(next);
+                  void persist(next, taskPriority);
+                }}
+                onTitleCommit={(title) => {
+                  const next = rows.map((r) => (r.key === row.key ? { ...r, title } : r));
+                  setRows(next);
+                  void persist(next, taskPriority);
+                }}
+                onToggleComplete={() => {
+                  const next = rows.map((r) =>
+                    r.key === row.key ? { ...r, isComplete: !r.isComplete } : r,
+                  );
+                  setRows(next);
+                  void persist(next, taskPriority);
+                }}
+                row={row}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+
+      <div className="mt-3 border-t border-line-soft pt-2">
+        <BlueprintButton
+          className="w-full justify-center"
+          disabled={saving}
+          onClick={() => {
+            const next = [
+              ...rows,
+              {
+                key: crypto.randomUUID(),
+                title: "New subtask",
+                isComplete: false,
+                priority: "NONE" as const,
+              },
+            ];
+            setRows(next);
+            void persist(next, taskPriority);
+          }}
+          type="button"
+          variant="outline"
+        >
+          <Plus className="h-4 w-4" />
+          Add subtask
+        </BlueprintButton>
+      </div>
+
+      {error ? (
+        <p className="mt-2 text-xs font-semibold text-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function TaskPreview({
   dragHandle,
   task,
-  expanded,
+  subtasksMenuOpen,
   onOpen,
   onRename,
-  onToggleExpand,
+  onToggleSubtasksMenu,
   presentation,
 }: {
   dragHandle?: React.ReactNode;
   task: SerializedTask;
-  expanded?: boolean;
+  subtasksMenuOpen?: boolean;
   onOpen?: (task: SerializedTask) => void;
   onRename?: (task: SerializedTask, title: string) => Promise<void>;
-  onToggleExpand?: (taskId: string) => void;
+  onToggleSubtasksMenu?: (taskId: string) => void;
   /** When true, a non-interactive grip is shown for drag overlay visuals only. */
   presentation?: boolean;
 }) {
@@ -511,17 +858,19 @@ function TaskPreview({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {task.subtasks.length > 0 ? (
+            {onToggleSubtasksMenu && !presentation ? (
               <button
-                aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
+                aria-expanded={subtasksMenuOpen}
+                aria-label={subtasksMenuOpen ? "Close subtasks menu" : "Open subtasks menu"}
                 className="blueprint-action rounded-md p-1"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onToggleExpand?.(task.id);
+                  onToggleSubtasksMenu(task.id);
                 }}
+                onMouseDown={(event) => event.stopPropagation()}
                 type="button"
               >
-                {expanded ? (
+                {subtasksMenuOpen ? (
                   <ChevronDown className="h-4 w-4" />
                 ) : (
                   <ChevronRight className="h-4 w-4" />
@@ -541,26 +890,29 @@ function TaskPreview({
         </div>
 
         <TaskMeta task={task} />
-
-        {expanded ? <SubtaskList task={task} /> : null}
       </div>
     </div>
   );
 }
 
 function SortableTaskCard({
-  expanded,
   onOpen,
   onRename,
-  onToggleExpand,
+  onToggleSubtasksPanel,
+  panelRef,
+  subtasksPanelTaskId,
+  onSave,
   task,
 }: {
-  expanded: boolean;
   onOpen: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
-  onToggleExpand: (taskId: string) => void;
+  onToggleSubtasksPanel: (taskId: string) => void;
+  panelRef: RefObject<HTMLDivElement | null>;
+  subtasksPanelTaskId: string | null;
+  onSave: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
   task: SerializedTask;
 }) {
+  const subtasksMenuOpen = subtasksPanelTaskId === task.id;
   const {
     attributes,
     listeners,
@@ -577,11 +929,14 @@ function SortableTaskCard({
   return (
     <div
       ref={setNodeRef}
+      className={cn(
+        "relative touch-manipulation select-none",
+        isDragging ? "opacity-0" : "",
+      )}
       style={{
         transform: CSS.Transform.toString(transform),
         transition: reduceMotion ? undefined : transition,
       }}
-      className={cn(isDragging && "opacity-60")}
     >
       <TaskPreview
         dragHandle={
@@ -600,29 +955,43 @@ function SortableTaskCard({
             <GripVertical className="h-4 w-4" />
           </button>
         }
-        expanded={expanded}
         onOpen={onOpen}
         onRename={onRename}
-        onToggleExpand={onToggleExpand}
+        onToggleSubtasksMenu={onToggleSubtasksPanel}
+        subtasksMenuOpen={subtasksMenuOpen}
         task={task}
       />
+      {subtasksPanelTaskId === task.id ? (
+        <SubtasksCardPanel
+          key={subtasksPanelSyncKey(task)}
+          onClose={() => onToggleSubtasksPanel(task.id)}
+          onSave={onSave}
+          panelRef={panelRef}
+          task={task}
+        />
+      ) : null}
     </div>
   );
 }
 
 function SortableListTaskRow({
-  expanded,
   onOpen,
   onRename,
-  onToggleExpand,
+  onToggleSubtasksPanel,
+  panelRef,
+  subtasksPanelTaskId,
+  onSave,
   task,
 }: {
-  expanded: boolean;
   onOpen: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
-  onToggleExpand: (taskId: string) => void;
+  onToggleSubtasksPanel: (taskId: string) => void;
+  panelRef: RefObject<HTMLDivElement | null>;
+  subtasksPanelTaskId: string | null;
+  onSave: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
   task: SerializedTask;
 }) {
+  const subtasksMenuOpen = subtasksPanelTaskId === task.id;
   const reduceMotion = usePrefersReducedMotion();
   const {
     attributes,
@@ -637,11 +1006,14 @@ function SortableListTaskRow({
   return (
     <div
       ref={setNodeRef}
+      className={cn(
+        "relative touch-manipulation select-none",
+        isDragging ? "opacity-0" : "",
+      )}
       style={{
         transform: CSS.Transform.toString(transform),
         transition: reduceMotion ? undefined : transition,
       }}
-      className={cn(isDragging && "opacity-60")}
     >
       <div className="overflow-hidden rounded-lg border border-line-strong bg-surface-control">
         <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
@@ -655,20 +1027,20 @@ function SortableListTaskRow({
             <TaskMeta task={task} />
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {task.subtasks.length > 0 ? (
-              <button
-                aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
-                className="blueprint-action rounded-md p-1"
-                onClick={() => onToggleExpand(task.id)}
-                type="button"
-              >
-                {expanded ? (
-                  <ChevronDown className="h-5 w-5" />
-                ) : (
-                  <ChevronRight className="h-5 w-5" />
-                )}
-              </button>
-            ) : null}
+            <button
+              aria-expanded={subtasksMenuOpen}
+              aria-label={subtasksMenuOpen ? "Close subtasks menu" : "Open subtasks menu"}
+              className="blueprint-action rounded-md p-1"
+              onClick={() => onToggleSubtasksPanel(task.id)}
+              onMouseDown={(event) => event.stopPropagation()}
+              type="button"
+            >
+              {subtasksMenuOpen ? (
+                <ChevronDown className="h-5 w-5" />
+              ) : (
+                <ChevronRight className="h-5 w-5" />
+              )}
+            </button>
             <TaskDetailsButton onOpen={onOpen} task={task} />
             <button
               aria-label={`Drag ${task.title}`}
@@ -686,9 +1058,16 @@ function SortableListTaskRow({
             </button>
           </div>
         </div>
-        {expanded && task.subtasks.length > 0 ? (
+        {subtasksPanelTaskId === task.id ? (
           <div className="px-4 pb-4">
-            <SubtaskList task={task} />
+            <SubtasksCardPanel
+              key={subtasksPanelSyncKey(task)}
+              onClose={() => onToggleSubtasksPanel(task.id)}
+              onSave={onSave}
+              panelRef={panelRef}
+              placement="inline"
+              task={task}
+            />
           </div>
         ) : null}
       </div>
@@ -861,21 +1240,80 @@ function AddTaskToStatusButton({
   );
 }
 
+function ListViewStatusBody({
+  onOpenTask,
+  onRenameTask,
+  onSaveTask,
+  onToggleSubtasksPanel,
+  panelRef,
+  status,
+  subtasksPanelTaskId,
+  tasks,
+}: {
+  onOpenTask: (task: SerializedTask) => void;
+  onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
+  onToggleSubtasksPanel: (taskId: string) => void;
+  onSaveTask: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  panelRef: RefObject<HTMLDivElement | null>;
+  status: TaskStatus;
+  subtasksPanelTaskId: string | null;
+  tasks: SerializedTask[];
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: columnId(status),
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "min-h-[4.5rem] space-y-3 rounded-lg px-3 py-2 transition sm:p-4",
+        isOver && tasks.length === 0 && "bg-brand-soft",
+        isOver && tasks.length > 0 && "outline outline-2 -outline-offset-2 outline-brand/35",
+      )}
+    >
+      <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
+        {tasks.map((task) => (
+          <SortableListTaskRow
+            key={task.id}
+            onOpen={onOpenTask}
+            onRename={onRenameTask}
+            onSave={onSaveTask}
+            onToggleSubtasksPanel={onToggleSubtasksPanel}
+            panelRef={panelRef}
+            subtasksPanelTaskId={subtasksPanelTaskId}
+            task={task}
+          />
+        ))}
+      </SortableContext>
+      {tasks.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+          Nothing here yet — drag a card here from another lane.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function BoardColumn({
-  expandedTaskIds,
   onNewTask,
   onOpenTask,
   onRenameTask,
-  onToggleExpand,
+  onToggleSubtasksPanel,
+  onSaveTask,
+  panelRef,
   status,
+  subtasksPanelTaskId,
   tasks,
 }: {
-  expandedTaskIds: Set<string>;
   onNewTask: (status: TaskStatus) => void;
   onOpenTask: (task: SerializedTask) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
-  onToggleExpand: (taskId: string) => void;
+  onToggleSubtasksPanel: (taskId: string) => void;
+  onSaveTask: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  panelRef: RefObject<HTMLDivElement | null>;
   status: TaskStatus;
+  subtasksPanelTaskId: string | null;
   tasks: SerializedTask[];
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -908,11 +1346,13 @@ function BoardColumn({
         <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <SortableTaskCard
-              expanded={expandedTaskIds.has(task.id)}
               key={task.id}
               onOpen={onOpenTask}
               onRename={onRenameTask}
-              onToggleExpand={onToggleExpand}
+              onSave={onSaveTask}
+              onToggleSubtasksPanel={onToggleSubtasksPanel}
+              panelRef={panelRef}
+              subtasksPanelTaskId={subtasksPanelTaskId}
               task={task}
             />
           ))}
@@ -943,7 +1383,8 @@ function SortableSubtaskRow({
   onRemove: () => void;
   register: UseFormRegister<TaskInput>;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: fieldKey });
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
+    useSortable({ id: fieldKey });
 
   return (
     <div
@@ -956,7 +1397,8 @@ function SortableSubtaskRow({
     >
       <button
         aria-label="Reorder subtask"
-        className="text-text-muted"
+        className="shrink-0 text-text-muted"
+        ref={setActivatorNodeRef}
         type="button"
         {...attributes}
         {...listeners}
@@ -978,6 +1420,17 @@ function SortableSubtaskRow({
         placeholder="Subtask title"
         {...register(`subtasks.${index}.title`)}
       />
+      <select
+        aria-label="Subtask priority"
+        className={prioritySelectClassName()}
+        {...register(`subtasks.${index}.priority`)}
+      >
+        {itemPriorities.map((p) => (
+          <option key={p} value={p}>
+            {priorityLabels[p]}
+          </option>
+        ))}
+      </select>
       {hasId ? <input type="hidden" {...register(`subtasks.${index}.id`)} /> : null}
       <button
         aria-label="Remove subtask"
@@ -1004,13 +1457,13 @@ function TaskDrawer({
   initialStatus: TaskStatus;
   onClose: () => void;
   onDelete: (taskId: string) => Promise<void>;
-  onSave: (values: TaskInput, taskId?: string) => Promise<void>;
+  onSave: (values: TaskInput, taskId?: string, options?: { closeDrawer?: boolean }) => Promise<void>;
   open: boolean;
   task: SerializedTask | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }));
   const {
     control,
     formState: { errors },
@@ -1023,6 +1476,7 @@ function TaskDrawer({
       description: null,
       status: initialStatus,
       dueDate: null,
+      priority: "NONE",
       subtasks: [],
     },
   });
@@ -1042,11 +1496,13 @@ function TaskDrawer({
       description: task?.description ?? null,
       status: task?.status ?? initialStatus,
       dueDate: task?.dueDate ? task.dueDate.slice(0, 10) : null,
+      priority: task?.priority ?? "NONE",
       subtasks:
         task?.subtasks.map((subtask) => ({
           id: subtask.id,
           title: subtask.title,
           isComplete: subtask.isComplete,
+          priority: subtask.priority,
         })) ?? [],
     });
   }, [initialStatus, open, reset, task]);
@@ -1086,7 +1542,7 @@ function TaskDrawer({
               setMessage(null);
               startTransition(async () => {
                 try {
-                  await onSave(values, task?.id);
+                  await onSave(values, task?.id, { closeDrawer: true });
                 } catch (error) {
                   setMessage(error instanceof Error ? error.message : "Unable to save task.");
                 }
@@ -1127,13 +1583,26 @@ function TaskDrawer({
                   })}
                 />
               </Field>
+
+              <Field label="Priority">
+                <select
+                  className="blueprint-control h-11 w-full rounded-lg px-4 outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                  {...register("priority")}
+                >
+                  {itemPriorities.map((p) => (
+                    <option key={p} value={p}>
+                      {priorityLabels[p]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-text-primary">Subtasks</p>
                 <BlueprintButton
-                  onClick={() => append({ title: "", isComplete: false })}
+                  onClick={() => append({ title: "", isComplete: false, priority: "NONE" })}
                   type="button"
                   variant="outline"
                 >
@@ -1144,7 +1613,7 @@ function TaskDrawer({
 
               <DndContext
                 id={subtaskDndId}
-                collisionDetection={closestCorners}
+                collisionDetection={closestCenter}
                 onDragEnd={(event) => {
                   const { active, over } = event;
 
@@ -1249,7 +1718,8 @@ export function BoardWorkspace({
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(defaultNewTaskStatus);
   const [drawerOpen, setDrawerOpen] = useState(autoOpenNewTask ?? false);
   const [drawerVersion, setDrawerVersion] = useState(0);
-  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
+  const [subtasksPanelTaskId, setSubtasksPanelTaskId] = useState<string | null>(null);
+  const subtasksPanelRef = useRef<HTMLDivElement | null>(null);
   const [noteDraft, setNoteDraft] = useState(board.noteContent);
   const [noteStatus, setNoteStatus] = useState<SaveStatus>("idle");
   const [noteMessage, setNoteMessage] = useState<string | null>(null);
@@ -1262,16 +1732,46 @@ export function BoardWorkspace({
   const lastSavedNote = useRef(board.noteContent);
   const reorderGenerationRef = useRef(0);
   const reorderPersistChainRef = useRef(Promise.resolve());
+  const tasksRef = useRef(tasks);
+
+  useLayoutEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  const tasksAtDragStartRef = useRef<SerializedTask[] | null>(null);
+
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 10,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 10,
       },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+
+  useEffect(() => {
+    if (!subtasksPanelTaskId) {
+      return;
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSubtasksPanelTaskId(null);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [subtasksPanelTaskId]);
 
   const openTask = (task: SerializedTask) => {
     setDrawerVersion((value) => value + 1);
@@ -1391,7 +1891,11 @@ export function BoardWorkspace({
     }
   }
 
-  async function handleSaveTask(values: TaskInput, taskId?: string) {
+  async function handleSaveTask(
+    values: TaskInput,
+    taskId?: string,
+    options?: { closeDrawer?: boolean },
+  ) {
     const endpoint = taskId ? `/api/tasks/${taskId}` : `/api/boards/${board.slug}/tasks`;
     const method = taskId ? "PATCH" : "POST";
     const response = await fetch(endpoint, {
@@ -1410,8 +1914,12 @@ export function BoardWorkspace({
     }
 
     setTasks((current) => mergeTask(current, body.task!));
-    setDrawerOpen(false);
-    setDrawerTask(null);
+
+    const shouldCloseDrawer = !taskId || options?.closeDrawer !== false;
+    if (shouldCloseDrawer) {
+      setDrawerOpen(false);
+      setDrawerTask(null);
+    }
     setTaskSaveStatus("saved");
     setTaskSaveMessage(taskId ? "Task updated" : "Task created");
     setTimeout(() => {
@@ -1421,7 +1929,7 @@ export function BoardWorkspace({
   }
 
   async function handleRenameTask(task: SerializedTask, title: string) {
-    await handleSaveTask(taskToInput(task, title), task.id);
+    await handleSaveTask(taskToInput(task, title), task.id, { closeDrawer: false });
   }
 
   async function handleDeleteTask(taskId: string) {
@@ -1445,30 +1953,76 @@ export function BoardWorkspace({
     }, 1800);
   }
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveTaskId(null);
+  const handleDragStart = (event: DragStartEvent) => {
+    tasksAtDragStartRef.current = tasksRef.current.map((task) => ({
+      ...task,
+      subtasks: task.subtasks.map((subtask) => ({ ...subtask })),
+    }));
+    setActiveTaskId(String(event.active.id));
+  };
 
+  const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-
     if (!over || active.id === over.id) {
       return;
     }
 
-    const generation = ++reorderGenerationRef.current;
-    const previousTasks = tasks;
-    const nextTasks = reorderTasks(previousTasks, String(active.id), String(over.id));
+    setTasks((prev) => {
+      const next = reorderTasks(prev, String(active.id), String(over.id));
+      if (tasksBoardLayoutSignature(next) === tasksBoardLayoutSignature(prev)) {
+        return prev;
+      }
+      return next;
+    });
+  };
 
-    if (nextTasks === previousTasks) {
+  const handleDragCancel = () => {
+    setActiveTaskId(null);
+    const snapshot = tasksAtDragStartRef.current;
+    tasksAtDragStartRef.current = null;
+    if (snapshot) {
+      setTasks(snapshot);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveTaskId(null);
+    const baseline = tasksAtDragStartRef.current;
+    tasksAtDragStartRef.current = null;
+
+    const { active, over } = event;
+
+    if (!over) {
+      if (baseline) {
+        setTasks(baseline);
+      }
       return;
     }
 
-    setTasks(nextTasks);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const current = tasksRef.current;
+    const next = reorderTasks(current, activeId, overId);
+
+    if (tasksBoardLayoutSignature(next) !== tasksBoardLayoutSignature(current)) {
+      setTasks(next);
+    }
+
+    const shouldPersist =
+      baseline !== null &&
+      tasksBoardLayoutSignature(next) !== tasksBoardLayoutSignature(baseline);
+
+    if (!shouldPersist) {
+      return;
+    }
+
+    const generation = ++reorderGenerationRef.current;
 
     try {
-      await persistTaskOrder(nextTasks);
+      await persistTaskOrder(next);
     } catch (error) {
-      if (reorderGenerationRef.current === generation) {
-        setTasks(previousTasks);
+      if (reorderGenerationRef.current === generation && baseline) {
+        setTasks(baseline);
       }
       setTaskSaveStatus("error");
       setTaskSaveMessage(
@@ -1483,12 +2037,18 @@ export function BoardWorkspace({
 
   const activeTask = activeTaskId ? tasks.find((task) => task.id === activeTaskId) : null;
 
+  const toggleSubtasksPanel = (taskId: string) => {
+    setSubtasksPanelTaskId((current) => (current === taskId ? null : taskId));
+  };
+
   const boardArea = (
     <DndContext
+      collisionDetection={kanbanCollisionDetection}
       id={boardDndId}
-      collisionDetection={closestCorners}
+      onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
-      onDragStart={(event) => setActiveTaskId(String(event.active.id))}
+      onDragOver={handleDragOver}
+      onDragStart={handleDragStart}
       sensors={sensors}
     >
       {viewMode === "board" ? (
@@ -1496,14 +2056,14 @@ export function BoardWorkspace({
           {visibleStatuses.map((status) => (
             <div className={kanbanLaneItemClassName} key={status}>
               <BoardColumn
-                expandedTaskIds={expandedTaskIds}
                 onNewTask={openNewTask}
                 onOpenTask={openTask}
                 onRenameTask={handleRenameTask}
-                onToggleExpand={(taskId) =>
-                  setExpandedTaskIds((current) => toggleSetValue(current, taskId))
-                }
+                onSaveTask={handleSaveTask}
+                onToggleSubtasksPanel={toggleSubtasksPanel}
+                panelRef={subtasksPanelRef}
                 status={status}
+                subtasksPanelTaskId={subtasksPanelTaskId}
                 tasks={grouped[status]}
               />
             </div>
@@ -1524,30 +2084,16 @@ export function BoardWorkspace({
                   <AddTaskToStatusButton onNewTask={openNewTask} status={status} />
                 </div>
               </div>
-              <div className="space-y-3">
-                <SortableContext
-                  items={grouped[status].map((task) => task.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {grouped[status].map((task) => (
-                    <SortableListTaskRow
-                      expanded={expandedTaskIds.has(task.id)}
-                      key={task.id}
-                      onOpen={openTask}
-                      onRename={handleRenameTask}
-                      onToggleExpand={(taskId) =>
-                        setExpandedTaskIds((current) => toggleSetValue(current, taskId))
-                      }
-                      task={task}
-                    />
-                  ))}
-                </SortableContext>
-                {grouped[status].length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
-                    Nothing here yet.
-                  </div>
-                ) : null}
-              </div>
+              <ListViewStatusBody
+                onOpenTask={openTask}
+                onRenameTask={handleRenameTask}
+                onSaveTask={handleSaveTask}
+                onToggleSubtasksPanel={toggleSubtasksPanel}
+                panelRef={subtasksPanelRef}
+                status={status}
+                subtasksPanelTaskId={subtasksPanelTaskId}
+                tasks={grouped[status]}
+              />
             </BlueprintCard>
           ))}
         </div>

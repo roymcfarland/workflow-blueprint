@@ -1,43 +1,42 @@
-# PROJECT.md
-
 ## Purpose
 
-Workflow Blueprint is a Next.js task-planning web app: self-service accounts, board-based tasks and notes, profile settings, and transactional email (Resend). It also exposes authenticated JSON APIs—a read-only API for a single configured user’s data and an external daily-summary endpoint for a separate consumer—backed by Postgres via Prisma. (Source: `README.md`.)
+Workflow Blueprint is an invite-gated task planning workspace where authenticated users organize boards, tasks, subtasks, due dates, priorities, and board notes; it also provides dashboard rollups, profile/theme settings, admin-managed invitations, and private JSON endpoints for selected planning data.
 
 ## Stack
 
-- **Languages:** TypeScript (strict mode in `tsconfig.json`), SQL via Prisma migrations.
-- **Framework:** Next.js **16.2.4** (App Router), React **19.2.4** (`package.json`).
-- **Package manager:** npm (`package-lock.json` present; `package.json` scripts).
-- **Data:** Prisma **6.x** (`@prisma/client`, `prisma`), PostgreSQL / Supabase-style URLs (`README.md`, `prisma/schema.prisma`).
-- **UI:** Tailwind CSS **4** (`tailwindcss`, `@tailwindcss/postcss` in `package.json`), Radix slot, **dnd-kit**, **react-hook-form**, **zod**, **jose**, **bcryptjs**, **resend** (`package.json`).
-- **Runtime versions:** `package.json` does not declare an `engines` field; Node version is not pinned in-repo.
-- **Build / deploy:** `next build --webpack`, `vercel-build` runs `prisma migrate deploy` then build (`package.json`).
+- Language: TypeScript/TSX with strict TypeScript settings (`tsconfig.json`).
+- Framework: Next.js 16.2.4 App Router and React 19.2.4 (`package.json`, `src/app/layout.tsx`).
+- Package manager: npm with `package-lock.json`.
+- Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies Supabase Postgres as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
+- Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, @dnd-kit drag-and-drop, and Recharts (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`).
+- Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
+- Runtime versions: exact Node.js runtime is not declared; `@types/node` is `^20` and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
 
 ## Architecture
 
-The UI and HTTP surface live under the App Router in `src/app/`: authenticated app pages use a route group (`src/app/(app)/`, e.g. `src/app/(app)/dashboard/page.tsx`), while JSON handlers are colocated as `route.ts` files under `src/app/api/` (e.g. `src/app/api/read-only/dashboard/route.ts`). Cross-cutting application logic—auth, env validation, Prisma access, Zod contracts, rate limiting, and data access—is centralized in `src/lib/` (`src/lib/auth.ts`, `src/lib/data.ts`, `src/lib/api.ts`, `src/lib/read-only-contract.ts`, `src/lib/read-only-api.ts`). Presentational and feature UI lives in `src/components/` with subfolders such as `src/components/auth/` and `src/components/blueprint/`. Persistence is modeled in `prisma/schema.prisma` with migrations in `prisma/migrations/`; `prisma.config.ts` wires datasource URL resolution and seed entry. Global Next behavior and HTTP security baselines are configured in `next.config.ts` (headers, `reactCompiler`). On server startup (Node runtime), `src/instrumentation.ts` loads environment validation via `assertEnv` from `src/lib/env.ts`. A `src/proxy.ts` module defines request continuation and a `config.matcher` similar to middleware-style routing, but there is no `middleware.ts` file in the repo that imports or re-exports it, so how (or whether) it is executed is not clear from layout alone.
+The app is organized as a Next.js App Router application under `src/app`: root metadata and providers are in `src/app/layout.tsx`, the public sign-in page is `src/app/page.tsx`, and authenticated pages are wrapped by `src/app/(app)/layout.tsx`. Protected server pages call auth helpers, load user-scoped snapshots from `src/lib/data.ts`, and render feature components such as `src/components/dashboard-overview.tsx` and `src/components/board-workspace.tsx` (`src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`, `src/lib/auth.ts`). API routes live under `src/app/api` and share same-origin checks, Zod request parsing, auth/admin gates, and rate limiting through `src/lib/api.ts`, then delegate mutations and queries to `src/lib/data.ts` (`src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`). Prisma models and enums define users, boards, tasks, subtasks, notes, invitations, rate-limit buckets, and admin audit logs in `prisma/schema.prisma`, while domain constants and serialization live in `src/lib/domain.ts` and `src/lib/data.ts`. Security headers are configured globally in `next.config.ts`, while HTML page responses get nonce-based CSP handling through `src/proxy.ts`.
 
 ## Conventions
 
-- **Path alias:** Imports use `@/` mapped to `src/` (`tsconfig.json`).
-- **API helper typing:** Shared handlers use a discriminated `ApiResult<T>` union with `NextResponse` for failure paths (`src/lib/api.ts`; same pattern in `src/lib/read-only-api.ts`).
-- **JSON + Zod:** Request bodies are parsed and validated with `parseJsonPayload` against a `ZodType` (`src/lib/api.ts`).
-- **Read-only API responses:** Routes validate outbound JSON with Zod schemas from `src/lib/read-only-contract.ts` through `readOnlyApiJson` (`src/app/api/read-only/dashboard/route.ts`, `src/lib/read-only-api.ts`).
-- **Route segment config:** API routes declare Next segment config such as `export const dynamic = "force-dynamic"` and `export const runtime = "nodejs"` where needed (`src/app/api/read-only/dashboard/route.ts`).
-- **Origin checks:** Mutating requests enforce same-origin via `assertSameOriginRequest` comparing `Origin`/`Referer` to `siteConfig.url` (`src/lib/api.ts`, `src/lib/site-config.ts`).
-- **Instrumentation:** `register()` in `src/instrumentation.ts` no-ops outside `nodejs` runtime before calling `assertEnv()`.
-- **Client vs server:** Interactive components opt in with the `"use client"` directive (`src/components/pull-to-refresh.tsx`).
-- **Linting:** ESLint uses `eslint-config-next` presets for Core Web Vitals and TypeScript (`eslint.config.mjs`).
-- **Prisma config:** `prisma.config.ts` uses `defineConfig` from `prisma/config`, loads env through `src/lib/load-env.ts`, and resolves DB URL via `src/lib/database-url.ts`.
+- Imports use the `@/` alias for `src/*`; the alias is configured in `tsconfig.json` and used in `src/app/layout.tsx`, `src/app/api/auth/sign-up/route.ts`, and `src/components/board-workspace.tsx`.
+- API route handlers return `NextResponse.json(...)` payloads and use shared helpers before business logic: `parseJsonPayload`, `requireApiUser`/`requireApiAdmin`, `assertSameOriginRequest`, and `checkRateLimit` (`src/lib/api.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`).
+- Request and response shapes are modeled with Zod; input types are inferred from schemas in `src/lib/validators.ts`, and read-only API responses are validated with schemas from `src/lib/read-only-contract.ts` through `readOnlyApiJson` in `src/lib/read-only-api.ts` (`src/app/api/read-only/dashboard/route.ts`).
+- Authenticated pages perform server-side user checks before rendering or fetching protected data (`src/app/(app)/layout.tsx`, `src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`, `src/lib/auth.ts`).
+- Prisma access is centralized in `src/lib/data.ts`, which returns serialized UI/API shapes for board, dashboard, task, and invitation data instead of exposing raw Prisma records directly (`src/lib/data.ts`, `src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`).
+- Mutating task operations use Prisma transactions, and create/update/reorder task flows use Serializable isolation (`src/lib/data.ts`, `src/app/api/boards/[slug]/tasks/route.ts`).
+- Domain enums, labels, theme mappings, board definitions, and cookie names live in `src/lib/domain.ts` and are reused by validators and UI code (`src/lib/validators.ts`, `src/components/board-workspace.tsx`).
+- Invitation tokens are generated as random bytes, stored as SHA-256 hashes, and accepted atomically in the same transaction that creates the user (`src/lib/data.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/admin/invitations/route.ts`).
 
 ## Non-goals
 
-Documented for the private read-only API: it **does not mutate data** and is **not intended for browser CORS use from other origins** (`README.md`, “Private Read-Only API” section). Other product boundaries (e.g. full multi-tenant admin, arbitrary third-party integrations) are **TBD — human to fill in**; they are not enumerated as explicit non-goals in the scanned code beyond the README notes above.
+- Open public self-service registration: sign-up requires an invitation token, invalid invitations are rejected, and invitation creation is admin-gated (`src/lib/validators.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/admin/invitations/route.ts`).
+- Browser-oriented cross-origin use of the private read-only API: the README states the read-only API is intentionally not CORS-enabled, and the implementation uses key-based access with `no-store`/`noindex` response headers (`README.md`, `src/lib/read-only-api.ts`).
+- Broader product and roadmap non-goals: TBD — human to fill in.
 
 ## Open questions for the human
 
-- **Automated tests:** No `*.test.*`, `*.spec.*`, or obvious Jest/Vitest/Playwright config was found under the repository root. Is the absence of checked-in tests intentional, or are tests hosted elsewhere?
-- **`src/proxy.ts` vs middleware:** The file exports `proxy` and a `config` object with a `matcher`, consistent with Next middleware patterns, but no `middleware.ts` (or re-export) appears in the repo. Is `src/proxy.ts` dead code, renamed middleware pending wiring, or activated by a convention not visible in this tree?
-- **CI:** There is no `.github/workflows/` (or similar) in the workspace snapshot; is CI exclusively Vercel build checks, or should another pipeline be documented?
-- **Node pinning:** Should a supported Node version be recorded (e.g. `engines` in `package.json` or `.nvmrc`) for local and Vercel parity?
+- No test files matching `*test*` or `*spec*` and no `test` script were found; is automated testing intentionally absent, or is the harness still pending?
+- No `.github` CI config was present; is Vercel the only build/deploy gate, or is CI configured somewhere outside the repository?
+- Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
+- Is Supabase Postgres mandatory for production, or is any PostgreSQL-compatible database acceptable? `README.md` names Supabase, while `prisma/schema.prisma` declares a generic PostgreSQL datasource.
+- Is `src/app/api/external/daily-summary/route.ts` intended to be a stable private integration contract, or a one-off endpoint for the current external consumer?

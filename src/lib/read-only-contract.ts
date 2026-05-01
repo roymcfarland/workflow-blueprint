@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { boardStatuses } from "@/lib/domain";
+import { boardStatuses, itemPriorities } from "@/lib/domain";
 
 const isoDateTimeSchema = z.iso.datetime();
 
@@ -17,6 +17,7 @@ export const readOnlySubtaskSchema = z.object({
   title: z.string().min(1),
   isComplete: z.boolean(),
   sortOrder: z.number().int().nonnegative(),
+  priority: z.enum(itemPriorities),
 });
 
 export const readOnlyTaskSchema = z.object({
@@ -25,6 +26,7 @@ export const readOnlyTaskSchema = z.object({
   description: z.string().nullable(),
   status: z.enum(boardStatuses),
   sortOrder: z.number().int().nonnegative(),
+  priority: z.enum(itemPriorities),
   dueDate: isoDateTimeSchema.nullable(),
   completedAt: isoDateTimeSchema.nullable(),
   archivedAt: isoDateTimeSchema.nullable(),

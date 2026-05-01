@@ -5,7 +5,7 @@ import { subDays } from "date-fns";
 
 import { checkRateLimit, rateLimitKey } from "@/lib/api";
 import { prisma } from "@/lib/db";
-import { boardDefinitions, demoUser, type BoardSlug } from "@/lib/domain";
+import { boardDefinitions, demoUser, type BoardSlug, type ItemPriority } from "@/lib/domain";
 import type { TaskStatus as PrismaTaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,16 @@ type ExternalTaskStatus =
   | "in-progress"
   | "done"
   | "archived";
+
+type ExternalPriority = "none" | "low" | "medium" | "high" | "urgent";
+
+const priorityMap: Record<ItemPriority, ExternalPriority> = {
+  NONE: "none",
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
+  URGENT: "urgent",
+};
 
 const statusMap: Record<PrismaTaskStatus, ExternalTaskStatus> = {
   ICE_BOX: "ice-box",
@@ -154,6 +164,7 @@ type ExternalTask = {
   description: string | null;
   status: ExternalTaskStatus;
   category: BoardSlug;
+  priority: ExternalPriority;
   parentId: number | null;
   sortOrder: number;
   createdAt: string;
@@ -217,6 +228,7 @@ export async function GET(request: Request) {
         description: task.description,
         status: statusMap[task.status],
         category: board.slug as BoardSlug,
+        priority: priorityMap[task.priority as ItemPriority],
         parentId: null,
         sortOrder: task.sortOrder,
         createdAt: task.createdAt.toISOString(),
@@ -286,6 +298,7 @@ export async function GET(request: Request) {
       description: task.description,
       status: statusMap[task.status],
       category: board.slug as BoardSlug,
+      priority: priorityMap[task.priority as ItemPriority],
       parentId: null,
       sortOrder: task.sortOrder,
       createdAt: task.createdAt.toISOString(),

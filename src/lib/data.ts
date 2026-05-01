@@ -1,6 +1,7 @@
 import {
   Prisma,
   TaskStatus as PrismaTaskStatus,
+  ItemPriority as PrismaItemPriority,
   ThemePreference as PrismaThemePreference,
 } from "@prisma/client";
 import { addDays, subDays } from "date-fns";
@@ -11,6 +12,7 @@ import {
   boardDefinitions,
   themePreferenceDbMap,
   themePreferenceUiMap,
+  type ItemPriority,
   type TaskStatus,
   type ThemePreference,
 } from "@/lib/domain";
@@ -68,6 +70,7 @@ export type SerializedSubtask = {
   title: string;
   isComplete: boolean;
   sortOrder: number;
+  priority: ItemPriority;
 };
 
 export type SerializedTask = {
@@ -76,6 +79,7 @@ export type SerializedTask = {
   description: string | null;
   status: TaskStatus;
   sortOrder: number;
+  priority: ItemPriority;
   dueDate: string | null;
   completedAt: string | null;
   archivedAt: string | null;
@@ -96,6 +100,7 @@ export type DashboardTaskSummary = {
   id: string;
   title: string;
   status: TaskStatus;
+  priority: ItemPriority;
   dueDate: string | null;
   boardSlug: string;
   boardName: string;
@@ -154,6 +159,7 @@ function serializeTask(task: DbTask): SerializedTask {
     description: task.description,
     status: task.status,
     sortOrder: task.sortOrder,
+    priority: task.priority as ItemPriority,
     dueDate: task.dueDate?.toISOString() ?? null,
     completedAt: task.completedAt?.toISOString() ?? null,
     archivedAt: task.archivedAt?.toISOString() ?? null,
@@ -162,6 +168,7 @@ function serializeTask(task: DbTask): SerializedTask {
       title: subtask.title,
       isComplete: subtask.isComplete,
       sortOrder: subtask.sortOrder,
+      priority: subtask.priority as ItemPriority,
     })),
   };
 }
@@ -398,6 +405,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       id: task.id,
       title: task.title,
       status: task.status,
+      priority: task.priority as ItemPriority,
       dueDate: task.dueDate?.toISOString() ?? null,
       boardSlug: task.boardSlug,
       boardName: task.boardName,
@@ -513,6 +521,7 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
           title: input.title,
           description: input.description,
           status: input.status as PrismaTaskStatus,
+          priority: input.priority as PrismaItemPriority,
           sortOrder,
           dueDate: parseDueDate(input.dueDate),
           completedAt,
@@ -522,6 +531,7 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
               id: randomUUID(),
               title: subtask.title,
               isComplete: subtask.isComplete,
+              priority: subtask.priority as PrismaItemPriority,
               sortOrder: index,
             })),
           },
@@ -574,6 +584,7 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
           description: input.description,
           status: nextStatus,
           sortOrder,
+          priority: input.priority as PrismaItemPriority,
           dueDate: parseDueDate(input.dueDate),
           completedAt,
           archivedAt,
@@ -597,12 +608,14 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
                   title: subtask.title,
                   isComplete: subtask.isComplete,
                   sortOrder: index,
+                  priority: subtask.priority as PrismaItemPriority,
                 },
                 create: {
                   id: subtaskId,
                   title: subtask.title,
                   isComplete: subtask.isComplete,
                   sortOrder: index,
+                  priority: subtask.priority as PrismaItemPriority,
                 },
               };
             }),

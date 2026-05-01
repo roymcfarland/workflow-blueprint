@@ -8,6 +8,18 @@ export const boardStatuses = [
 
 export type TaskStatus = (typeof boardStatuses)[number];
 
+export const itemPriorities = ["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+
+export type ItemPriority = (typeof itemPriorities)[number];
+
+export const priorityLabels: Record<ItemPriority, string> = {
+  NONE: "—",
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+  URGENT: "Urgent",
+};
+
 export const statusLabels: Record<TaskStatus, string> = {
   ICE_BOX: "Backlog",
   ON_DECK: "Up Next",

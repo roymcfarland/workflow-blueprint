@@ -21,6 +21,14 @@ enum TaskStatus {
   ARCHIVED
 }
 
+enum ItemPriority {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum UserRole {
   USER
   ADMIN
@@ -61,30 +69,32 @@ model Board {
 }
 
 model Task {
-  id          String     @id
+  id          String        @id
   boardId      String
   title       String
   description String?
   status      TaskStatus
+  priority    ItemPriority  @default(NONE)
   sortOrder   Int
   dueDate     DateTime?
   archivedAt  DateTime?
   completedAt DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  board       Board      @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  board       Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
   subtasks    Subtask[]
 }
 
 model Subtask {
-  id         String   @id
+  id         String       @id
   taskId     String
   title      String
-  isComplete Boolean  @default(false)
+  isComplete Boolean      @default(false)
+  priority   ItemPriority @default(NONE)
   sortOrder  Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  task       Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }
 
 model BoardNote {
