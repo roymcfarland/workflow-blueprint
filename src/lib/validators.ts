@@ -1,4 +1,4 @@
-import { boardStatuses, itemPriorities, themePreferences } from "@/lib/domain";
+import { boardStatuses, boardIconKeys, itemPriorities, themePreferences } from "@/lib/domain";
 import { z } from "zod";
 
 function isValidDateOnly(value: string) {
@@ -215,6 +215,42 @@ export const profileSchema = z
       });
     }
   });
+
+export const createBoardSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Board name is required.")
+    .max(60, "Board names should stay under 60 characters."),
+  iconKey: z.enum(boardIconKeys as unknown as [string, ...string[]]).default("briefcase"),
+  description: z
+    .string()
+    .trim()
+    .max(200, "Descriptions should stay under 200 characters.")
+    .nullable()
+    .optional()
+    .transform((value) => (value ? value : null)),
+});
+
+export const updateBoardSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Board name is required.")
+    .max(60, "Board names should stay under 60 characters.")
+    .optional(),
+  iconKey: z.enum(boardIconKeys as unknown as [string, ...string[]]).optional(),
+  description: z
+    .string()
+    .trim()
+    .max(200, "Descriptions should stay under 200 characters.")
+    .nullable()
+    .optional()
+    .transform((value) => (value ? value : null)),
+});
+
+export type CreateBoardInput = z.infer<typeof createBoardSchema>;
+export type UpdateBoardInput = z.infer<typeof updateBoardSchema>;
 
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;

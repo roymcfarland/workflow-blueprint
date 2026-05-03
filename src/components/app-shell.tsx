@@ -7,6 +7,7 @@ import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, X }
 import { useState, useTransition, type CSSProperties } from "react";
 
 import { BoardIcon } from "@/components/board-icon";
+import { BoardManagement } from "@/components/board-management";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintPillToggle } from "@/components/blueprint/pill-toggle";
 import { useBlueprintTheme } from "@/components/providers/theme-provider";
@@ -224,6 +225,10 @@ export function AppShell({ boards, children, user }: AppShellProps) {
             );
           })}
         </nav>
+
+        <div className="pt-3">
+          <BoardManagement boards={boards} />
+        </div>
       </div>
 
       <div className="mt-auto space-y-4 border-t border-line-soft pt-5">

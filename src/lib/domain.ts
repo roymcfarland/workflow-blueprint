@@ -52,13 +52,15 @@ export const themePreferenceUiMap = {
   SYSTEM: "system",
 } as const;
 
+export const starterBoard = {
+  slug: "personal",
+  name: "Personal",
+  iconKey: "personal",
+  description: "Personal life admin, routines, and long-range goals.",
+} as const;
+
 export const boardDefinitions = [
-  {
-    slug: "personal",
-    name: "Personal",
-    iconKey: "personal",
-    description: "Personal life admin, routines, and long-range goals.",
-  },
+  starterBoard,
   {
     slug: "brightline-labs",
     name: "Brightline Labs",
@@ -75,27 +77,34 @@ export const boardDefinitions = [
 
 export type BoardSlug = (typeof boardDefinitions)[number]["slug"];
 
-export const boardAccentColors = {
+const boardAccentColors: Record<string, string> = {
   "brightline-labs": "#c94f7c",
   "elevated-organics": "#2f9f85",
   personal: "#4f78e6",
-} satisfies Record<BoardSlug, string>;
+};
 
 export const fallbackBoardAccentColor = "#5ab7b9";
 
 export function getBoardAccentColor(slug: string) {
-  return slug in boardAccentColors
-    ? boardAccentColors[slug as BoardSlug]
-    : fallbackBoardAccentColor;
+  return boardAccentColors[slug] ?? fallbackBoardAccentColor;
 }
 
-export const boardLabelBySlug = Object.fromEntries(
-  boardDefinitions.map((board) => [board.slug, board.name]),
-) as Record<BoardSlug, string>;
+export const availableBoardIcons = [
+  { key: "personal", label: "Personal" },
+  { key: "briefcase", label: "Briefcase" },
+  { key: "labs", label: "Lab" },
+  { key: "organics", label: "Leaf" },
+  { key: "rocket", label: "Rocket" },
+  { key: "target", label: "Target" },
+  { key: "lightbulb", label: "Idea" },
+  { key: "book", label: "Book" },
+  { key: "star", label: "Star" },
+  { key: "heart", label: "Heart" },
+  { key: "code", label: "Code" },
+  { key: "globe", label: "Globe" },
+] as const;
 
-export const boardIconBySlug = Object.fromEntries(
-  boardDefinitions.map((board) => [board.slug, board.iconKey]),
-) as Record<BoardSlug, string>;
+export const boardIconKeys = availableBoardIcons.map((icon) => icon.key);
 
 export const sessionCookieName = "workflow-blueprint-session";
 

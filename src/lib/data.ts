@@ -9,14 +9,15 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import {
-  boardDefinitions,
+  starterBoard,
+  slugify,
   themePreferenceDbMap,
   themePreferenceUiMap,
   type ItemPriority,
   type TaskStatus,
   type ThemePreference,
 } from "@/lib/domain";
-import type { ProfileInput, TaskInput, TaskReorderInput } from "@/lib/validators";
+import type { CreateBoardInput, ProfileInput, TaskInput, TaskReorderInput, UpdateBoardInput } from "@/lib/validators";
 
 const taskInclude = {
   subtasks: {
@@ -779,6 +780,97 @@ function avatarLabelFor(name: string, email: string) {
   return initials || email[0]?.toUpperCase() || null;
 }
 
+export async function createBoardForUser(userId: string, input: CreateBoardInput) {
+  const slug = slugify(input.name);
+
+  if (!slug) {
+    throw new Error("Board name must produce a valid URL slug.");
+  }
+
+  const existing = await prisma.board.findFirst({
+    where: { userId, slug },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new Error("A board with that name already exists.");
+  }
+
+  const maxSort = await prisma.board.findFirst({
+    where: { userId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
+  const board = await prisma.board.create({
+    data: {
+      id: randomUUID(),
+      userId,
+      name: input.name,
+      slug,
+      description: input.description ?? null,
+      iconKey: input.iconKey,
+      sortOrder: (maxSort?.sortOrder ?? -1) + 1,
+    },
+    select: {
+      slug: true,
+      name: true,
+      iconKey: true,
+    },
+  });
+
+  return board;
+}
+
+export async function updateBoardForUser(userId: string, currentSlug: string, input: UpdateBoardInput) {
+  const board = await findBoardForUser(userId, currentSlug);
+
+  if (!board) {
+    throw new Error("Board not found.");
+  }
+
+  const newSlug = input.name ? slugify(input.name) : undefined;
+
+  if (newSlug && newSlug !== currentSlug) {
+    const conflict = await prisma.board.findFirst({
+      where: { userId, slug: newSlug, id: { not: board.id } },
+      select: { id: true },
+    });
+
+    if (conflict) {
+      throw new Error("A board with that name already exists.");
+    }
+  }
+
+  const updated = await prisma.board.update({
+    where: { id: board.id },
+    data: {
+      ...(input.name !== undefined ? { name: input.name, slug: newSlug } : {}),
+      ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    },
+    select: {
+      slug: true,
+      name: true,
+      iconKey: true,
+    },
+  });
+
+  return { updated, previousSlug: currentSlug };
+}
+
+export async function deleteBoardForUser(userId: string, slug: string) {
+  const board = await findBoardForUser(userId, slug);
+
+  if (!board) {
+    throw new Error("Board not found.");
+  }
+
+  await prisma.board.delete({
+    where: { id: board.id },
+  });
+}
+
 async function createUserWithStarterBoards(
   tx: Prisma.TransactionClient,
   {
@@ -811,16 +903,16 @@ async function createUserWithStarterBoards(
     },
   });
 
-  await tx.board.createMany({
-    data: boardDefinitions.map((board, index) => ({
+  await tx.board.create({
+    data: {
       id: randomUUID(),
       userId: user.id,
-      name: board.name,
-      slug: board.slug,
-      description: board.description,
-      iconKey: board.iconKey,
-      sortOrder: index,
-    })),
+      name: starterBoard.name,
+      slug: starterBoard.slug,
+      description: starterBoard.description,
+      iconKey: starterBoard.iconKey,
+      sortOrder: 0,
+    },
   });
 
   return {
