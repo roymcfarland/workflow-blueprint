@@ -3,3 +3,36 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
+
+## Cursor Cloud specific instructions
+
+### Services overview
+
+This is a single Next.js 16 app (not a monorepo). The only required backing service is PostgreSQL.
+
+| Service | Required | Notes |
+|---|---|---|
+| PostgreSQL 16 | Yes | Local instance; `DATABASE_URL` in `.env.local` |
+| Next.js dev server | Yes | `npm run dev` (binds to `127.0.0.1:3000`) |
+| Resend email API | No | Omit in dev; password-reset links are shown inline |
+
+### Running the app
+
+Standard commands are in `README.md` → **Scripts** section. Key ones:
+
+- `npm run dev` — starts Next.js dev server with webpack on `127.0.0.1:3000`
+- `npm run lint` — ESLint
+- `npm run build` — production build (does **not** run migrations)
+- `npm run db:deploy` — apply Prisma migrations
+- `npm run db:seed` — seed demo account (requires `DEMO_USER_PASSWORD` env var)
+
+### Environment variables
+
+A `.env.local` file must exist with at least `DATABASE_URL` and `AUTH_SECRET`. See `.env.example` for the full list. Resend keys are optional in development.
+
+### Gotchas
+
+- **Invite-only sign-up**: New user registration requires a valid invitation token. For testing, sign in with the seeded demo account (`alex@workflowblueprint.app`) using the password set in `DEMO_USER_PASSWORD`.
+- **CSRF origin check**: Mutating API routes validate that the `Origin` header matches `NEXT_PUBLIC_SITE_URL`. Set this to `http://127.0.0.1:3000` in `.env.local` for local dev, or omit it (the check is lenient when the variable is unset in development).
+- **PostgreSQL must be running** before `npm run dev`, `npm run db:deploy`, or `npm run db:seed`. Start it with `pg_ctlcluster 16 main start`.
+- **`postinstall` generates Prisma Client**: `npm install` automatically runs `prisma generate`, so the Prisma Client is always up to date after dependency installation.
