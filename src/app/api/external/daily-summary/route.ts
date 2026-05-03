@@ -5,7 +5,7 @@ import { subDays } from "date-fns";
 
 import { checkRateLimit, rateLimitKey } from "@/lib/api";
 import { prisma } from "@/lib/db";
-import { boardDefinitions, demoUser, type BoardSlug, type ItemPriority } from "@/lib/domain";
+import { demoUser, type ItemPriority } from "@/lib/domain";
 import type { TaskStatus as PrismaTaskStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -37,9 +37,7 @@ const statusMap: Record<PrismaTaskStatus, ExternalTaskStatus> = {
   ARCHIVED: "archived",
 };
 
-const allowedCategories = boardDefinitions.map(
-  (board) => board.slug,
-) as readonly BoardSlug[];
+// Dynamic boards: all user boards are included in the external summary.
 
 const externalRateLimit = {
   limit: 120,
@@ -143,19 +141,8 @@ function deriveNumericId(value: string) {
   return parseInt(digest, 16);
 }
 
-function isAllowedCategory(slug: string): slug is BoardSlug {
-  return (allowedCategories as readonly string[]).includes(slug);
-}
-
-function categoryToCamel(slug: BoardSlug): "personal" | "elevatedOrganics" | "brightlineLabs" {
-  switch (slug) {
-    case "personal":
-      return "personal";
-    case "elevated-organics":
-      return "elevatedOrganics";
-    case "brightline-labs":
-      return "brightlineLabs";
-  }
+function slugToCamel(slug: string): string {
+  return slug.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }
 
 type ExternalTask = {
@@ -163,7 +150,7 @@ type ExternalTask = {
   title: string;
   description: string | null;
   status: ExternalTaskStatus;
-  category: BoardSlug;
+  category: string;
   priority: ExternalPriority;
   parentId: number | null;
   sortOrder: number;
@@ -219,22 +206,20 @@ export async function GET(request: Request) {
     },
   });
 
-  const tasks: ExternalTask[] = boards
-    .filter((board) => isAllowedCategory(board.slug))
-    .flatMap((board) =>
-      board.tasks.map((task) => ({
-        id: deriveNumericId(task.id),
-        title: task.title,
-        description: task.description,
-        status: statusMap[task.status],
-        category: board.slug as BoardSlug,
-        priority: priorityMap[task.priority as ItemPriority],
-        parentId: null,
-        sortOrder: task.sortOrder,
-        createdAt: task.createdAt.toISOString(),
-        updatedAt: task.updatedAt.toISOString(),
-      })),
-    );
+  const tasks: ExternalTask[] = boards.flatMap((board) =>
+    board.tasks.map((task) => ({
+      id: deriveNumericId(task.id),
+      title: task.title,
+      description: task.description,
+      status: statusMap[task.status],
+      category: board.slug,
+      priority: priorityMap[task.priority as ItemPriority],
+      parentId: null,
+      sortOrder: task.sortOrder,
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString(),
+    })),
+  );
 
   const byStatusCount: Record<ExternalTaskStatus, number> = {
     "ice-box": 0,
@@ -243,15 +228,16 @@ export async function GET(request: Request) {
     done: 0,
     archived: 0,
   };
-  const byCategoryCount = {
-    personal: 0,
-    elevatedOrganics: 0,
-    brightlineLabs: 0,
-  };
+  const byCategoryCount: Record<string, number> = {};
+
+  for (const board of boards) {
+    byCategoryCount[slugToCamel(board.slug)] = 0;
+  }
 
   for (const task of tasks) {
     byStatusCount[task.status] += 1;
-    byCategoryCount[categoryToCamel(task.category)] += 1;
+    const camelCategory = slugToCamel(task.category);
+    byCategoryCount[camelCategory] = (byCategoryCount[camelCategory] ?? 0) + 1;
   }
 
   const totalActive =
@@ -275,7 +261,6 @@ export async function GET(request: Request) {
   // Built directly off the source rows so we can sort by completedAt without
   // round-tripping through hashed numeric ids.
   const recentlyCompleted: ExternalTask[] = boards
-    .filter((board) => isAllowedCategory(board.slug))
     .flatMap((board) =>
       board.tasks
         .filter(
@@ -297,7 +282,7 @@ export async function GET(request: Request) {
       title: task.title,
       description: task.description,
       status: statusMap[task.status],
-      category: board.slug as BoardSlug,
+      category: board.slug,
       priority: priorityMap[task.priority as ItemPriority],
       parentId: null,
       sortOrder: task.sortOrder,
