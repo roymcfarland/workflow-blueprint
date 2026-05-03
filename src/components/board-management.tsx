@@ -236,7 +236,7 @@ export function BoardManagement({ boards }: BoardManagementProps) {
               <span className="min-w-0 flex-1 truncate text-xs text-text-muted">{board.name}</span>
               <button
                 aria-label={`Edit ${board.name}`}
-                className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted transition hover:text-text-primary group-hover:flex"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition hover:text-text-primary group-hover:opacity-100"
                 onClick={() => setModal({ kind: "edit", board })}
                 type="button"
               >
@@ -244,7 +244,7 @@ export function BoardManagement({ boards }: BoardManagementProps) {
               </button>
               <button
                 aria-label={`Delete ${board.name}`}
-                className="hidden h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted transition hover:text-danger group-hover:flex"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted opacity-0 transition hover:text-danger group-hover:opacity-100"
                 onClick={() => setModal({ kind: "delete", board })}
                 type="button"
               >
