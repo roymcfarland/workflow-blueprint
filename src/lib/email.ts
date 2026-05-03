@@ -117,27 +117,50 @@ function emailShell({
   const safeCtaHref = escapeHtml(ctaHref);
 
   return `<!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(preview)}</title>
   </head>
-  <body style="margin:0;background:#f4f0e8;color:#1f2937;font-family:Arial,sans-serif;">
-    <div style="display:none;max-height:0;overflow:hidden;">${escapeHtml(preview)}</div>
-    <main style="max-width:560px;margin:0 auto;padding:32px 20px;">
-      <section style="background:#fffaf0;border:1px solid #1f2937;border-radius:8px;padding:28px;">
-        <p style="margin:0 0 10px;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#4f78e6;">${siteConfig.name}</p>
-        <h1 style="margin:0 0 18px;font-size:28px;line-height:1.15;color:#1f2937;">${escapeHtml(heading)}</h1>
-        ${body}
-        <p style="margin:28px 0 0;">
-          <a href="${safeCtaHref}" style="display:inline-block;background:#1f4fcf;color:#fff;text-decoration:none;border:1px solid #1f2937;border-radius:8px;padding:12px 18px;font-weight:700;">${escapeHtml(ctaLabel)}</a>
-        </p>
-      </section>
-      <p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#6b7280;">
-        If the button does not work, open this link: <a href="${safeCtaHref}" style="color:#1f4fcf;">${safeCtaHref}</a>
-      </p>
-    </main>
+  <body style="margin:0;padding:0;background-color:#f7f9fd;color:#17213a;font-family:'Manrope',ui-sans-serif,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;">
+    <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${escapeHtml(preview)}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f9fd;">
+      <tr><td align="center" style="padding:40px 20px;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+          <!-- Eyebrow -->
+          <tr><td style="padding:0 0 24px;">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width:40px;height:8px;border-radius:999px;background-color:#d89020;"></td>
+              <td style="padding-left:12px;font-size:13px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#1f4fcf;">${siteConfig.name}</td>
+            </tr></table>
+          </td></tr>
+          <!-- Main card -->
+          <tr><td style="background-color:#ffffff;border:2px solid #1f4fcf;border-radius:14px;overflow:hidden;">
+            <!-- Accent bar -->
+            <div style="height:4px;background:linear-gradient(90deg,#1f4fcf 0%,#d89020 100%);"></div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:32px 32px 28px;">
+                <h1 style="margin:0 0 20px;font-size:26px;font-weight:800;line-height:1.15;letter-spacing:-0.02em;color:#12348c;">${escapeHtml(heading)}</h1>
+                ${body}
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:28px;">
+                  <tr><td style="background-color:#1f4fcf;border-radius:10px;">
+                    <a href="${safeCtaHref}" style="display:inline-block;padding:14px 24px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;letter-spacing:0.01em;">${escapeHtml(ctaLabel)}</a>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </td></tr>
+          <!-- Footer -->
+          <tr><td style="padding:20px 4px 0;">
+            <p style="margin:0 0 8px;font-size:12px;line-height:1.6;color:#6b7b9a;">If the button does not work, open this link: <a href="${safeCtaHref}" style="color:#1f4fcf;text-decoration:underline;">${safeCtaHref}</a></p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-top:1px solid rgba(31,79,207,0.15);"><tr><td style="padding-top:16px;">
+              <p style="margin:0;font-size:12px;line-height:1.5;color:#6b7b9a;">Sent by <span style="font-weight:700;color:#12348c;">${siteConfig.name}</span></p>
+            </td></tr></table>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
   </body>
 </html>`;
 }
@@ -187,8 +210,9 @@ export async function sendPasswordResetEmail({
 
   return sendTransactionalEmail({
     html: emailShell({
-      body: `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;">Hi ${safeName},</p>
-        <p style="margin:0;font-size:16px;line-height:1.6;">Use the secure link below to choose a new password for your Workflow Blueprint account. This link expires in 24 hours.</p>`,
+      body: `<p style="margin:0 0 14px;font-size:16px;line-height:1.7;color:#17213a;">Hi ${safeName},</p>
+        <p style="margin:0 0 6px;font-size:16px;line-height:1.7;color:#17213a;">We received a request to reset the password for your account. Use the secure link below to choose a new password.</p>
+        <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7b9a;">This link expires in <strong style="color:#d89020;">24 hours</strong>. If you did not request this, you can safely ignore this email.</p>`,
       ctaHref: resetUrl,
       ctaLabel: "Reset Password",
       heading: "Reset your password",
@@ -197,10 +221,12 @@ export async function sendPasswordResetEmail({
     subject: "Reset your Workflow Blueprint password",
     text: `Hi ${name},
 
-Use this secure link to choose a new password for your Workflow Blueprint account:
+We received a request to reset the password for your account.
+
+Use this secure link to choose a new password:
 ${resetUrl}
 
-This link expires in 24 hours. If you did not request it, you can ignore this email.`,
+This link expires in 24 hours. If you did not request it, you can safely ignore this email.`,
     to,
   });
 }
@@ -214,17 +240,18 @@ export async function sendInviteEmail({
 }) {
   return sendTransactionalEmail({
     html: emailShell({
-      body: `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;">You have been invited to Workflow Blueprint.</p>
-        <p style="margin:0;font-size:16px;line-height:1.6;">Use the secure link below to create your account. This invitation expires in 7 days.</p>`,
+      body: `<p style="margin:0 0 14px;font-size:16px;line-height:1.7;color:#17213a;">You have been invited to join <strong style="color:#12348c;">Workflow Blueprint</strong>.</p>
+        <p style="margin:0 0 6px;font-size:16px;line-height:1.7;color:#17213a;">Accept the invitation below to create your account and start planning.</p>
+        <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7b9a;">This invitation expires in <strong style="color:#d89020;">7 days</strong>.</p>`,
       ctaHref: inviteUrl,
       ctaLabel: "Accept Invitation",
-      heading: "You are invited",
-      preview: "Create your Workflow Blueprint account",
+      heading: "You\u2019re invited",
+      preview: "You\u2019re invited to Workflow Blueprint",
     }),
     subject: "Your Workflow Blueprint invitation",
-    text: `You have been invited to Workflow Blueprint.
+    text: `You have been invited to join Workflow Blueprint.
 
-Use this secure link to create your account:
+Accept the invitation to create your account and start planning:
 ${inviteUrl}
 
 This invitation expires in 7 days.`,
@@ -245,8 +272,9 @@ export async function sendWelcomeEmail({
 
   return sendTransactionalEmail({
     html: emailShell({
-      body: `<p style="margin:0 0 14px;font-size:16px;line-height:1.6;">Hi ${safeName},</p>
-        <p style="margin:0;font-size:16px;line-height:1.6;">Your account is ready. Open your dashboard to start shaping your boards and tasks.</p>`,
+      body: `<p style="margin:0 0 14px;font-size:16px;line-height:1.7;color:#17213a;">Hi ${safeName},</p>
+        <p style="margin:0 0 6px;font-size:16px;line-height:1.7;color:#17213a;">Your account is ready. Open your dashboard to start creating boards, organizing tasks, and shipping meaningful work.</p>
+        <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7b9a;">Plan. Execute. Achieve.</p>`,
       ctaHref: dashboardUrl,
       ctaLabel: "Open Dashboard",
       heading: "Welcome to Workflow Blueprint",
@@ -255,8 +283,10 @@ export async function sendWelcomeEmail({
     subject: "Welcome to Workflow Blueprint",
     text: `Hi ${name},
 
-Your Workflow Blueprint account is ready. Open your dashboard:
-${dashboardUrl}`,
+Your Workflow Blueprint account is ready. Open your dashboard to start creating boards, organizing tasks, and shipping meaningful work:
+${dashboardUrl}
+
+Plan. Execute. Achieve.`,
     to,
   });
 }
