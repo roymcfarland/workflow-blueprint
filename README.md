@@ -58,7 +58,7 @@ Use a durable PostgreSQL 14+ database for production account creation.
 `NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
 `READ_ONLY_API_KEY` enables the private read-only API. `READ_ONLY_USER_ID` selects which account is exposed through that API and defaults to the seeded demo user when omitted.
-`EXTERNAL_API_KEY` enables the external `/api/external/daily-summary` route consumed by `www.roymcfarland.news`. If it is unset, that route also accepts the same secret as `READ_ONLY_API_KEY` so one key can unlock both private APIs. When `EXTERNAL_API_KEY` is set, only it is checked for the daily summary (the read-only API still uses `READ_ONLY_API_KEY`). `EXTERNAL_USER_ID` selects which account that route surfaces; when unset it falls back to `READ_ONLY_USER_ID`, and finally to the seeded demo user.
+`EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. The legacy `/api/external/daily-summary` path remains as an alias for the current `www.roymcfarland.news` consumer. If `EXTERNAL_API_KEY` is unset, the daily-summary route also accepts the same secret as `READ_ONLY_API_KEY` so one key can unlock both private APIs during the transition. When `EXTERNAL_API_KEY` is set, only it is checked for daily-summary requests (the read-only API still uses `READ_ONLY_API_KEY`). `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to `READ_ONLY_USER_ID`, and finally to the seeded demo user.
 
 ## Database Setup
 
@@ -130,24 +130,197 @@ curl -i \
 
 Production uses the same paths under `https://www.workflowblueprint.io`.
 
-## External Daily Summary API
+## External API v1
 
-`GET /api/external/daily-summary` is a separate, single-purpose endpoint consumed once per day by the morning briefing job at `www.roymcfarland.news`. It is dynamic (`force-dynamic`, `revalidate = 0`, `Cache-Control: no-store`) so the consumer never sees stale data, and it always returns JSON — including for auth failures — so an HTML 404 can never reach the consumer.
+The external API exposes the configured user's planning data for project-owned consumers. Canonical endpoints live under `/api/external/v1/*`; the legacy `/api/external/daily-summary` path is an alias for `/api/external/v1/daily-summary` while the existing briefing consumer migrates.
 
-Authentication uses a Bearer token compared with SHA-256 + `timingSafeEqual`. The expected secret is `EXTERNAL_API_KEY` when that variable is set; otherwise it falls back to `READ_ONLY_API_KEY` so a single shared key can match what an older consumer already sends.
+Every v1 response is JSON, dynamic (`force-dynamic`, `revalidate = 0`), and sent with `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
+
+### Authentication
+
+Every canonical v1 request must include the configured external key:
+
+```http
+Authorization: Bearer <EXTERNAL_API_KEY>
+```
+
+Keys are compared with SHA-256 + `timingSafeEqual`. The dashboard and board routes require `EXTERNAL_API_KEY` to be set. During the migration window, `/api/external/v1/daily-summary` and its legacy alias continue to accept `READ_ONLY_API_KEY` only when `EXTERNAL_API_KEY` is unset.
 
 - Missing or malformed `Authorization` header → `401` JSON.
 - Wrong key → `403` JSON.
-- Neither `EXTERNAL_API_KEY` nor `READ_ONLY_API_KEY` is set → `503` JSON.
+- Required key is unset → `503` JSON.
 
-The response shape is generated from this OpenAPI contract: top-level `generatedAt`, a `summary` block with `totalActive`, `completionRate` (string `"NN%"`), `byStatus` (camelCase keys), and `byCategory` (camelCase keys), plus `inProgress`, `onDeck`, `iceBox`, and `recentlyCompleted` task arrays. `Task.status` and `Task.category` use hyphenated enum values (`in-progress`, `elevated-organics`, …) and ids are stable 48-bit hashes of the underlying UUIDs.
+Most external API errors use this shape:
+
+```ts
+type ExternalApiError = {
+  ok: false;
+  error: string;
+};
+```
+
+### Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/external/v1/dashboard` | Aggregate dashboard payload, matching `/api/read-only/dashboard` |
+| `GET` | `/api/external/v1/boards` | All boards owned by the configured external user |
+| `GET` | `/api/external/v1/boards/[slug]` | One board by slug, including tasks, subtasks, and note content |
+| `GET` | `/api/external/v1/daily-summary` | Daily briefing payload used by external automation |
+
+### `GET /api/external/v1/dashboard`
+
+Request:
+
+```bash
+curl -i \
+  -H "Authorization: Bearer $EXTERNAL_API_KEY" \
+  https://www.workflowblueprint.io/api/external/v1/dashboard
+```
+
+Response:
+
+```ts
+type ExternalDashboardResponse = {
+  ok: true;
+  data: {
+    boardBreakdown: Array<{
+      slug: string;
+      name: string;
+      iconKey: string;
+      totalTasks: number;
+      percentage: number;
+    }>;
+    sprintCompletionRate: number;
+    doneCount: number;
+    activeTaskCount: number;
+    inProgressCount: number;
+    closedLastSevenDays: number;
+    totalTaskCount: number;
+  };
+};
+```
+
+### `GET /api/external/v1/boards`
+
+Request:
+
+```bash
+curl -i \
+  -H "Authorization: Bearer $EXTERNAL_API_KEY" \
+  https://www.workflowblueprint.io/api/external/v1/boards
+```
+
+Response:
+
+```ts
+type ExternalBoardsResponse = {
+  ok: true;
+  data: {
+    boards: Array<{
+      slug: string;
+      name: string;
+      description: string | null;
+      iconKey: string;
+      totalTasks: number;
+    }>;
+  };
+};
+```
+
+### `GET /api/external/v1/boards/[slug]`
+
+Request:
+
+```bash
+curl -i \
+  -H "Authorization: Bearer $EXTERNAL_API_KEY" \
+  https://www.workflowblueprint.io/api/external/v1/boards/personal
+```
+
+Response:
+
+```ts
+type ExternalBoardResponse = {
+  ok: true;
+  data: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    iconKey: string;
+    noteContent: string;
+    tasks: Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      status: "ICE_BOX" | "ON_DECK" | "IN_PROGRESS" | "DONE" | "ARCHIVED";
+      sortOrder: number;
+      priority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+      dueDate: string | null;
+      completedAt: string | null;
+      archivedAt: string | null;
+      subtasks: Array<{
+        id: string;
+        title: string;
+        isComplete: boolean;
+        sortOrder: number;
+        priority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+      }>;
+    }>;
+  };
+};
+```
+
+### `GET /api/external/v1/daily-summary`
+
+Request:
 
 ```bash
 # Uses EXTERNAL_API_KEY when set; otherwise the same value as READ_ONLY_API_KEY.
 curl -i \
   -H "Authorization: Bearer $EXTERNAL_API_KEY" \
-  https://www.workflowblueprint.io/api/external/daily-summary
+  https://www.workflowblueprint.io/api/external/v1/daily-summary
 ```
+
+Response:
+
+```ts
+type ExternalDailySummaryResponse = {
+  generatedAt: string;
+  summary: {
+    totalActive: number;
+    completionRate: `${number}%`;
+    byStatus: {
+      iceBox: number;
+      onDeck: number;
+      inProgress: number;
+      done: number;
+      archived: number;
+    };
+    byCategory: Record<string, number>;
+  };
+  inProgress: ExternalDailySummaryTask[];
+  onDeck: ExternalDailySummaryTask[];
+  iceBox: ExternalDailySummaryTask[];
+  recentlyCompleted: ExternalDailySummaryTask[];
+};
+
+type ExternalDailySummaryTask = {
+  id: number;
+  title: string;
+  description: string | null;
+  status: "ice-box" | "on-deck" | "in-progress" | "done" | "archived";
+  category: string;
+  priority: "none" | "low" | "medium" | "high" | "urgent";
+  parentId: number | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+```
+
+Daily-summary task ids are stable 48-bit hashes of the underlying UUIDs. `summary.byCategory` uses camelCase board slugs as keys.
 
 ## Scripts
 
