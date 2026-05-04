@@ -53,10 +53,10 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 - Language: TypeScript/TSX with strict TypeScript settings (`tsconfig.json`).
 - Framework: Next.js 16.2.4 App Router and React 19.2.4 (`package.json`, `src/app/layout.tsx`).
 - Package manager: npm with `package-lock.json`.
-- Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies Supabase Postgres as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
+- Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, @dnd-kit drag-and-drop, and Recharts (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`).
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
-- Runtime versions: exact Node.js runtime is not declared; `@types/node` is `^20` and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
+- Runtime versions: Node.js 22.11.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^20` (acceptable; types do not need to match runtime exactly) and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
 
 ---
 
@@ -134,7 +134,7 @@ Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration
 
 ### Q3. Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
 
-**Answer: Node 22.11.x, enforced across four files.**
+**Answer: Node 22.11.x, enforced across three pin sites.**
 
 All contributors and all deploys run Node 22.11.x. Patches flow automatically; minor bumps require a deliberate PR.
 
