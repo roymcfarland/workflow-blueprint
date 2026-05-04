@@ -134,7 +134,7 @@ Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration
 
 ### Q3. Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
 
-**Answer: Node 22.11.x, enforced across four files.**
+**Answer: Node 22.11.x, enforced across three pin sites.**
 
 All contributors and all deploys run Node 22.11.x. Patches flow automatically; minor bumps require a deliberate PR.
 

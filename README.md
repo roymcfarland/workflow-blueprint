@@ -1,6 +1,6 @@
 # Workflow Blueprint
 
-Workflow Blueprint is a Next.js App Router task planning workspace with self-service accounts, board-based task management, notes, profile settings, and Resend-backed transactional email.
+Workflow Blueprint is an invite-gated Next.js App Router task planning workspace with admin-issued invitations, board-based task management, notes, profile settings, and Resend-backed transactional email.
 
 ## Stack
 
@@ -51,9 +51,9 @@ When the project is linked in Vercel, you can pull local secrets without printin
 npx vercel@latest env pull .env.local --environment=development
 ```
 
-`DATABASE_URL` must be a Supabase Postgres connection string. If the Vercel/Supabase integration provides `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` instead, the app will use those automatically.
+`DATABASE_URL` must be a PostgreSQL 14+ connection string. Supabase Postgres is the recommended example and current production host, but any compatible durable PostgreSQL database works. If the Vercel/Supabase integration provides `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` instead, the app will use those automatically.
 Prisma CLI commands prefer `POSTGRES_URL_NON_POOLING` when it is available.
-Use a durable Supabase project database for production account creation.
+Use a durable PostgreSQL 14+ database for production account creation.
 `AUTH_SECRET` must be a long random secret in production.
 `NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
