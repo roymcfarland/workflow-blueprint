@@ -2,6 +2,18 @@
 
 > This document is the authoritative source of truth for the Builder, Closeout, and Verifier agents operating on this repository. When this document conflicts with other files (README.md, package.json, inline comments, etc.), this document wins and the conflicting file should be corrected in the same PR that surfaces the conflict.
 
+### How to use this document
+
+- **Builder agents:** Read this document before writing code to understand the product's scope, non-goals, and architectural rules. Do not propose PRs that violate these rules.
+- **Verifier agents:** Use this document as the ground truth for auditing PRs. Enforce the rules listed under "Open questions (resolved)" and reject PRs that introduce out-of-scope features listed under "Non-goals."
+
+### Document map
+
+- `PROJECT.md` (this file) — Strategic: what the product is, what is out of scope, and durable rules for PRs.
+- `AGENTS.md` — Tactical: operational quickstart for AI agents (how to run the dev server, required services, environment variables).
+- `CLAUDE.md` — Pointer file directing Claude Code to read `AGENTS.md`.
+- `README.md` — Human-facing documentation, setup instructions, and API contracts.
+
 ---
 
 ## Purpose
@@ -155,8 +167,9 @@ The schema and code stay portable across any Postgres 14+ host. Supabase is the 
 When agents encounter conflicts between this document and other files in the repository, the order of authority is:
 
 1. **This PROJECT.md** (authoritative for intent, scope, non-goals, and the resolved open questions above).
-2. **`README.md`** (authoritative for contributor conventions not covered here).
-3. **`package.json`, schema files, CI config** (authoritative for the technical facts they encode, subject to corrections required by this document).
-4. **Inline code comments** (lowest authority; must be corrected when they contradict the above).
+2. **`AGENTS.md`** (authoritative for tactical execution: how to run the app locally, required services, and dev environment gotchas).
+3. **`README.md`** (authoritative for human-facing contributor conventions and API contracts not covered here).
+4. **`package.json`, schema files, CI config** (authoritative for the technical facts they encode, subject to corrections required by this document).
+5. **Inline code comments** (lowest authority; must be corrected when they contradict the above).
 
 Any PR that surfaces a conflict between these sources must resolve the conflict in the same PR, not defer it.
