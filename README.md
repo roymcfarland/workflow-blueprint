@@ -5,7 +5,7 @@ Workflow Blueprint is a Next.js App Router task planning workspace with self-ser
 ## Stack
 
 - Next.js 16 App Router and React 19
-- Prisma 6 with Supabase Postgres persistence
+- Prisma 6 with PostgreSQL persistence (currently hosted on Supabase)
 - Tailwind CSS 4 with custom blueprint design tokens
 - Zod validation on all API payloads
 - Signed HTTP-only session cookies with `jose`
@@ -60,9 +60,9 @@ Use a durable Supabase project database for production account creation.
 `READ_ONLY_API_KEY` enables the private read-only API. `READ_ONLY_USER_ID` selects which account is exposed through that API and defaults to the seeded demo user when omitted.
 `EXTERNAL_API_KEY` enables the external `/api/external/daily-summary` route consumed by `www.roymcfarland.news`. If it is unset, that route also accepts the same secret as `READ_ONLY_API_KEY` so one key can unlock both private APIs. When `EXTERNAL_API_KEY` is set, only it is checked for the daily summary (the read-only API still uses `READ_ONLY_API_KEY`). `EXTERNAL_USER_ID` selects which account that route surfaces; when unset it falls back to `READ_ONLY_USER_ID`, and finally to the seeded demo user.
 
-## Supabase Database Setup
+## Database Setup
 
-Apply the checked-in Prisma migrations to the Supabase database before enabling signup:
+Apply the checked-in Prisma migrations to the database before enabling signup:
 
 ```bash
 npm run db:deploy
@@ -74,7 +74,7 @@ For a brand-new database, optionally seed the demo account:
 npm run db:seed
 ```
 
-If the Supabase runtime URL uses a pooler and migration deployment fails, temporarily run `npm run db:deploy` with the direct Supabase Postgres connection string in `DATABASE_URL`, then keep the Vercel runtime `DATABASE_URL` pointed at the connection string you use for serverless traffic.
+If the database runtime URL uses a pooler and migration deployment fails, temporarily run `npm run db:deploy` with the direct connection string in `DATABASE_URL`, then keep the Vercel runtime `DATABASE_URL` pointed at the connection string you use for serverless traffic.
 
 ## Private Read-Only API
 
@@ -163,6 +163,14 @@ npm run db:seed      # seed the demo account and boards
 ```
 
 Vercel automatically runs `vercel-build` instead of `build` when it is present, so each production deployment applies any pending Prisma migrations before the new code starts handling requests. Local `npm run build` deliberately does not migrate so it cannot accidentally touch a remote database.
+
+## License
+
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
+
+This is a source-available license that permits personal use, research, and non-commercial projects. **Commercial use is strictly prohibited without express written permission from Roy McFarland.**
+
+See the [LICENSE](./LICENSE) file for the full text.
 
 ## Security Notes
 

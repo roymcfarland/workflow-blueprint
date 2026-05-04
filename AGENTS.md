@@ -12,7 +12,7 @@ This is a single Next.js 16 app (not a monorepo). The only required backing serv
 
 | Service | Required | Notes |
 |---|---|---|
-| PostgreSQL 16 | Yes | Local instance; `DATABASE_URL` in `.env.local` |
+| PostgreSQL 14+ | Yes | Local instance; `DATABASE_URL` in `.env.local` |
 | Next.js dev server | Yes | `npm run dev` (binds to `127.0.0.1:3000`) |
 | Resend email API | No | Omit in dev; password-reset links are shown inline |
 
@@ -34,5 +34,5 @@ A `.env.local` file must exist with at least `DATABASE_URL` and `AUTH_SECRET`. S
 
 - **Invite-only sign-up**: New user registration requires a valid invitation token. For testing, sign in with the seeded demo account (`alex@workflowblueprint.app`) using the password set in `DEMO_USER_PASSWORD`.
 - **CSRF origin check**: Mutating API routes validate that the `Origin` header matches `NEXT_PUBLIC_SITE_URL`. Set this to `http://127.0.0.1:3000` in `.env.local` for local dev, or omit it (the check is lenient when the variable is unset in development).
-- **PostgreSQL must be running** before `npm run dev`, `npm run db:deploy`, or `npm run db:seed`. Start it with `pg_ctlcluster 16 main start`.
+- **PostgreSQL must be running** before `npm run dev`, `npm run db:deploy`, or `npm run db:seed`. Start it with your local Postgres runner (e.g., `pg_ctlcluster 14 main start` or Docker).
 - **`postinstall` generates Prisma Client**: `npm install` automatically runs `prisma generate`, so the Prisma Client is always up to date after dependency installation.
