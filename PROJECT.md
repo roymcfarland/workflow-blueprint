@@ -14,6 +14,32 @@
 - `CLAUDE.md` — Pointer file directing Claude Code to read `AGENTS.md`.
 - `README.md` — Human-facing documentation, setup instructions, and API contracts.
 
+### Active agent tooling
+
+- **Builder:** OpenAI Codex (cloud agent that opens PRs autonomously).
+- **Verifier:** Cursor (used by the human reviewer in-IDE to spot-check Codex PRs before merge). The repo owner is the final approver on every PR.
+
+---
+
+## PR sequencing (active roadmap)
+
+The resolved Open Questions below commit this codebase to four sequenced pull requests. Builder agents must respect this sequencing. Do not start work on a later PR before the prior PR has merged.
+
+| PR | Title | Scope | Blocked by |
+|---|---|---|---|
+| **PR 1** | Test harness + CI | Vitest, three smoke tests, three representative unit/integration tests, ephemeral Postgres for tests, `.github/workflows/ci.yml` (lint/test/smoke jobs), `.nvmrc` and `engines.node` pinned to 22.11.x, `package.json` `"license": "PolyForm-Noncommercial-1.0.0"`. **Must not modify any `src/app/api/external/*` route shapes or any feature code.** | None |
+| **PR 2** | External API v1 expansion | New `src/lib/external-api.ts` shared module; new routes `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`; alias `/api/external/daily-summary` → `/api/external/v1/daily-summary`; updated README OpenAPI section. **Every new endpoint must ship with its tests in the same PR** (Q1 hard-fail rule). | PR 1 |
+| **PR 3** | Consumer migration | Update `www.roymcfarland.news` briefing job (in its own repo) to use `EXTERNAL_API_KEY` and the v1 endpoint paths. Verify in production before opening PR 4. | PR 2 |
+| **PR 4** | Read-only deprecation cleanup | Remove the `READ_ONLY_API_KEY` fallback in `/api/external/v1/daily-summary`; mark `/api/read-only/*` deprecated in PROJECT.md; bump warnings on any code that still imports from `/api/read-only/*`. | PR 3 |
+
+### Builder guardrails for the PR 1 → PR 2 transition
+
+The Verifier rule under Q1 hard-fails any PR that modifies `src/app/api/**`, `src/lib/data.ts`, `src/lib/validators.ts`, or `src/lib/auth.ts` without test changes. This rule starts being enforceable the moment PR 1 merges. Therefore:
+
+- **PR 1 must not** add or modify any of the protected paths above (it only adds tests, CI, and pinning). PR 1 is exempt from the rule because it is the rule's enabling change.
+- **PR 2 and beyond** must ship endpoint-and-test pairs together. Adding a new external route without an accompanying test for it is an automatic Verifier reject. Adding a new validator schema without a test is an automatic Verifier reject.
+- **No "tests come in a follow-up PR" PRs are accepted.** If a PR's test coverage is insufficient, the missing tests must be added to that same PR before merge.
+
 ---
 
 ## Purpose
