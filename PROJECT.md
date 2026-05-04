@@ -1,6 +1,14 @@
+# PROJECT.md
+
+> This document is the authoritative source of truth for the Builder, Closeout, and Verifier agents operating on this repository. When this document conflicts with other files (README.md, package.json, inline comments, etc.), this document wins and the conflicting file should be corrected in the same PR that surfaces the conflict.
+
+---
+
 ## Purpose
 
-Workflow Blueprint is an invite-gated task planning workspace where authenticated users organize boards, tasks, subtasks, due dates, priorities, and board notes; it also provides dashboard rollups, profile/theme settings, admin-managed invitations, and private JSON endpoints for selected planning data.
+Workflow Blueprint is an invite-gated task planning workspace where authenticated users organize boards, tasks, subtasks, due dates, priorities, and board notes. It provides dashboard rollups, profile/theme settings, and admin-managed invitations through a server-rendered web app, and exposes its planning data to external consumers (such as the morning briefing job at `www.roymcfarland.news`) through a versioned, key-authenticated external API. Workflow Blueprint is a source-available product licensed under the PolyForm Noncommercial 1.0.0 license, permitting personal and non-commercial use while reserving commercial rights.
+
+---
 
 ## Stack
 
@@ -12,9 +20,13 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
 - Runtime versions: exact Node.js runtime is not declared; `@types/node` is `^20` and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
 
+---
+
 ## Architecture
 
 The app is organized as a Next.js App Router application under `src/app`: root metadata and providers are in `src/app/layout.tsx`, the public sign-in page is `src/app/page.tsx`, and authenticated pages are wrapped by `src/app/(app)/layout.tsx`. Protected server pages call auth helpers, load user-scoped snapshots from `src/lib/data.ts`, and render feature components such as `src/components/dashboard-overview.tsx` and `src/components/board-workspace.tsx` (`src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`, `src/lib/auth.ts`). API routes live under `src/app/api` and share same-origin checks, Zod request parsing, auth/admin gates, and rate limiting through `src/lib/api.ts`, then delegate mutations and queries to `src/lib/data.ts` (`src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`). Prisma models and enums define users, boards, tasks, subtasks, notes, invitations, rate-limit buckets, and admin audit logs in `prisma/schema.prisma`, while domain constants and serialization live in `src/lib/domain.ts` and `src/lib/data.ts`. Security headers are configured globally in `next.config.ts`, while HTML page responses get nonce-based CSP handling through `src/proxy.ts`.
+
+---
 
 ## Conventions
 
@@ -27,16 +39,124 @@ The app is organized as a Next.js App Router application under `src/app`: root m
 - Domain enums, labels, theme mappings, board definitions, and cookie names live in `src/lib/domain.ts` and are reused by validators and UI code (`src/lib/validators.ts`, `src/components/board-workspace.tsx`).
 - Invitation tokens are generated as random bytes, stored as SHA-256 hashes, and accepted atomically in the same transaction that creates the user (`src/lib/data.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/admin/invitations/route.ts`).
 
+---
+
 ## Non-goals
 
-- Open public self-service registration: sign-up requires an invitation token, invalid invitations are rejected, and invitation creation is admin-gated (`src/lib/validators.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/admin/invitations/route.ts`).
-- Browser-oriented cross-origin use of the private read-only API: the README states the read-only API is intentionally not CORS-enabled, and the implementation uses key-based access with `no-store`/`noindex` response headers (`README.md`, `src/lib/read-only-api.ts`).
-- Broader product and roadmap non-goals: TBD — human to fill in.
+The following are explicitly **out of scope** for this product. Agents should reject or flag work that moves the codebase in any of these directions unless this document is updated first.
 
-## Open questions for the human
+- **Not open public self-service registration** — sign-up requires an admin-issued invitation token; admin-gated invitation creation.
+- **Not a browser-oriented cross-origin API surface** — the external API is intentionally not CORS-enabled and uses key-based auth with `no-store`/`noindex` headers.
+- **Not a team, multi-tenant, or enterprise tool** — invitations and data are per-user; no orgs, workspaces, shared boards, or B2B admin surfaces.
+- **Not a realtime collaboration tool** — no websockets, presence, shared editing, or simultaneous board editing.
+- **Not a public or open API** — the `/api/external/v1/*` surface is auth-gated and intended only for consumers under the project owner's control.
+- **Not a native mobile app within this codebase** — the planned native mobile experience will be a separate-repo consumer of `/api/external/v1/*`. This repo will house only the web app and the API; native mobile code (React Native, Swift, Kotlin) is forbidden here. The external API will evolve to support per-user authentication and read/write operations as the mobile app's needs are defined; that evolution is planned but not in scope for the install PR.
+- **Not a mind-mapping or visual-canvas tool today** — boards are list-based with hierarchical tasks and subtasks; freeform 2D mind maps, node-and-edge canvases, and graph visualizations are explicitly deferred. This requires a PROJECT.md update before any PR introduces canvas/graph rendering libraries (e.g., react-flow, cytoscape, d3-force) or a mind-map data model.
 
-- No test files matching `*test*` or `*spec*` and no `test` script were found; is automated testing intentionally absent, or is the harness still pending?
-- No `.github` CI config was present; is Vercel the only build/deploy gate, or is CI configured somewhere outside the repository?
-- Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
-- Is Supabase Postgres mandatory for production, or is any PostgreSQL-compatible database acceptable? `README.md` names Supabase, while `prisma/schema.prisma` declares a generic PostgreSQL datasource.
-- Is `src/app/api/external/daily-summary/route.ts` intended to be a stable private integration contract, or a one-off endpoint for the current external consumer?
+---
+
+## Open questions (resolved)
+
+The following questions were raised by static analysis of the repository and have been answered here. Agents should treat these answers as durable unless this document is updated.
+
+### Q1. No test files matching `*test*` or `*spec*` and no `test` script were found; is automated testing intentionally absent, or is the harness still pending?
+
+**Answer: Tests are required and layered.**
+
+Three layers of automated checks are required, each with distinct Verifier behavior. The test harness must land before any further feature work.
+
+**Sequencing / required corrections:**
+- Add Vitest and configure it.
+- Add `test`, `test:watch`, and `test:smoke` scripts to `package.json`.
+- Add one representative test per critical layer (one API route, one `data.ts` transaction, one Zod validator).
+- Add three smoke tests (homepage, read-only API, external daily-summary API).
+- Use an ephemeral test database (Supabase branch or local Postgres in Docker), not Prisma mocks.
+
+**Verifier behavior:**
+- **Hard-fail** any PR where `npm run lint` fails.
+- **Hard-fail** any PR where `npm run test:smoke` fails.
+- **Hard-fail** any PR that changes `src/app/api/**`, `src/lib/data.ts`, `src/lib/validators.ts`, or `src/lib/auth.ts` without test changes.
+- **Warn** on unrelated test breakage (could be flaky).
+
+### Q2. No `.github` CI config was present; is Vercel the only build/deploy gate, or is CI configured somewhere outside the repository?
+
+**Answer: CI is GitHub Actions + Vercel preview, both required.**
+
+Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration tests) and the Vercel preview build before merge.
+
+**Sequencing / required corrections:**
+- Add `.github/workflows/ci.yml` with three parallel jobs (`lint`, `test`, `smoke`).
+- Add a Postgres service container in the `test` job for the ephemeral DB.
+- Use `node-version-file: '.nvmrc'` in the workflow.
+
+**Verifier behavior:**
+- **Hard-fail** any PR that deletes/disables `.github/workflows/ci.yml` or removes a job.
+- **Hard-fail** any PR that uses admin merge-without-checks without a PROJECT.md emergency note.
+- **Warn** on new env-var code paths without matching CI `env:` entries.
+
+### Q3. Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
+
+**Answer: Node 22.11.x, enforced across four files.**
+
+All contributors and all deploys run Node 22.11.x. Patches flow automatically; minor bumps require a deliberate PR.
+
+**Sequencing / required corrections:**
+- Add `"engines": { "node": "22.11.x" }` to `package.json`.
+- Add `.nvmrc` file at repo root containing `22.11`.
+- Ensure `.github/workflows/ci.yml` uses `node-version-file: '.nvmrc'`.
+
+**Verifier behavior:**
+- **Hard-fail** any PR where `package.json engines.node`, `.nvmrc`, and the CI workflow's Node version are not consistent.
+- **Hard-fail** any PR that removes any of those three pin sites.
+- **Warn** to confirm Vercel still matches before merging Node version bumps.
+
+### Q4. Is Supabase Postgres mandatory for production, or is any PostgreSQL-compatible database acceptable?
+
+**Answer: Generic PostgreSQL, currently hosted on Supabase.**
+
+The schema and code stay portable across any Postgres 14+ host. Supabase is the recommended and current production host but is not a hard requirement.
+
+**Sequencing / required corrections:**
+- README: change "Prisma 6 with **Supabase Postgres** persistence" to "Prisma 6 with **PostgreSQL** persistence (currently hosted on Supabase)".
+- README "Supabase Database Setup" section: rename to "Database Setup" and reframe Supabase as a recommended example, not the only path.
+
+**Verifier behavior:**
+- **Hard-fail** any PR that introduces Supabase RLS policies, `supabase-js` imports, or calls to Supabase Realtime / Storage / Edge Functions / Auth.
+- **Hard-fail** any PR that adds Postgres extensions Supabase doesn't support, or that bumps the schema beyond Postgres 15 features.
+- **Warn** if a PR adds connection-string handling beyond the existing `DATABASE_URL` / `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` set.
+
+### Q5. Is `src/app/api/external/daily-summary/route.ts` intended to be a stable private integration contract, or a one-off endpoint for the current external consumer?
+
+**Answer: Stable versioned external API; v1 expanded across four endpoints.**
+
+`/api/external/*` is a versioned stable contract (v1 today, path-based versioning). v1 expands beyond the existing daily-summary to mirror the read-only API surface, serving both the current briefing job consumer and the future second consumer.
+
+**Sequencing / required corrections:**
+- Create a shared module (`src/lib/external-api.ts`) for external v1 routes.
+- Add `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`.
+- Add alias `/api/external/daily-summary` to `/api/external/v1/daily-summary`.
+- Update README OpenAPI section to cover all four v1 endpoints.
+- Migrate `www.roymcfarland.news` to use `EXTERNAL_API_KEY` and the v1 endpoints.
+- Remove `READ_ONLY_API_KEY` fallback in the external route after migration.
+- Mark `/api/read-only/*` deprecated in PROJECT.md.
+
+**Verifier behavior:**
+- **Hard-fail** any PR that changes the response shape of any `/api/external/v1/*` endpoint without an accompanying README OpenAPI update and a PR description note confirming consumer coordination.
+- **Hard-fail** any PR that removes the `force-dynamic`, `revalidate = 0`, or `Cache-Control: no-store` directives on external routes.
+- **Hard-fail** any PR that introduces a new external endpoint outside the `/api/external/v{N}/` namespace.
+- **Warn** on additive changes (new fields).
+- **Warn** on new code that depends on `/api/read-only/*` (deprecated path).
+- **Warn** on PRs touching the `READ_ONLY_API_KEY` fallback in the external route.
+
+---
+
+## Authority and precedence
+
+When agents encounter conflicts between this document and other files in the repository, the order of authority is:
+
+1. **This PROJECT.md** (authoritative for intent, scope, non-goals, and the resolved open questions above).
+2. **`README.md`** (authoritative for contributor conventions not covered here).
+3. **`package.json`, schema files, CI config** (authoritative for the technical facts they encode, subject to corrections required by this document).
+4. **Inline code comments** (lowest authority; must be corrected when they contradict the above).
+
+Any PR that surfaces a conflict between these sources must resolve the conflict in the same PR, not defer it.
