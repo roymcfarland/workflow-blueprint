@@ -133,7 +133,7 @@ export function buildExternalOpenApiSpec() {
     tags: [
       {
         name: "External API v1",
-        description: "Bearer-token authenticated read surface under /api/external/v1/*.",
+        description: "Bearer-token authenticated GET endpoints under /api/external/v1/*.",
       },
     ],
     paths: {

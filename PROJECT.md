@@ -11,8 +11,8 @@
 
 - `PROJECT.md` (this file) — Strategic: what the product is, what is out of scope, and durable rules for PRs.
 - `AGENTS.md` — Tactical: operational quickstart for AI agents (how to run the dev server, required services, environment variables).
-- `CLAUDE.md` — Pointer file directing Claude Code to read `AGENTS.md`.
 - `README.md` — Human-facing documentation, setup instructions, and API contracts.
+- `CASE_STUDY.md` — Walkthrough of one PR (#13) end-to-end: prompt, diff, Verifier rule it triggered, and resolution. Read this if you are evaluating the multi-agent workflow itself.
 
 ### Active agent tooling
 
@@ -47,6 +47,7 @@ The Q1 test-coverage rule has been enforceable since PR 1 (`#7`) merged. It appl
 - Any PR that modifies `src/app/api/**`, `src/lib/data.ts`, `src/lib/validators.ts`, or `src/lib/auth.ts` must include test changes in the same PR. Adding a new external route, validator schema, or data-layer transaction without an accompanying test is an automatic Verifier reject.
 - **No "tests come in a follow-up PR" PRs are accepted.** If a PR's test coverage is insufficient, the missing tests must be added to that same PR before merge.
 - Documentation-only PRs (no changes outside `*.md` files) are exempt from the test-coverage rule but must still pass `npm run lint` if linting covers Markdown.
+- **PR size is judged by review surface, not raw line count.** Test-harness, lockfile, and dependency-bootstrap PRs (e.g., `#7`, `#14`) are intentionally larger because they are gated by reviewer attention rather than by feature scope; small-PR discipline applies to feature and contract changes, not to one-time scaffolding.
 
 ---
 

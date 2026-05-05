@@ -1,6 +1,28 @@
 # Workflow Blueprint
 
-Workflow Blueprint is an invite-gated Next.js App Router task planning workspace with admin-issued invitations, board-based task management, notes, profile settings, and Resend-backed transactional email.
+Workflow Blueprint is an invite-gated Next.js App Router task planning workspace with admin-issued invitations, board-based task management, notes, profile settings, Resend-backed transactional email, and a key-authenticated external API (`/api/external/v1/*`) that other projects under the owner's control consume.
+
+The live deployment is at [https://www.workflowblueprint.io](https://www.workflowblueprint.io).
+
+## What this repo demonstrates
+
+This repository is published as a **showcase of a multi-agent development workflow with PR-level guardrails**, not just as a working product. The artifacts of that workflow are checked in alongside the code:
+
+- **Strategic source of truth.** [`PROJECT.md`](./PROJECT.md) defines the product's purpose, non-goals, and the resolved open questions (Q1–Q6) that act as durable Verifier rules. Any PR that violates these rules is an automatic reject.
+- **Tactical agent runbook.** [`AGENTS.md`](./AGENTS.md) is the operational quickstart that Builder agents (OpenAI Codex) read before writing code, plus dev-environment gotchas.
+- **Walked-through case study.** [`CASE_STUDY.md`](./CASE_STUDY.md) traces a single PR (`#13`) end-to-end: the Builder prompt, the diff Codex returned, the Verifier rule it triggered (the Q6 scope-discipline rule), and how the rule itself was born from that PR.
+- **Machine-readable API contract with CI drift detection.** [`docs/openapi.yaml`](./docs/openapi.yaml) is generated from Zod schemas in [`src/lib/external-contract.ts`](./src/lib/external-contract.ts); a CI test (`tests/api/external/openapi.test.ts`) fails any PR where the committed spec diverges from the schemas.
+- **Real CI gates, not vibes.** [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs three parallel jobs (`lint`, `test`, `smoke`) on every PR, with a Postgres service container backing the integration and smoke suites.
+
+The most informative entry points are [`PROJECT.md`](./PROJECT.md), the merged PR history (especially `#7`, `#10`, `#13`, and `#14`), and [`CASE_STUDY.md`](./CASE_STUDY.md).
+
+## What I would do differently
+
+A short, honest retrospective. Three things I would change if I were starting this repo over today:
+
+1. **Write `PROJECT.md` on day one, not at PR 5.** The Builder/Verifier handoff was installed in `#5` after several feature PRs had already merged. Several of those earlier PRs would have been smaller and more focused if the scope-discipline rule (Q6) had existed when they were prompted. Lesson: the strategic document should be the *first* commit, even when its contents are still rough.
+2. **Adopt path-versioned external APIs from the first endpoint.** The original API lived at `/api/external/daily-summary` and `/api/read-only/*`. Migrating to `/api/external/v1/*` required PR 3 (consumer migration in another repo) and PR 4 (legacy alias removal) before the contract could be cleanly versioned. Starting with `/v1/` from day one would have eliminated both PRs.
+3. **Treat the Builder prompt as a reviewable artifact.** Q6 ("out-of-scope changes must be declared in the PR body") only became enforceable after `#13` shipped a correct-but-unauthorized SQL rewrite. If the Builder prompt itself were checked into the PR description from the start, scope drift would be auditable from day one rather than caught reactively.
 
 ## Stack
 

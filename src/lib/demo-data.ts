@@ -166,22 +166,22 @@ const brightlineLabsBoard: DemoBoardSeed = {
   ],
 };
 
-const elevatedOrganicsBoard: DemoBoardSeed = {
-  slug: "elevated-organics",
+const fieldOpsBoard: DemoBoardSeed = {
+  slug: "field-ops",
   noteLines: [
     "Protect launch quality.",
     "Streamline vendor ops.",
-    "Keep retail stories crisp.",
+    "Keep field stories crisp.",
     "Close the loop quickly.",
   ],
   tasks: [
-    createTask("ICE_BOX", "Test seasonal SKU concepts"),
+    createTask("ICE_BOX", "Scope new SKU concepts"),
     createTask("ICE_BOX", "Research event partnerships"),
-    createTask("ICE_BOX", "Outline farm-tour playbook"),
+    createTask("ICE_BOX", "Outline site-tour playbook"),
     createTask("ON_DECK", "Prep vendor renegotiation"),
     createTask("ON_DECK", "Organize sample inventory"),
-    createTask("ON_DECK", "Draft education series"),
-    createTask("IN_PROGRESS", "Refresh product labels", {
+    createTask("ON_DECK", "Draft training series"),
+    createTask("IN_PROGRESS", "Refresh packaging artwork", {
       description: "Bring all primary packaging into the latest compliance and retail-ready standard.",
       dueInDays: 6,
       subtasks: [
@@ -190,18 +190,18 @@ const elevatedOrganicsBoard: DemoBoardSeed = {
         { title: "Lock retail barcode" },
       ],
     }),
-    createTask("IN_PROGRESS", "Coordinate Earth Day event"),
+    createTask("IN_PROGRESS", "Coordinate quarterly field event"),
     createTask("IN_PROGRESS", "Update DTC fulfillment SOP"),
     createTask("DONE", "Submit vendor forms", { completedDaysAgo: 1 }),
     createTask("DONE", "Approve invoice batch", { completedDaysAgo: 6 }),
-    createTask("DONE", "Clean greenhouse notes", { completedDaysAgo: 11 }),
-    createTask("ARCHIVED", "Past harvest recap", { archivedDaysAgo: 28 }),
+    createTask("DONE", "Clean operations notes", { completedDaysAgo: 11 }),
+    createTask("ARCHIVED", "Past quarter recap", { archivedDaysAgo: 28 }),
     createTask("ARCHIVED", "2024 expo leads", { archivedDaysAgo: 40 }),
-    createTask("ARCHIVED", "Closed tasting requests", { archivedDaysAgo: 64 }),
+    createTask("ARCHIVED", "Closed sample requests", { archivedDaysAgo: 64 }),
   ],
 };
 
-export const demoBoardSeeds = [personalBoard, brightlineLabsBoard, elevatedOrganicsBoard];
+export const demoBoardSeeds = [personalBoard, brightlineLabsBoard, fieldOpsBoard];
 
 export function expandDemoSeed() {
   return demoBoardSeeds.map((board, boardIndex) => {

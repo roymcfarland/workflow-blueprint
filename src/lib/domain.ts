@@ -68,10 +68,10 @@ export const boardDefinitions = [
     description: "Growth, product, and operations work for Brightline Labs.",
   },
   {
-    slug: "elevated-organics",
-    name: "Elevated Organics",
-    iconKey: "organics",
-    description: "Launch, operations, and retail coordination for Elevated Organics.",
+    slug: "field-ops",
+    name: "Field Ops",
+    iconKey: "target",
+    description: "Cross-team operations, vendor coordination, and launch readiness work.",
   },
 ] as const;
 
@@ -79,7 +79,7 @@ export type BoardSlug = (typeof boardDefinitions)[number]["slug"];
 
 const boardAccentColors: Record<string, string> = {
   "brightline-labs": "#c94f7c",
-  "elevated-organics": "#2f9f85",
+  "field-ops": "#2f9f85",
   personal: "#4f78e6",
 };
 
