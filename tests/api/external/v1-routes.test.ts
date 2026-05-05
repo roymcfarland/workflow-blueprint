@@ -20,6 +20,25 @@ import {
 import { evaluateRateLimit } from "@/lib/rate-limit";
 import { resetDatabase, seedPlanningData } from "../../helpers/database";
 
+type MockSentryScope = {
+  setContext(name: string, context: Record<string, unknown>): void;
+  setTag(name: string, value: string): void;
+};
+
+const sentryMock = vi.hoisted(() => ({
+  captureException: vi.fn(),
+  captureRequestError: vi.fn(),
+  init: vi.fn(),
+  withScope: vi.fn((callback: (scope: MockSentryScope) => void) => {
+    callback({
+      setContext: vi.fn(),
+      setTag: vi.fn(),
+    });
+  }),
+}));
+
+vi.mock("@sentry/nextjs", () => sentryMock);
+
 const uuidV4Pattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const externalRateLimit = {
@@ -80,6 +99,19 @@ function structuredLog(index = 0) {
   return JSON.parse(structuredLogLine(index)) as StructuredExternalApiLog;
 }
 
+function resetSentryMock() {
+  sentryMock.captureException.mockReset();
+  sentryMock.withScope.mockReset();
+  sentryMock.withScope.mockImplementation(
+    (callback: (scope: MockSentryScope) => void) => {
+      callback({
+        setContext: vi.fn(),
+        setTag: vi.fn(),
+      });
+    },
+  );
+}
+
 async function expectJsonContract<T>(response: Response, schema: ZodType<T>) {
   const body = await response.json();
   const parsed = schema.safeParse(body);
@@ -114,6 +146,7 @@ describe("external v1 route contracts", () => {
 
     consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    resetSentryMock();
   });
 
   afterEach(() => {
@@ -246,6 +279,69 @@ describe("external v1 route contracts", () => {
     expect(log.status).toBe(200);
     expect(Number.isInteger(log.durationMs)).toBe(true);
     expect(log.outcome).toBe("ok");
+  });
+
+  test("withExternalApiObservability returns a 500 NextResponse with X-Request-Id when the handler throws", async () => {
+    consoleErrorSpy.mockImplementation(() => {});
+
+    const response = await withExternalApiObservability(
+      externalGetRequest("/api/external/v1/dashboard"),
+      "/api/external/v1/dashboard",
+      async () => {
+        throw new Error("simulated handler failure");
+      },
+    );
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get("X-Request-Id")).toMatch(uuidV4Pattern);
+    expect(response.headers.get("X-RateLimit-Limit")).toBe("120");
+    expect(response.headers.get("X-RateLimit-Remaining")).toMatch(/^\d+$/);
+    expect(response.headers.get("X-RateLimit-Reset")).toMatch(/^\d+$/);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(response.headers.get("X-Internal-Outcome")).toBeNull();
+    await expect(response.json()).resolves.toEqual({
+      error: "Internal server error.",
+      ok: false,
+    });
+
+    const log = structuredLog();
+    expect(log.outcome).toBe("server_error");
+    expect(log.status).toBe(500);
+    expect(log.requestId).toBe(response.headers.get("X-Request-Id"));
+  });
+
+  test("withExternalApiObservability calls Sentry.captureException on uncaught throws", async () => {
+    consoleErrorSpy.mockImplementation(() => {});
+
+    await withExternalApiObservability(
+      externalGetRequest("/api/external/v1/dashboard"),
+      "/api/external/v1/dashboard",
+      async () => {
+        throw new Error("simulated handler failure");
+      },
+    );
+
+    expect(sentryMock.captureException).toHaveBeenCalledTimes(1);
+    expect(sentryMock.captureException.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+  });
+
+  test("withExternalApiObservability still returns a 500 NextResponse when Sentry capture itself throws", async () => {
+    consoleErrorSpy.mockImplementation(() => {});
+    sentryMock.captureException.mockImplementation(() => {
+      throw new Error("Sentry exploded");
+    });
+
+    const response = await withExternalApiObservability(
+      externalGetRequest("/api/external/v1/dashboard"),
+      "/api/external/v1/dashboard",
+      async () => {
+        throw new Error("simulated handler failure");
+      },
+    );
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get("X-Request-Id")).toMatch(uuidV4Pattern);
   });
 
   test("GET /api/external/v1/dashboard returns a fresh request ID per request", async () => {

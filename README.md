@@ -57,6 +57,14 @@ Use a durable PostgreSQL 14+ database for production account creation.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
 `EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to the seeded demo user.
 
+Optional server-side Sentry settings:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `SENTRY_DSN` | No | Enables Sentry server-side error capture when set. Leave unset for local dev. |
+| `SENTRY_ENVIRONMENT` | No | Override for the Sentry environment tag. Defaults to `VERCEL_ENV` or `"development"`. |
+| `SENTRY_RELEASE` | No | Override for the Sentry release tag. Defaults to `VERCEL_GIT_COMMIT_SHA`. |
+
 ## Database Setup
 
 Apply the checked-in Prisma migrations to the database before enabling signup:
@@ -80,6 +88,8 @@ The external API exposes the configured user's planning data for project-owned c
 The authoritative machine-readable API reference is [`docs/openapi.yaml`](./docs/openapi.yaml). The examples below are a human-readable summary of that contract.
 
 Every response from `/api/external/v1/*` includes an `X-Request-Id` header (UUID v4) for log correlation. The same ID is written to a structured JSON log line on the server alongside the request route, status, duration, outcome, and a non-sensitive 8-character prefix of the API key used. Consumers may capture this header to trace client-side errors back to server logs.
+
+Server-side errors are also captured to Sentry when the `SENTRY_DSN` environment variable is set. Captured events include `requestId`, `route`, and `outcome` tags so they can be correlated with the structured log lines emitted by the external API wrapper. Authorization headers are stripped before any event leaves the server.
 
 Every response also includes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) so consumers can self-throttle. When the limit is exceeded, the API returns 429 with the standard `Retry-After` header.
 

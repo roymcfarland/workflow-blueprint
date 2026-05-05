@@ -34,6 +34,7 @@
     "@next/env": "^16.2.4",
     "@prisma/client": "^6.0.0",
     "@radix-ui/react-slot": "^1.2.4",
+    "@sentry/nextjs": "^10.51.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

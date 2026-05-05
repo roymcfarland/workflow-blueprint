@@ -34,6 +34,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **PR 3** | Consumer migration | (external repo) | `www.roymcfarland.news` briefing job migrated to `EXTERNAL_API_KEY` and the v1 endpoint paths in the `agentic-daily-briefing` repo. |
 | **PR 4** | Read-only deprecation cleanup | `#9` | Deleted the legacy `/api/external/daily-summary` alias and the entire `/api/read-only/*` surface; removed `READ_ONLY_API_KEY` and `READ_ONLY_USER_ID` from the codebase and from Vercel. The v1 contract under `/api/external/v1/*` is now the only supported external surface. |
 | **PR 5** | OpenAPI contract guard | `#10` | Added `docs/openapi.yaml` as the authoritative OpenAPI 3.1 reference for `/api/external/v1/*`, generated from `src/lib/external-contract.ts`; added a CI drift test that fails when the committed spec and Zod schemas diverge. |
+| **PR 7** | Rate-limit headers + resolved external user threading | `#13` | Exposed `X-RateLimit-*` headers on all `/api/external/v1/*` wrapper responses and threaded the resolved external user through the observability wrapper, closing the PR 7 follow-up from the external API observability sequence. |
 
 ### Active phase
 
@@ -192,6 +193,17 @@ The Verifier rules below remain in force.
 - **Hard-fail** any PR that introduces a new external endpoint outside the `/api/external/v{N}/` namespace.
 - **Hard-fail** any PR that re-introduces `READ_ONLY_API_KEY` or the `/api/external/daily-summary` route. The v1 contract under `/api/external/v1/*` is the only supported external surface.
 - **Warn** on additive changes (new fields).
+
+---
+
+### Q6. How should Builder agents handle changes outside their prompt's stated scope?
+**Answer: Out-of-scope changes must be either declared in the PR body or split into a separate PR.**
+Builder agents (Codex and similar) sometimes ship correct-but-unauthorized changes adjacent to the prompt's stated scope. PR #13 included a `bumpBucket` SQL rewrite that was not in the Builder prompt; on inspection the rewrite was a latent-bug fix, but the precedent is dangerous because the next out-of-scope change might be a regression rather than a fix. To preserve auditability and Verifier discipline, every PR's diff must be either fully covered by its Builder prompt or explicitly declared.
+**Verifier behavior:**
+- **Hard-fail** any PR whose diff includes file changes outside the Builder prompt's stated scope AND that are not enumerated in an "Out-of-scope changes (justified)" section in the PR body.
+- **Warn** if the "Out-of-scope changes (justified)" section is present but the justification is missing, perfunctory ("cleanup," "refactor"), or contradicted by the diff.
+- The Builder prompt MAY explicitly authorize broader latitude (e.g., "you may refactor adjacent helpers if needed for the new API"); changes that fall under such an authorization are in-scope by definition.
+- This rule applies to all PRs from the date of merge forward; existing merged PRs are not retroactively in violation.
 
 ---
 
