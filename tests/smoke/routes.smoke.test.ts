@@ -7,7 +7,6 @@ import {
   externalDailySummaryResponseSchema,
   externalDashboardResponseSchema,
 } from "@/lib/external-contract";
-import { readOnlyDashboardResponseSchema } from "@/lib/read-only-contract";
 import { resetDatabase, seedPlanningData } from "../helpers/database";
 import { startNextServer } from "./next-server";
 
@@ -54,18 +53,6 @@ describe("smoke routes", () => {
     expect(response.status).toBe(200);
   });
 
-  test("/api/read-only/dashboard returns 200 with a valid READ_ONLY_API_KEY", async () => {
-    const response = await fetch(server.url("/api/read-only/dashboard"), {
-      headers: {
-        authorization: `Bearer ${process.env.READ_ONLY_API_KEY}`,
-      },
-    });
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(readOnlyDashboardResponseSchema.safeParse(body).success).toBe(true);
-  });
-
   test.each(externalSmokeCases)(
     "$path returns 200 with a valid EXTERNAL_API_KEY",
     async ({ path, schema }) => {
@@ -82,15 +69,4 @@ describe("smoke routes", () => {
     },
   );
 
-  test("/api/external/daily-summary legacy alias returns 200", async () => {
-    const response = await fetch(server.url("/api/external/daily-summary"), {
-      headers: {
-        authorization: `Bearer ${process.env.EXTERNAL_API_KEY}`,
-      },
-    });
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(externalDailySummaryResponseSchema.safeParse(body).success).toBe(true);
-  });
 });

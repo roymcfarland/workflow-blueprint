@@ -67,37 +67,14 @@ function getExternalApiKey() {
   return process.env.EXTERNAL_API_KEY?.trim() ?? "";
 }
 
-function getDailySummaryApiKeys() {
-  const external = getExternalApiKey();
-  const readOnly = process.env.READ_ONLY_API_KEY?.trim() ?? "";
-
-  if (external) {
-    return [external];
-  }
-
-  if (readOnly) {
-    return [readOnly];
-  }
-
-  return [];
-}
-
-function getRequiredExternalApiKeys(allowReadOnlyFallback: boolean) {
-  if (allowReadOnlyFallback) {
-    return getDailySummaryApiKeys();
-  }
-
+function getRequiredExternalApiKeys() {
   const external = getExternalApiKey();
 
   return external ? [external] : [];
 }
 
 function externalUserId() {
-  return (
-    process.env.EXTERNAL_USER_ID?.trim() ||
-    process.env.READ_ONLY_USER_ID?.trim() ||
-    demoUser.id
-  );
+  return process.env.EXTERNAL_USER_ID?.trim() || demoUser.id;
 }
 
 function readBearerToken(request: Request): BearerResult {
@@ -227,10 +204,8 @@ export function externalApiJson<T>(schema: ZodType<T>, data: T, init?: ResponseI
 export async function requireExternalApiAccess(
   request: Request,
   {
-    allowReadOnlyFallback = false,
     rateLimitScope = "external-api",
   }: {
-    allowReadOnlyFallback?: boolean;
     rateLimitScope?: string;
   } = {},
 ): Promise<ApiResult<{ userId: string }>> {
@@ -243,7 +218,7 @@ export async function requireExternalApiAccess(
     };
   }
 
-  const expectedKeys = getRequiredExternalApiKeys(allowReadOnlyFallback);
+  const expectedKeys = getRequiredExternalApiKeys();
 
   if (expectedKeys.length === 0) {
     return {
@@ -413,7 +388,6 @@ export async function buildExternalDailySummary(
 
 export async function handleExternalDailySummary(request: Request) {
   const access = await requireExternalApiAccess(request, {
-    allowReadOnlyFallback: true,
     rateLimitScope: "external-daily-summary",
   });
 

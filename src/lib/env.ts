@@ -32,8 +32,6 @@ const baseEnvSchema = z.object({
   NEXT_PUBLIC_SITE_URL: optionalString,
   RESEND_API_KEY: optionalString,
   EMAIL_FROM: optionalString,
-  READ_ONLY_API_KEY: optionalString,
-  READ_ONLY_USER_ID: optionalString,
   EXTERNAL_API_KEY: optionalString,
   EXTERNAL_USER_ID: optionalString,
 });
