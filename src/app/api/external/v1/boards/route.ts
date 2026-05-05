@@ -1,7 +1,6 @@
 import { getBoardSummaries } from "@/lib/data";
 import {
   externalApiJson,
-  requireExternalApiUser,
   withExternalApiObservability,
 } from "@/lib/external-api";
 import { externalBoardsResponseSchema } from "@/lib/external-contract";
@@ -14,19 +13,13 @@ export async function GET(request: Request) {
   return withExternalApiObservability(
     request,
     "/api/external/v1/boards",
-    async ({ requestId }) => {
-      const user = await requireExternalApiUser(request, { requestId });
-
-      if (!user.ok) {
-        return user.response;
-      }
-
+    async ({ requestId, user }) => {
       return externalApiJson(
         externalBoardsResponseSchema,
         {
           ok: true,
           data: {
-            boards: await getBoardSummaries(user.data.userId),
+            boards: await getBoardSummaries(user.userId),
           },
         },
         undefined,

@@ -8,6 +8,14 @@ export type RateLimitOptions = {
   windowMs: number;
 };
 
+export type RateLimitDecision = {
+  limit: number;
+  remaining: number;
+  resetAt: Date;
+  limited: boolean;
+  retryAfterSeconds: number;
+};
+
 type BucketRow = {
   count: number;
   resetAt: Date;
@@ -21,39 +29,37 @@ async function maybeCleanupExpiredBuckets() {
   }
 
   try {
-    await prisma.rateLimitBucket.deleteMany({
-      where: {
-        resetAt: {
-          lt: new Date(Date.now() - 60 * 60 * 1000),
-        },
-      },
-    });
+    await prisma.$executeRaw`
+      DELETE FROM "RateLimitBucket"
+      WHERE "resetAt" < LOCALTIMESTAMP - INTERVAL '1 hour'
+    `;
   } catch (error) {
     console.error("Rate limit cleanup failed.", error);
   }
 }
 
 async function bumpBucket(key: string, windowMs: number): Promise<BucketRow> {
-  const newResetAt = new Date(Date.now() + windowMs);
-
   // Single atomic statement: insert a fresh bucket if none exists, otherwise
   // either reset the bucket (when its window has expired) or increment it.
   // Using a single SQL statement means concurrent invocations serialize on
   // the row lock from ON CONFLICT and cannot double-count.
   const rows = await prisma.$queryRaw<BucketRow[]>`
     INSERT INTO "RateLimitBucket" ("key", "count", "resetAt", "updatedAt")
-    VALUES (${key}, 1, ${newResetAt}, NOW())
+    VALUES (${key}, 1, LOCALTIMESTAMP + (${windowMs} * INTERVAL '1 millisecond'), NOW())
     ON CONFLICT ("key") DO UPDATE SET
       "count" = CASE
-        WHEN "RateLimitBucket"."resetAt" <= NOW() THEN 1
+        WHEN "RateLimitBucket"."resetAt" <= LOCALTIMESTAMP THEN 1
         ELSE "RateLimitBucket"."count" + 1
       END,
       "resetAt" = CASE
-        WHEN "RateLimitBucket"."resetAt" <= NOW() THEN ${newResetAt}
+        WHEN "RateLimitBucket"."resetAt" <= LOCALTIMESTAMP
+          THEN LOCALTIMESTAMP + (${windowMs} * INTERVAL '1 millisecond')
         ELSE "RateLimitBucket"."resetAt"
       END,
       "updatedAt" = NOW()
-    RETURNING "count", "resetAt"
+    RETURNING
+      "count",
+      "resetAt" AT TIME ZONE current_setting('TimeZone') AS "resetAt"
   `;
 
   const row = rows[0];
@@ -65,11 +71,15 @@ async function bumpBucket(key: string, windowMs: number): Promise<BucketRow> {
   return row;
 }
 
-export async function checkRateLimit({
+function retryAfterSecondsFor(resetAt: Date) {
+  return Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000));
+}
+
+export async function evaluateRateLimit({
   key,
   limit,
   windowMs,
-}: RateLimitOptions): Promise<NextResponse | null> {
+}: RateLimitOptions): Promise<RateLimitDecision> {
   let bucket: BucketRow;
 
   try {
@@ -78,25 +88,40 @@ export async function checkRateLimit({
     // Fail open: a database hiccup should not lock everyone out. The error
     // is logged so it surfaces in observability.
     console.error("Rate limit check failed; allowing request.", error);
-    return null;
+    return {
+      limit,
+      remaining: limit,
+      resetAt: new Date(Date.now() + windowMs),
+      limited: false,
+      retryAfterSeconds: Math.max(1, Math.ceil(windowMs / 1000)),
+    };
   }
 
   void maybeCleanupExpiredBuckets();
 
-  if (bucket.count <= limit) {
+  return {
+    limit,
+    remaining: Math.max(0, limit - bucket.count),
+    resetAt: bucket.resetAt,
+    limited: bucket.count > limit,
+    retryAfterSeconds: retryAfterSecondsFor(bucket.resetAt),
+  };
+}
+
+export async function checkRateLimit(
+  options: RateLimitOptions,
+): Promise<NextResponse | null> {
+  const decision = await evaluateRateLimit(options);
+
+  if (!decision.limited) {
     return null;
   }
-
-  const retryAfterSeconds = Math.max(
-    1,
-    Math.ceil((bucket.resetAt.getTime() - Date.now()) / 1000),
-  );
 
   return NextResponse.json(
     { message: "Too many attempts. Please try again shortly." },
     {
       headers: {
-        "Retry-After": String(retryAfterSeconds),
+        "Retry-After": String(decision.retryAfterSeconds),
       },
       status: 429,
     },

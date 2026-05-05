@@ -1,7 +1,6 @@
 import { getDashboardSnapshot } from "@/lib/data";
 import {
   externalApiJson,
-  requireExternalApiUser,
   withExternalApiObservability,
 } from "@/lib/external-api";
 import { externalDashboardResponseSchema } from "@/lib/external-contract";
@@ -14,14 +13,8 @@ export async function GET(request: Request) {
   return withExternalApiObservability(
     request,
     "/api/external/v1/dashboard",
-    async ({ requestId }) => {
-      const user = await requireExternalApiUser(request, { requestId });
-
-      if (!user.ok) {
-        return user.response;
-      }
-
-      const dashboard = await getDashboardSnapshot(user.data.userId);
+    async ({ requestId, user }) => {
+      const dashboard = await getDashboardSnapshot(user.userId);
 
       return externalApiJson(
         externalDashboardResponseSchema,

@@ -11,6 +11,11 @@ export async function GET(request: Request) {
   return withExternalApiObservability(
     request,
     "/api/external/v1/daily-summary",
-    async ({ requestId }) => handleExternalDailySummary(request, requestId),
+    async ({ requestId, user }) =>
+      handleExternalDailySummary(user.userId, requestId),
+    {
+      rateLimitScope: "external-daily-summary",
+      requireExistingUser: false,
+    },
   );
 }
