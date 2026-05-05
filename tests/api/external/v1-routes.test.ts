@@ -72,22 +72,13 @@ describe("external v1 route contracts", () => {
     await expectJsonContract(response, externalDailySummaryResponseSchema);
   });
 
-  test("GET /api/external/v1/daily-summary preserves the READ_ONLY_API_KEY fallback", async () => {
-    const originalExternalApiKey = process.env.EXTERNAL_API_KEY;
+  test("GET /api/external/v1/daily-summary rejects an invalid external key", async () => {
+    const response = await getDailySummary(
+      externalGetRequest("/api/external/v1/daily-summary", "invalid-key"),
+    );
+    const body = await response.json();
 
-    process.env.EXTERNAL_API_KEY = "";
-
-    try {
-      const response = await getDailySummary(
-        externalGetRequest(
-          "/api/external/v1/daily-summary",
-          process.env.READ_ONLY_API_KEY,
-        ),
-      );
-
-      await expectJsonContract(response, externalDailySummaryResponseSchema);
-    } finally {
-      process.env.EXTERNAL_API_KEY = originalExternalApiKey;
-    }
+    expect(response.status).toBe(403);
+    expect(body).toEqual({ ok: false, error: "Invalid API key." });
   });
 });

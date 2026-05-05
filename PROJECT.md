@@ -28,9 +28,9 @@ The resolved Open Questions below commit this codebase to four sequenced pull re
 | PR | Title | Scope | Blocked by |
 |---|---|---|---|
 | **PR 1** | Test harness + CI | Vitest, three smoke tests, three representative unit/integration tests, ephemeral Postgres for tests, `.github/workflows/ci.yml` (lint/test/smoke jobs), `.nvmrc` and `engines.node` pinned to 22.11.x, `package.json` `"license": "PolyForm-Noncommercial-1.0.0"`. **Must not modify any `src/app/api/external/*` route shapes or any feature code.** | None |
-| **PR 2** | External API v1 expansion | New `src/lib/external-api.ts` shared module; new routes `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`; alias `/api/external/daily-summary` → `/api/external/v1/daily-summary`; updated README OpenAPI section. **Every new endpoint must ship with its tests in the same PR** (Q1 hard-fail rule). | PR 1 |
+| **PR 2** | External API v1 expansion | New `src/lib/external-api.ts` shared module; new routes `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`; updated README OpenAPI section. **Every new endpoint must ship with its tests in the same PR** (Q1 hard-fail rule). | PR 1 |
 | **PR 3** | Consumer migration | Update `www.roymcfarland.news` briefing job (in its own repo) to use `EXTERNAL_API_KEY` and the v1 endpoint paths. Verify in production before opening PR 4. | PR 2 |
-| **PR 4** | Read-only deprecation cleanup | Remove the `READ_ONLY_API_KEY` fallback in `/api/external/v1/daily-summary`; mark `/api/read-only/*` deprecated in PROJECT.md; bump warnings on any code that still imports from `/api/read-only/*`. | PR 3 |
+| **PR 4** | Read-only deprecation cleanup | Remove the legacy read-only API surface after consumer migration completes; the v1 contract under `/api/external/v1/*` is the only supported external surface. | PR 3 |
 
 ### Builder guardrails for the PR 1 → PR 2 transition
 
@@ -70,7 +70,7 @@ The app is organized as a Next.js App Router application under `src/app`: root m
 
 - Imports use the `@/` alias for `src/*`; the alias is configured in `tsconfig.json` and used in `src/app/layout.tsx`, `src/app/api/auth/sign-up/route.ts`, and `src/components/board-workspace.tsx`.
 - API route handlers return `NextResponse.json(...)` payloads and use shared helpers before business logic: `parseJsonPayload`, `requireApiUser`/`requireApiAdmin`, `assertSameOriginRequest`, and `checkRateLimit` (`src/lib/api.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`).
-- Request and response shapes are modeled with Zod; input types are inferred from schemas in `src/lib/validators.ts`, and read-only API responses are validated with schemas from `src/lib/read-only-contract.ts` through `readOnlyApiJson` in `src/lib/read-only-api.ts` (`src/app/api/read-only/dashboard/route.ts`).
+- Request and response shapes are modeled with Zod; input types are inferred from schemas in `src/lib/validators.ts`, and external API responses are validated with schemas from `src/lib/external-contract.ts` through `externalApiJson` in `src/lib/external-api.ts` (`src/app/api/external/v1/dashboard/route.ts`).
 - Authenticated pages perform server-side user checks before rendering or fetching protected data (`src/app/(app)/layout.tsx`, `src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`, `src/lib/auth.ts`).
 - Prisma access is centralized in `src/lib/data.ts`, which returns serialized UI/API shapes for board, dashboard, task, and invitation data instead of exposing raw Prisma records directly (`src/lib/data.ts`, `src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`).
 - Mutating task operations use Prisma transactions, and create/update/reorder task flows use Serializable isolation (`src/lib/data.ts`, `src/app/api/boards/[slug]/tasks/route.ts`).
@@ -107,7 +107,7 @@ Three layers of automated checks are required, each with distinct Verifier behav
 - Add Vitest and configure it.
 - Add `test`, `test:watch`, and `test:smoke` scripts to `package.json`.
 - Add one representative test per critical layer (one API route, one `data.ts` transaction, one Zod validator).
-- Add three smoke tests (homepage, read-only API, external daily-summary API).
+- Add smoke tests for the homepage and external daily-summary API.
 - Use an ephemeral test database (Supabase branch or local Postgres in Docker), not Prisma mocks.
 
 **Verifier behavior:**
@@ -163,28 +163,25 @@ The schema and code stay portable across any Postgres 14+ host. Supabase is the 
 - **Hard-fail** any PR that adds Postgres extensions Supabase doesn't support, or that bumps the schema beyond Postgres 15 features.
 - **Warn** if a PR adds connection-string handling beyond the existing `DATABASE_URL` / `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` set.
 
-### Q5. Is `src/app/api/external/daily-summary/route.ts` intended to be a stable private integration contract, or a one-off endpoint for the current external consumer?
+### Q5. Is the external API intended to be a stable private integration contract, or a one-off endpoint for the current external consumer?
 
 **Answer: Stable versioned external API; v1 expanded across four endpoints.**
 
-`/api/external/*` is a versioned stable contract (v1 today, path-based versioning). v1 expands beyond the existing daily-summary to mirror the read-only API surface, serving both the current briefing job consumer and the future second consumer.
+`/api/external/*` is a versioned stable contract (v1 today, path-based versioning). The v1 contract under `/api/external/v1/*` is the only supported external surface, serving both the current briefing job consumer and the future second consumer.
 
 **Sequencing / required corrections:**
 - Create a shared module (`src/lib/external-api.ts`) for external v1 routes.
 - Add `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`.
-- Add alias `/api/external/daily-summary` to `/api/external/v1/daily-summary`.
 - Update README OpenAPI section to cover all four v1 endpoints.
 - Migrate `www.roymcfarland.news` to use `EXTERNAL_API_KEY` and the v1 endpoints.
-- Remove `READ_ONLY_API_KEY` fallback in the external route after migration.
-- Mark `/api/read-only/*` deprecated in PROJECT.md.
+- Remove the legacy daily-summary alias and read-only API surface after migration.
 
 **Verifier behavior:**
 - **Hard-fail** any PR that changes the response shape of any `/api/external/v1/*` endpoint without an accompanying README OpenAPI update and a PR description note confirming consumer coordination.
 - **Hard-fail** any PR that removes the `force-dynamic`, `revalidate = 0`, or `Cache-Control: no-store` directives on external routes.
 - **Hard-fail** any PR that introduces a new external endpoint outside the `/api/external/v{N}/` namespace.
+- **Hard-fail** any PR that re-introduces `READ_ONLY_API_KEY` or the `/api/external/daily-summary` route. The v1 contract under `/api/external/v1/*` is the only supported external surface.
 - **Warn** on additive changes (new fields).
-- **Warn** on new code that depends on `/api/read-only/*` (deprecated path).
-- **Warn** on PRs touching the `READ_ONLY_API_KEY` fallback in the external route.
 
 ---
 

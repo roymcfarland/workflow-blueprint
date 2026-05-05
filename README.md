@@ -39,8 +39,6 @@ AUTH_SECRET="replace-with-a-long-random-secret"
 NEXT_PUBLIC_SITE_URL="https://www.workflowblueprint.io"
 RESEND_API_KEY="re_..."
 EMAIL_FROM="Workflow Blueprint <hello@workflowblueprint.io>"
-READ_ONLY_API_KEY="replace-with-a-long-random-read-only-api-key"
-READ_ONLY_USER_ID="user_demo_alex_blue"
 EXTERNAL_API_KEY="replace-with-the-shared-external-api-key"
 EXTERNAL_USER_ID="user_demo_alex_blue"
 ```
@@ -57,8 +55,7 @@ Use a durable PostgreSQL 14+ database for production account creation.
 `AUTH_SECRET` must be a long random secret in production.
 `NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
-`READ_ONLY_API_KEY` enables the private read-only API. `READ_ONLY_USER_ID` selects which account is exposed through that API and defaults to the seeded demo user when omitted.
-`EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. The legacy `/api/external/daily-summary` path remains as an alias for the current `www.roymcfarland.news` consumer. If `EXTERNAL_API_KEY` is unset, the daily-summary route also accepts the same secret as `READ_ONLY_API_KEY` so one key can unlock both private APIs during the transition. When `EXTERNAL_API_KEY` is set, only it is checked for daily-summary requests (the read-only API still uses `READ_ONLY_API_KEY`). `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to `READ_ONLY_USER_ID`, and finally to the seeded demo user.
+`EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to the seeded demo user.
 
 ## Database Setup
 
@@ -76,63 +73,9 @@ npm run db:seed
 
 If the database runtime URL uses a pooler and migration deployment fails, temporarily run `npm run db:deploy` with the direct connection string in `DATABASE_URL`, then keep the Vercel runtime `DATABASE_URL` pointed at the connection string you use for serverless traffic.
 
-## Private Read-Only API
-
-The read-only API exposes a single user's planning data as JSON for use by tools, dashboards, or private agents. It never mutates data and is intentionally not CORS-enabled for browser calls from other origins.
-
-### Authentication
-
-Every request must include the `READ_ONLY_API_KEY` configured in the environment, in either form:
-
-```http
-Authorization: Bearer <READ_ONLY_API_KEY>
-```
-
-```http
-X-API-Key: <READ_ONLY_API_KEY>
-```
-
-Keys are compared with a SHA-256 + `timingSafeEqual` to avoid leaking the secret through timing differences. The endpoints are entirely separate from the cookie-based session used by the web app — there is no overlap between the two auth systems.
-
-If `READ_ONLY_API_KEY` is unset the routes respond with `503 Read-only API is not configured`. The user surfaced through the API is selected by `READ_ONLY_USER_ID`; when omitted it falls back to the seeded demo user (`user_demo_alex_blue`).
-
-### Endpoints
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/read-only/dashboard` | Aggregate view: user profile, board list, recent tasks |
-| `GET` | `/api/read-only/boards` | All boards owned by the configured user |
-| `GET` | `/api/read-only/boards/[slug]` | A single board by slug, including tasks and note |
-
-Every response is validated against a Zod schema before it is sent. If a response would fail validation the request is rejected with `500 Read-only API response failed validation` so a malformed payload never reaches a downstream consumer.
-
-### Rate limits and headers
-
-- Rate limit: **240 requests per minute per IP**, enforced via a Postgres-backed bucket. Exceeded requests return `429 Too Many Attempts` with a `Retry-After` header.
-- Every response includes `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
-- Authentication failures include `WWW-Authenticate: Bearer realm="read-only-api"`.
-
-### Examples
-
-```bash
-curl -i \
-  -H "Authorization: Bearer $READ_ONLY_API_KEY" \
-  http://127.0.0.1:3000/api/read-only/dashboard
-
-curl -i \
-  -H "Authorization: Bearer $READ_ONLY_API_KEY" \
-  http://127.0.0.1:3000/api/read-only/boards
-
-curl -i \
-  -H "Authorization: Bearer $READ_ONLY_API_KEY" \
-  http://127.0.0.1:3000/api/read-only/boards/personal
-```
-
-Production uses the same paths under `https://www.workflowblueprint.io`.
-
 ## External API v1
 
-The external API exposes the configured user's planning data for project-owned consumers. Canonical endpoints live under `/api/external/v1/*`; the legacy `/api/external/daily-summary` path is an alias for `/api/external/v1/daily-summary` while the existing briefing consumer migrates.
+The external API exposes the configured user's planning data for project-owned consumers. Canonical endpoints live under `/api/external/v1/*`.
 
 Every v1 response is JSON, dynamic (`force-dynamic`, `revalidate = 0`), and sent with `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
 
@@ -144,7 +87,7 @@ Every canonical v1 request must include the configured external key:
 Authorization: Bearer <EXTERNAL_API_KEY>
 ```
 
-Keys are compared with SHA-256 + `timingSafeEqual`. The dashboard and board routes require `EXTERNAL_API_KEY` to be set. During the migration window, `/api/external/v1/daily-summary` and its legacy alias continue to accept `READ_ONLY_API_KEY` only when `EXTERNAL_API_KEY` is unset.
+Keys are compared with SHA-256 + `timingSafeEqual`. All external routes require `EXTERNAL_API_KEY` to be set.
 
 - Missing or malformed `Authorization` header → `401` JSON.
 - Wrong key → `403` JSON.
@@ -163,7 +106,7 @@ type ExternalApiError = {
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/external/v1/dashboard` | Aggregate dashboard payload, matching `/api/read-only/dashboard` |
+| `GET` | `/api/external/v1/dashboard` | Aggregate dashboard payload |
 | `GET` | `/api/external/v1/boards` | All boards owned by the configured external user |
 | `GET` | `/api/external/v1/boards/[slug]` | One board by slug, including tasks, subtasks, and note content |
 | `GET` | `/api/external/v1/daily-summary` | Daily briefing payload used by external automation |
@@ -277,7 +220,6 @@ type ExternalBoardResponse = {
 Request:
 
 ```bash
-# Uses EXTERNAL_API_KEY when set; otherwise the same value as READ_ONLY_API_KEY.
 curl -i \
   -H "Authorization: Bearer $EXTERNAL_API_KEY" \
   https://www.workflowblueprint.io/api/external/v1/daily-summary
@@ -348,9 +290,9 @@ See the [LICENSE](./LICENSE) file for the full text.
 ## Security Notes
 
 - API routes use shared JSON parsing and Zod schema validation helpers.
-- Private read-only API responses are validated before being returned.
+- External API responses are validated before being returned.
 - Authenticated API routes return JSON `401` responses instead of page redirects.
-- Sign-up, sign-in, password reset, invitation, and read-only API endpoints share a Postgres-backed distributed rate limiter (`RateLimitBucket` table) so limits hold across serverless instances.
+- Sign-up, sign-in, password reset, invitation, and external API endpoints share a Postgres-backed distributed rate limiter (`RateLimitBucket` table) so limits hold across serverless instances.
 - Mutating routes verify the request `Origin`/`Referer` matches `NEXT_PUBLIC_SITE_URL` and the session cookie is `SameSite=strict`, providing a CSRF defense.
 - HTML responses get a per-request nonce-based Content Security Policy (`'strict-dynamic'`); API and static responses get a stricter baseline CSP.
 - Session JWTs include the user's `passwordChangedAt` timestamp so password changes/resets revoke every existing session.
