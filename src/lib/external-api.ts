@@ -14,6 +14,12 @@ import {
   type ExternalDailySummaryResponse,
   type ExternalDailySummaryTask,
 } from "@/lib/external-contract";
+import {
+  logExternalApiRequest,
+  newRequestId,
+  type ExternalApiLogFields,
+  type ExternalApiOutcome,
+} from "@/lib/observability";
 
 type ApiResult<T> =
   | {
@@ -30,11 +36,17 @@ type BearerResult =
   | { kind: "malformed" }
   | { kind: "ok"; token: string };
 
+type RequireExternalApiAccessOptions = {
+  rateLimitScope?: string;
+  requestId?: string;
+};
+
 const externalRateLimit = {
   limit: 120,
   windowMs: 60_000,
 };
 
+const internalOutcomeHeader = "X-Internal-Outcome";
 const recentlyCompletedWindowDays = 7;
 const recentlyCompletedLimit = 25;
 
@@ -61,6 +73,90 @@ function externalHeaders(headers?: HeadersInit) {
   nextHeaders.set("X-Robots-Tag", "noindex");
 
   return nextHeaders;
+}
+
+function elapsedMs(startedAt: number) {
+  return Math.max(0, Math.round(performance.now() - startedAt));
+}
+
+function apiKeyPrefixForRequest(request: Request) {
+  const bearer = readBearerToken(request);
+
+  if (bearer.kind !== "ok" || bearer.token.length < 8) {
+    return null;
+  }
+
+  return bearer.token.slice(0, 8);
+}
+
+function validExternalApiUserIdForRequest(
+  request: Request,
+  outcome: ExternalApiOutcome,
+) {
+  if (outcome === "auth_failed" || outcome === "rate_limited") {
+    return null;
+  }
+
+  const bearer = readBearerToken(request);
+
+  if (
+    bearer.kind !== "ok" ||
+    !tokenMatchesAny(bearer.token, getRequiredExternalApiKeys())
+  ) {
+    return null;
+  }
+
+  return externalUserId();
+}
+
+function outcomeForResponse(
+  status: number,
+  internalOutcome: string | null,
+): ExternalApiOutcome {
+  if (status === 500 && internalOutcome === "validation_failed") {
+    return "validation_failed";
+  }
+
+  switch (status) {
+    case 200:
+      return "ok";
+    case 401:
+    case 403:
+      return "auth_failed";
+    case 404:
+      return "not_found";
+    case 429:
+      return "rate_limited";
+    default:
+      return "server_error";
+  }
+}
+
+function externalApiLogFields({
+  outcome,
+  request,
+  requestId,
+  route,
+  startedAt,
+  status,
+}: {
+  outcome: ExternalApiOutcome;
+  request: Request;
+  requestId: string;
+  route: string;
+  startedAt: number;
+  status: number;
+}): ExternalApiLogFields {
+  return {
+    requestId,
+    route,
+    method: request.method,
+    status,
+    durationMs: elapsedMs(startedAt),
+    apiKeyPrefix: apiKeyPrefixForRequest(request),
+    userId: validExternalApiUserIdForRequest(request, outcome),
+    outcome,
+  };
 }
 
 function getExternalApiKey() {
@@ -121,7 +217,11 @@ function tokenMatchesAny(submitted: string, configuredKeys: string[]) {
   return false;
 }
 
-async function checkExternalRateLimit(request: Request, scope: string) {
+async function checkExternalRateLimit(
+  request: Request,
+  scope: string,
+  requestId?: string,
+) {
   const rateLimitResponse = await checkRateLimit({
     key: rateLimitKey(request, scope),
     ...externalRateLimit,
@@ -130,6 +230,10 @@ async function checkExternalRateLimit(request: Request, scope: string) {
   if (rateLimitResponse) {
     rateLimitResponse.headers.set("Cache-Control", "no-store");
     rateLimitResponse.headers.set("X-Robots-Tag", "noindex");
+
+    if (requestId) {
+      rateLimitResponse.headers.set("X-Request-Id", requestId);
+    }
   }
 
   return rateLimitResponse;
@@ -176,40 +280,115 @@ export function externalApiError(
   message: string,
   status = 400,
   headers?: HeadersInit,
+  requestId?: string,
 ) {
+  const responseHeaders = externalHeaders(headers);
+
+  if (requestId) {
+    responseHeaders.set("X-Request-Id", requestId);
+  }
+
   return NextResponse.json(
     { ok: false, error: message },
     {
-      headers: externalHeaders(headers),
+      headers: responseHeaders,
       status,
     },
   );
 }
 
-export function externalApiJson<T>(schema: ZodType<T>, data: T, init?: ResponseInit) {
+export function externalApiJson<T>(
+  schema: ZodType<T>,
+  data: T,
+  init?: ResponseInit,
+  requestId?: string,
+) {
   const payload = schema.safeParse(data);
 
   if (!payload.success) {
     console.error("External API response validation failed.", payload.error.flatten());
 
-    return externalApiError("External API response failed validation.", 500);
+    return externalApiError(
+      "External API response failed validation.",
+      500,
+      {
+        [internalOutcomeHeader]: "validation_failed",
+      },
+      requestId,
+    );
+  }
+
+  const responseHeaders = externalHeaders(init?.headers);
+
+  if (requestId) {
+    responseHeaders.set("X-Request-Id", requestId);
   }
 
   return NextResponse.json(payload.data, {
     ...init,
-    headers: externalHeaders(init?.headers),
+    headers: responseHeaders,
   });
+}
+
+export async function withExternalApiObservability(
+  request: Request,
+  route: string,
+  handler: (ctx: { requestId: string }) => Promise<NextResponse>,
+): Promise<NextResponse> {
+  const requestId = newRequestId();
+  const startedAt = performance.now();
+
+  try {
+    const response = await handler({ requestId });
+    const internalOutcome = response.headers.get(internalOutcomeHeader);
+    const outcome = outcomeForResponse(response.status, internalOutcome);
+
+    response.headers.set("X-Request-Id", requestId);
+    response.headers.delete(internalOutcomeHeader);
+
+    logExternalApiRequest(
+      externalApiLogFields({
+        outcome,
+        request,
+        requestId,
+        route,
+        startedAt,
+        status: response.status,
+      }),
+    );
+
+    return response;
+  } catch (error) {
+    const outcome: ExternalApiOutcome = "server_error";
+
+    console.error("External API handler threw.", { requestId, route, error });
+    logExternalApiRequest(
+      externalApiLogFields({
+        outcome,
+        request,
+        requestId,
+        route,
+        startedAt,
+        status: 500,
+      }),
+    );
+
+    throw error;
+  }
 }
 
 export async function requireExternalApiAccess(
   request: Request,
   {
     rateLimitScope = "external-api",
-  }: {
-    rateLimitScope?: string;
-  } = {},
+    requestId,
+  }: RequireExternalApiAccessOptions = {},
 ): Promise<ApiResult<{ userId: string }>> {
-  const rateLimitResponse = await checkExternalRateLimit(request, rateLimitScope);
+  const rateLimitResponse = await checkExternalRateLimit(
+    request,
+    rateLimitScope,
+    requestId,
+  );
 
   if (rateLimitResponse) {
     return {
@@ -223,7 +402,12 @@ export async function requireExternalApiAccess(
   if (expectedKeys.length === 0) {
     return {
       ok: false,
-      response: externalApiError("External API is not configured.", 503),
+      response: externalApiError(
+        "External API is not configured.",
+        503,
+        undefined,
+        requestId,
+      ),
     };
   }
 
@@ -233,16 +417,26 @@ export async function requireExternalApiAccess(
     case "missing":
       return {
         ok: false,
-        response: externalApiError("Missing Authorization header.", 401, {
-          "WWW-Authenticate": 'Bearer realm="external-api"',
-        }),
+        response: externalApiError(
+          "Missing Authorization header.",
+          401,
+          {
+            "WWW-Authenticate": 'Bearer realm="external-api"',
+          },
+          requestId,
+        ),
       };
     case "malformed":
       return {
         ok: false,
-        response: externalApiError("Malformed Authorization header.", 401, {
-          "WWW-Authenticate": 'Bearer realm="external-api"',
-        }),
+        response: externalApiError(
+          "Malformed Authorization header.",
+          401,
+          {
+            "WWW-Authenticate": 'Bearer realm="external-api"',
+          },
+          requestId,
+        ),
       };
     case "ok":
       break;
@@ -251,7 +445,7 @@ export async function requireExternalApiAccess(
   if (!tokenMatchesAny(bearer.token, expectedKeys)) {
     return {
       ok: false,
-      response: externalApiError("Invalid API key.", 403),
+      response: externalApiError("Invalid API key.", 403, undefined, requestId),
     };
   }
 
@@ -263,8 +457,11 @@ export async function requireExternalApiAccess(
   };
 }
 
-export async function requireExternalApiUser(request: Request) {
-  const access = await requireExternalApiAccess(request);
+export async function requireExternalApiUser(
+  request: Request,
+  options: RequireExternalApiAccessOptions = {},
+) {
+  const access = await requireExternalApiAccess(request, options);
 
   if (!access.ok) {
     return access;
@@ -273,7 +470,12 @@ export async function requireExternalApiUser(request: Request) {
   if (!(await userExists(access.data.userId))) {
     return {
       ok: false as const,
-      response: externalApiError("External API user was not found.", 404),
+      response: externalApiError(
+        "External API user was not found.",
+        404,
+        undefined,
+        options.requestId,
+      ),
     };
   }
 
@@ -386,9 +588,13 @@ export async function buildExternalDailySummary(
   };
 }
 
-export async function handleExternalDailySummary(request: Request) {
+export async function handleExternalDailySummary(
+  request: Request,
+  requestId?: string,
+) {
   const access = await requireExternalApiAccess(request, {
     rateLimitScope: "external-daily-summary",
+    requestId,
   });
 
   if (!access.ok) {
@@ -398,5 +604,7 @@ export async function handleExternalDailySummary(request: Request) {
   return externalApiJson(
     externalDailySummaryResponseSchema,
     await buildExternalDailySummary(access.data.userId),
+    undefined,
+    requestId,
   );
 }

@@ -30,6 +30,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "401":
           content:
             application/json:
@@ -46,6 +51,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "403":
           content:
@@ -64,6 +74,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "404":
           content:
             application/json:
@@ -80,6 +95,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "429":
           content:
@@ -98,6 +118,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "500":
           content:
             application/json:
@@ -115,6 +140,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "503":
           content:
             application/json:
@@ -131,6 +161,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
       security:
         - ExternalApiKeyAuth: []
@@ -158,6 +193,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "401":
           content:
             application/json:
@@ -174,6 +214,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "403":
           content:
@@ -192,6 +237,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "404":
           content:
             application/json:
@@ -208,6 +258,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "429":
           content:
@@ -226,6 +281,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "500":
           content:
             application/json:
@@ -243,6 +303,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "503":
           content:
             application/json:
@@ -259,6 +324,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
       security:
         - ExternalApiKeyAuth: []
@@ -286,6 +356,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "401":
           content:
             application/json:
@@ -302,6 +377,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "403":
           content:
@@ -320,6 +400,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "404":
           content:
             application/json:
@@ -336,6 +421,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "429":
           content:
@@ -354,6 +444,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "500":
           content:
             application/json:
@@ -371,6 +466,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "503":
           content:
             application/json:
@@ -387,6 +487,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
       security:
         - ExternalApiKeyAuth: []
@@ -421,6 +526,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "401":
           content:
             application/json:
@@ -437,6 +547,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "403":
           content:
@@ -455,6 +570,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "429":
           content:
             application/json:
@@ -471,6 +591,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
         "500":
           content:
@@ -489,6 +614,11 @@ paths:
               schema:
                 const: noindex
                 type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
+                type: string
         "503":
           content:
             application/json:
@@ -505,6 +635,11 @@ paths:
               description: External API responses are excluded from indexing.
               schema:
                 const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              schema:
+                format: uuid
                 type: string
       security:
         - ExternalApiKeyAuth: []
@@ -1126,4 +1261,3 @@ components:
         - iceBox
         - recentlyCompleted
       additionalProperties: false
-

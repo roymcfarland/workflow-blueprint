@@ -3,6 +3,7 @@ import {
   externalApiError,
   externalApiJson,
   requireExternalApiUser,
+  withExternalApiObservability,
 } from "@/lib/external-api";
 import { externalBoardResponseSchema } from "@/lib/external-contract";
 
@@ -14,21 +15,32 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const user = await requireExternalApiUser(request);
+  return withExternalApiObservability(
+    request,
+    "/api/external/v1/boards/[slug]",
+    async ({ requestId }) => {
+      const user = await requireExternalApiUser(request, { requestId });
 
-  if (!user.ok) {
-    return user.response;
-  }
+      if (!user.ok) {
+        return user.response;
+      }
 
-  const { slug } = await params;
-  const board = await getBoardSnapshot(user.data.userId, slug);
+      const { slug } = await params;
+      const board = await getBoardSnapshot(user.data.userId, slug);
 
-  if (!board) {
-    return externalApiError("Board not found.", 404);
-  }
+      if (!board) {
+        return externalApiError("Board not found.", 404, undefined, requestId);
+      }
 
-  return externalApiJson(externalBoardResponseSchema, {
-    ok: true,
-    data: board,
-  });
+      return externalApiJson(
+        externalBoardResponseSchema,
+        {
+          ok: true,
+          data: board,
+        },
+        undefined,
+        requestId,
+      );
+    },
+  );
 }

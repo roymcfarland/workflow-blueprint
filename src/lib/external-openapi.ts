@@ -38,6 +38,14 @@ function responseHeaders() {
         type: "string",
       },
     },
+    "X-Request-Id": {
+      description:
+        "Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.",
+      schema: {
+        format: "uuid",
+        type: "string",
+      },
+    },
   };
 }
 
