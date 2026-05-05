@@ -23,7 +23,7 @@
 
 ## PR sequencing (active roadmap)
 
-The resolved Open Questions below commit this codebase to four sequenced pull requests. Builder agents must respect this sequencing. Do not start work on a later PR before the prior PR has merged.
+The resolved Open Questions below commit this codebase to five sequenced pull requests. Builder agents must respect this sequencing. Do not start work on a later PR before the prior PR has merged.
 
 | PR | Title | Scope | Blocked by |
 |---|---|---|---|
@@ -31,6 +31,7 @@ The resolved Open Questions below commit this codebase to four sequenced pull re
 | **PR 2** | External API v1 expansion | New `src/lib/external-api.ts` shared module; new routes `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`; updated README OpenAPI section. **Every new endpoint must ship with its tests in the same PR** (Q1 hard-fail rule). | PR 1 |
 | **PR 3** | Consumer migration | Update `www.roymcfarland.news` briefing job (in its own repo) to use `EXTERNAL_API_KEY` and the v1 endpoint paths. Verify in production before opening PR 4. | PR 2 |
 | **PR 4** | Read-only deprecation cleanup | Remove the legacy read-only API surface after consumer migration completes; the v1 contract under `/api/external/v1/*` is the only supported external surface. | PR 3 |
+| **PR 5** | OpenAPI contract guard | Add `docs/openapi.yaml` as the authoritative OpenAPI 3.1 reference for `/api/external/v1/*`, generated from `src/lib/external-contract.ts`, and add a CI test that fails when the committed spec drifts from the Zod schemas. | PR 4 |
 
 ### Builder guardrails for the PR 1 → PR 2 transition
 
@@ -172,12 +173,12 @@ The schema and code stay portable across any Postgres 14+ host. Supabase is the 
 **Sequencing / required corrections:**
 - Create a shared module (`src/lib/external-api.ts`) for external v1 routes.
 - Add `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`.
-- Update README OpenAPI section to cover all four v1 endpoints.
+- Keep `docs/openapi.yaml` as the authoritative machine-readable contract for all four v1 endpoints, with README providing a human-readable summary.
 - Migrate `www.roymcfarland.news` to use `EXTERNAL_API_KEY` and the v1 endpoints.
 - Remove the legacy daily-summary alias and read-only API surface after migration.
 
 **Verifier behavior:**
-- **Hard-fail** any PR that changes the response shape of any `/api/external/v1/*` endpoint without an accompanying README OpenAPI update and a PR description note confirming consumer coordination.
+- **Hard-fail** any PR that changes the response shape of any `/api/external/v1/*` endpoint without the matching `docs/openapi.yaml` update and a PR description note confirming consumer coordination.
 - **Hard-fail** any PR that removes the `force-dynamic`, `revalidate = 0`, or `Cache-Control: no-store` directives on external routes.
 - **Hard-fail** any PR that introduces a new external endpoint outside the `/api/external/v{N}/` namespace.
 - **Hard-fail** any PR that re-introduces `READ_ONLY_API_KEY` or the `/api/external/daily-summary` route. The v1 contract under `/api/external/v1/*` is the only supported external surface.
