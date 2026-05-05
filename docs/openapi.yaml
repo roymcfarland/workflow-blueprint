@@ -1,0 +1,1129 @@
+openapi: 3.1.0
+info:
+  title: Workflow Blueprint External API
+  version: 1.0.0
+  description: Stable private API contract for project-owned consumers of Workflow Blueprint planning data.
+servers:
+  - url: https://www.workflowblueprint.io
+tags:
+  - name: External API v1
+    description: Bearer-token authenticated read surface under /api/external/v1/*.
+paths:
+  /api/external/v1/dashboard:
+    get:
+      operationId: getExternalDashboard
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalDashboardResponse"
+          description: Aggregate dashboard payload.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Authorization header is missing or malformed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Bearer token does not match EXTERNAL_API_KEY.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Configured external API user was not found.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRateLimitError"
+          description: Request rate limit exceeded.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: External API response validation failed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: EXTERNAL_API_KEY is not configured.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+      security:
+        - ExternalApiKeyAuth: []
+      summary: Aggregate dashboard payload.
+      tags:
+        - External API v1
+  /api/external/v1/boards:
+    get:
+      operationId: getExternalBoards
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalBoardsResponse"
+          description: List boards owned by the configured external user.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Authorization header is missing or malformed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Bearer token does not match EXTERNAL_API_KEY.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Configured external API user was not found.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRateLimitError"
+          description: Request rate limit exceeded.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: External API response validation failed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: EXTERNAL_API_KEY is not configured.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+      security:
+        - ExternalApiKeyAuth: []
+      summary: List boards owned by the configured external user.
+      tags:
+        - External API v1
+  /api/external/v1/boards/{slug}:
+    get:
+      operationId: getExternalBoard
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalBoardResponse"
+          description: Get one board by slug, including tasks, subtasks, and note content.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Authorization header is missing or malformed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Bearer token does not match EXTERNAL_API_KEY.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Configured external API user or board was not found.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRateLimitError"
+          description: Request rate limit exceeded.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: External API response validation failed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: EXTERNAL_API_KEY is not configured.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+      security:
+        - ExternalApiKeyAuth: []
+      summary: Get one board by slug, including tasks, subtasks, and note content.
+      tags:
+        - External API v1
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            minLength: 1
+            type: string
+  /api/external/v1/daily-summary:
+    get:
+      operationId: getExternalDailySummary
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalDailySummaryResponse"
+          description: Daily briefing payload used by external automation.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Authorization header is missing or malformed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Bearer token does not match EXTERNAL_API_KEY.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRateLimitError"
+          description: Request rate limit exceeded.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: External API response validation failed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: EXTERNAL_API_KEY is not configured.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+      security:
+        - ExternalApiKeyAuth: []
+      summary: Daily briefing payload used by external automation.
+      tags:
+        - External API v1
+components:
+  securitySchemes:
+    ExternalApiKeyAuth:
+      bearerFormat: EXTERNAL_API_KEY
+      description: Send the configured EXTERNAL_API_KEY value in the Authorization header as a Bearer token.
+      scheme: bearer
+      type: http
+  schemas:
+    ExternalApiError:
+      additionalProperties: false
+      properties:
+        ok:
+          const: false
+          type: boolean
+        error:
+          type: string
+      required:
+        - ok
+        - error
+      type: object
+    ExternalRateLimitError:
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+      required:
+        - message
+      type: object
+    ExternalDashboardResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: object
+          properties:
+            boardBreakdown:
+              type: array
+              items:
+                type: object
+                properties:
+                  slug:
+                    type: string
+                    minLength: 1
+                  name:
+                    type: string
+                    minLength: 1
+                  iconKey:
+                    type: string
+                    minLength: 1
+                  totalTasks:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  percentage:
+                    type: integer
+                    minimum: 0
+                    maximum: 100
+                required:
+                  - slug
+                  - name
+                  - iconKey
+                  - totalTasks
+                  - percentage
+                additionalProperties: false
+            sprintCompletionRate:
+              type: integer
+              minimum: 0
+              maximum: 100
+            doneCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            activeTaskCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            inProgressCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            closedLastSevenDays:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            totalTaskCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+          required:
+            - boardBreakdown
+            - sprintCompletionRate
+            - doneCount
+            - activeTaskCount
+            - inProgressCount
+            - closedLastSevenDays
+            - totalTaskCount
+          additionalProperties: false
+      required:
+        - ok
+        - data
+      additionalProperties: false
+    ExternalBoardsResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: object
+          properties:
+            boards:
+              type: array
+              items:
+                type: object
+                properties:
+                  slug:
+                    type: string
+                    minLength: 1
+                  name:
+                    type: string
+                    minLength: 1
+                  description:
+                    anyOf:
+                      - type: string
+                      - type: "null"
+                  iconKey:
+                    type: string
+                    minLength: 1
+                  totalTasks:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - slug
+                  - name
+                  - description
+                  - iconKey
+                  - totalTasks
+                additionalProperties: false
+          required:
+            - boards
+          additionalProperties: false
+      required:
+        - ok
+        - data
+      additionalProperties: false
+    ExternalBoardResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              minLength: 1
+            slug:
+              type: string
+              minLength: 1
+            name:
+              type: string
+              minLength: 1
+            description:
+              anyOf:
+                - type: string
+                - type: "null"
+            iconKey:
+              type: string
+              minLength: 1
+            noteContent:
+              type: string
+            tasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                  title:
+                    type: string
+                    minLength: 1
+                  description:
+                    anyOf:
+                      - type: string
+                      - type: "null"
+                  status:
+                    type: string
+                    enum:
+                      - ICE_BOX
+                      - ON_DECK
+                      - IN_PROGRESS
+                      - DONE
+                      - ARCHIVED
+                  sortOrder:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  priority:
+                    type: string
+                    enum:
+                      - NONE
+                      - LOW
+                      - MEDIUM
+                      - HIGH
+                      - URGENT
+                  dueDate:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                      - type: "null"
+                  completedAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                      - type: "null"
+                  archivedAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                      - type: "null"
+                  subtasks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                        title:
+                          type: string
+                          minLength: 1
+                        isComplete:
+                          type: boolean
+                        sortOrder:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        priority:
+                          type: string
+                          enum:
+                            - NONE
+                            - LOW
+                            - MEDIUM
+                            - HIGH
+                            - URGENT
+                      required:
+                        - id
+                        - title
+                        - isComplete
+                        - sortOrder
+                        - priority
+                      additionalProperties: false
+                required:
+                  - id
+                  - title
+                  - description
+                  - status
+                  - sortOrder
+                  - priority
+                  - dueDate
+                  - completedAt
+                  - archivedAt
+                  - subtasks
+                additionalProperties: false
+          required:
+            - id
+            - slug
+            - name
+            - description
+            - iconKey
+            - noteContent
+            - tasks
+          additionalProperties: false
+      required:
+        - ok
+        - data
+      additionalProperties: false
+    ExternalDailySummaryResponse:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+        summary:
+          type: object
+          properties:
+            totalActive:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            completionRate:
+              type: string
+              pattern: ^\d+%$
+            byStatus:
+              type: object
+              properties:
+                iceBox:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+                onDeck:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+                inProgress:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+                done:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+                archived:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
+              required:
+                - iceBox
+                - onDeck
+                - inProgress
+                - done
+                - archived
+              additionalProperties: false
+            byCategory:
+              type: object
+              propertyNames:
+                type: string
+                minLength: 1
+              additionalProperties:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+          required:
+            - totalActive
+            - completionRate
+            - byStatus
+            - byCategory
+          additionalProperties: false
+        inProgress:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              title:
+                type: string
+                minLength: 1
+              description:
+                anyOf:
+                  - type: string
+                  - type: "null"
+              status:
+                type: string
+                enum:
+                  - ice-box
+                  - on-deck
+                  - in-progress
+                  - done
+                  - archived
+              category:
+                type: string
+                minLength: 1
+              priority:
+                type: string
+                enum:
+                  - none
+                  - low
+                  - medium
+                  - high
+                  - urgent
+              parentId:
+                anyOf:
+                  - type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  - type: "null"
+              sortOrder:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            required:
+              - id
+              - title
+              - description
+              - status
+              - category
+              - priority
+              - parentId
+              - sortOrder
+              - createdAt
+              - updatedAt
+            additionalProperties: false
+        onDeck:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              title:
+                type: string
+                minLength: 1
+              description:
+                anyOf:
+                  - type: string
+                  - type: "null"
+              status:
+                type: string
+                enum:
+                  - ice-box
+                  - on-deck
+                  - in-progress
+                  - done
+                  - archived
+              category:
+                type: string
+                minLength: 1
+              priority:
+                type: string
+                enum:
+                  - none
+                  - low
+                  - medium
+                  - high
+                  - urgent
+              parentId:
+                anyOf:
+                  - type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  - type: "null"
+              sortOrder:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            required:
+              - id
+              - title
+              - description
+              - status
+              - category
+              - priority
+              - parentId
+              - sortOrder
+              - createdAt
+              - updatedAt
+            additionalProperties: false
+        iceBox:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              title:
+                type: string
+                minLength: 1
+              description:
+                anyOf:
+                  - type: string
+                  - type: "null"
+              status:
+                type: string
+                enum:
+                  - ice-box
+                  - on-deck
+                  - in-progress
+                  - done
+                  - archived
+              category:
+                type: string
+                minLength: 1
+              priority:
+                type: string
+                enum:
+                  - none
+                  - low
+                  - medium
+                  - high
+                  - urgent
+              parentId:
+                anyOf:
+                  - type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  - type: "null"
+              sortOrder:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            required:
+              - id
+              - title
+              - description
+              - status
+              - category
+              - priority
+              - parentId
+              - sortOrder
+              - createdAt
+              - updatedAt
+            additionalProperties: false
+        recentlyCompleted:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              title:
+                type: string
+                minLength: 1
+              description:
+                anyOf:
+                  - type: string
+                  - type: "null"
+              status:
+                type: string
+                enum:
+                  - ice-box
+                  - on-deck
+                  - in-progress
+                  - done
+                  - archived
+              category:
+                type: string
+                minLength: 1
+              priority:
+                type: string
+                enum:
+                  - none
+                  - low
+                  - medium
+                  - high
+                  - urgent
+              parentId:
+                anyOf:
+                  - type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  - type: "null"
+              sortOrder:
+                type: integer
+                minimum: 0
+                maximum: 9007199254740991
+              createdAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            required:
+              - id
+              - title
+              - description
+              - status
+              - category
+              - priority
+              - parentId
+              - sortOrder
+              - createdAt
+              - updatedAt
+            additionalProperties: false
+      required:
+        - generatedAt
+        - summary
+        - inProgress
+        - onDeck
+        - iceBox
+        - recentlyCompleted
+      additionalProperties: false
+

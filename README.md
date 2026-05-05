@@ -77,6 +77,8 @@ If the database runtime URL uses a pooler and migration deployment fails, tempor
 
 The external API exposes the configured user's planning data for project-owned consumers. Canonical endpoints live under `/api/external/v1/*`.
 
+The authoritative machine-readable API reference is [`docs/openapi.yaml`](./docs/openapi.yaml). The examples below are a human-readable summary of that contract.
+
 Every v1 response is JSON, dynamic (`force-dynamic`, `revalidate = 0`), and sent with `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
 
 ### Authentication
