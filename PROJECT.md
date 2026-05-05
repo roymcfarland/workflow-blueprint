@@ -23,23 +23,29 @@
 
 ## PR sequencing (active roadmap)
 
-The resolved Open Questions below commit this codebase to five sequenced pull requests. Builder agents must respect this sequencing. Do not start work on a later PR before the prior PR has merged.
+Builder agents must respect the sequencing of any PRs listed under "Active phase" below. Do not start work on a later active PR before the prior active PR has merged. Completed PRs are kept in the "Shipped" table for historical context and to preserve the rationale that originated current Verifier rules.
 
-| PR | Title | Scope | Blocked by |
+### Shipped
+
+| PR | Title | Merged in | Outcome |
 |---|---|---|---|
-| **PR 1** | Test harness + CI | Vitest, three smoke tests, three representative unit/integration tests, ephemeral Postgres for tests, `.github/workflows/ci.yml` (lint/test/smoke jobs), `.nvmrc` and `engines.node` pinned to 22.11.x, `package.json` `"license": "PolyForm-Noncommercial-1.0.0"`. **Must not modify any `src/app/api/external/*` route shapes or any feature code.** | None |
-| **PR 2** | External API v1 expansion | New `src/lib/external-api.ts` shared module; new routes `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`; updated README OpenAPI section. **Every new endpoint must ship with its tests in the same PR** (Q1 hard-fail rule). | PR 1 |
-| **PR 3** | Consumer migration | Update `www.roymcfarland.news` briefing job (in its own repo) to use `EXTERNAL_API_KEY` and the v1 endpoint paths. Verify in production before opening PR 4. | PR 2 |
-| **PR 4** | Read-only deprecation cleanup | Remove the legacy read-only API surface after consumer migration completes; the v1 contract under `/api/external/v1/*` is the only supported external surface. | PR 3 |
-| **PR 5** | OpenAPI contract guard | Add `docs/openapi.yaml` as the authoritative OpenAPI 3.1 reference for `/api/external/v1/*`, generated from `src/lib/external-contract.ts`, and add a CI test that fails when the committed spec drifts from the Zod schemas. | PR 4 |
+| **PR 1** | Test harness + CI | `#7` | Vitest, smoke tests, ephemeral Postgres for tests, `.github/workflows/ci.yml`, `.nvmrc` and `engines.node` pinned to 22.11.x, `package.json` `"license": "PolyForm-Noncommercial-1.0.0"`. Enabling change for the Q1 test-coverage hard-fail rule. |
+| **PR 2** | External API v1 expansion | `#8` | Added shared module `src/lib/external-api.ts` and routes `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`; updated README OpenAPI section; ships with tests per Q1. |
+| **PR 3** | Consumer migration | (external repo) | `www.roymcfarland.news` briefing job migrated to `EXTERNAL_API_KEY` and the v1 endpoint paths in the `agentic-daily-briefing` repo. |
+| **PR 4** | Read-only deprecation cleanup | `#9` | Deleted the legacy `/api/external/daily-summary` alias and the entire `/api/read-only/*` surface; removed `READ_ONLY_API_KEY` and `READ_ONLY_USER_ID` from the codebase and from Vercel. The v1 contract under `/api/external/v1/*` is now the only supported external surface. |
+| **PR 5** | OpenAPI contract guard | `#10` | Added `docs/openapi.yaml` as the authoritative OpenAPI 3.1 reference for `/api/external/v1/*`, generated from `src/lib/external-contract.ts`; added a CI drift test that fails when the committed spec and Zod schemas diverge. |
 
-### Builder guardrails for the PR 1 → PR 2 transition
+### Active phase
 
-The Verifier rule under Q1 hard-fails any PR that modifies `src/app/api/**`, `src/lib/data.ts`, `src/lib/validators.ts`, or `src/lib/auth.ts` without test changes. This rule starts being enforceable the moment PR 1 merges. Therefore:
+No PRs are currently sequenced. New work is proposed via PRs that update this section before (or in) the same PR that introduces the work.
 
-- **PR 1 must not** add or modify any of the protected paths above (it only adds tests, CI, and pinning). PR 1 is exempt from the rule because it is the rule's enabling change.
-- **PR 2 and beyond** must ship endpoint-and-test pairs together. Adding a new external route without an accompanying test for it is an automatic Verifier reject. Adding a new validator schema without a test is an automatic Verifier reject.
+### Standing Builder guardrails (post-PR-1)
+
+The Q1 test-coverage rule has been enforceable since PR 1 (`#7`) merged. It applies to every PR going forward:
+
+- Any PR that modifies `src/app/api/**`, `src/lib/data.ts`, `src/lib/validators.ts`, or `src/lib/auth.ts` must include test changes in the same PR. Adding a new external route, validator schema, or data-layer transaction without an accompanying test is an automatic Verifier reject.
 - **No "tests come in a follow-up PR" PRs are accepted.** If a PR's test coverage is insufficient, the missing tests must be added to that same PR before merge.
+- Documentation-only PRs (no changes outside `*.md` files) are exempt from the test-coverage rule but must still pass `npm run lint` if linting covers Markdown.
 
 ---
 
@@ -89,7 +95,7 @@ The following are explicitly **out of scope** for this product. Agents should re
 - **Not a team, multi-tenant, or enterprise tool** — invitations and data are per-user; no orgs, workspaces, shared boards, or B2B admin surfaces.
 - **Not a realtime collaboration tool** — no websockets, presence, shared editing, or simultaneous board editing.
 - **Not a public or open API** — the `/api/external/v1/*` surface is auth-gated and intended only for consumers under the project owner's control.
-- **Not a native mobile app within this codebase** — the planned native mobile experience will be a separate-repo consumer of `/api/external/v1/*`. This repo will house only the web app and the API; native mobile code (React Native, Swift, Kotlin) is forbidden here. The external API will evolve to support per-user authentication and read/write operations as the mobile app's needs are defined; that evolution is planned but not in scope for the install PR.
+- **Not a native mobile app within this codebase** — the planned native mobile experience will be a separate-repo consumer of `/api/external/v1/*`. This repo will house only the web app and the API; native mobile code (React Native, Swift, Kotlin) is forbidden here. The external API will evolve to support per-user authentication and read/write operations as the mobile app's needs are defined. Any such evolution must be proposed as its own PR with an updated entry in the "Active phase" table above and an explicit Q5 update covering the new auth model; it must not be smuggled into an unrelated PR.
 - **Not a mind-mapping or visual-canvas tool today** — boards are list-based with hierarchical tasks and subtasks; freeform 2D mind maps, node-and-edge canvases, and graph visualizations are explicitly deferred. This requires a PROJECT.md update before any PR introduces canvas/graph rendering libraries (e.g., react-flow, cytoscape, d3-force) or a mind-map data model.
 
 ---
@@ -170,12 +176,15 @@ The schema and code stay portable across any Postgres 14+ host. Supabase is the 
 
 `/api/external/*` is a versioned stable contract (v1 today, path-based versioning). The v1 contract under `/api/external/v1/*` is the only supported external surface, serving both the current briefing job consumer and the future second consumer.
 
-**Sequencing / required corrections:**
-- Create a shared module (`src/lib/external-api.ts`) for external v1 routes.
-- Add `/api/external/v1/dashboard`, `/api/external/v1/boards`, `/api/external/v1/boards/[slug]`.
-- Keep `docs/openapi.yaml` as the authoritative machine-readable contract for all four v1 endpoints, with README providing a human-readable summary.
-- Migrate `www.roymcfarland.news` to use `EXTERNAL_API_KEY` and the v1 endpoints.
-- Remove the legacy daily-summary alias and read-only API surface after migration.
+**Sequencing / required corrections (all completed):**
+- Shared module `src/lib/external-api.ts` exists and is the canonical helper for external v1 routes (shipped in `#8`).
+- Routes `/api/external/v1/dashboard`, `/api/external/v1/boards`, and `/api/external/v1/boards/[slug]` are live (shipped in `#8`); `/api/external/v1/daily-summary` predates the v1 expansion.
+- README OpenAPI section covers all four v1 endpoints (shipped in `#8`).
+- `docs/openapi.yaml` is the authoritative machine-readable contract for all four v1 endpoints, generated from `src/lib/external-contract.ts`; README provides the human-readable summary (shipped in `#10`).
+- `www.roymcfarland.news` briefing job migrated to `EXTERNAL_API_KEY` and the v1 endpoints (PR 3, in the `agentic-daily-briefing` repo).
+- Legacy `/api/external/daily-summary` alias and the entire `/api/read-only/*` surface deleted from the codebase and from Vercel; `READ_ONLY_API_KEY` and `READ_ONLY_USER_ID` env vars removed (shipped in `#9`).
+
+The Verifier rules below remain in force.
 
 **Verifier behavior:**
 - **Hard-fail** any PR that changes the response shape of any `/api/external/v1/*` endpoint without the matching `docs/openapi.yaml` update and a PR description note confirming consumer coordination.
