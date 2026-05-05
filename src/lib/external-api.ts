@@ -67,6 +67,20 @@ type ExternalApiObservabilityOptions = {
   rateLimitScope?: string;
 };
 
+type SentryScope = {
+  setContext(name: string, context: Record<string, unknown>): void;
+  setTag(name: string, value: string): void;
+};
+
+type SentryCaptureApi = {
+  captureException(error: unknown): unknown;
+  withScope(callback: (scope: SentryScope) => void): void;
+};
+
+type SentryCaptureModule = Partial<SentryCaptureApi> & {
+  default?: Partial<SentryCaptureApi>;
+};
+
 const externalRateLimit = {
   limit: 120,
   windowMs: 60_000,
@@ -136,10 +150,14 @@ function rateLimitHeadersFor(decision: RateLimitDecision): RateLimitHeaders {
 function attachWrapperHeaders(
   response: NextResponse,
   requestId: string,
-  rateLimitHeaders: RateLimitHeaders,
+  rateLimitHeaders: RateLimitHeaders | undefined,
 ) {
   response.headers.set("X-Request-Id", requestId);
-  setRateLimitHeaders(response.headers, rateLimitHeaders);
+
+  if (rateLimitHeaders) {
+    setRateLimitHeaders(response.headers, rateLimitHeaders);
+  }
+
   response.headers.delete(internalOutcomeHeader);
 }
 
@@ -155,6 +173,24 @@ function apiKeyPrefixForRequest(request: Request) {
   }
 
   return bearer.token.slice(0, 8);
+}
+
+function sentryCaptureApi(module: SentryCaptureModule) {
+  if (
+    typeof module.captureException === "function" &&
+    typeof module.withScope === "function"
+  ) {
+    return module as SentryCaptureApi;
+  }
+
+  if (
+    typeof module.default?.captureException === "function" &&
+    typeof module.default.withScope === "function"
+  ) {
+    return module.default as SentryCaptureApi;
+  }
+
+  return null;
 }
 
 function outcomeForResponse(
@@ -510,8 +546,38 @@ export async function withExternalApiObservability(
     return response;
   } catch (error) {
     const outcome: ExternalApiOutcome = "server_error";
-
     console.error("External API handler threw.", { requestId, route, error });
+
+    try {
+      const Sentry = sentryCaptureApi(await import("@sentry/nextjs"));
+
+      if (!Sentry) {
+        throw new Error("Sentry capture API is unavailable.");
+      }
+
+      Sentry.withScope((scope) => {
+        scope.setTag("requestId", requestId);
+        scope.setTag("route", route);
+        scope.setTag("outcome", outcome);
+        scope.setContext("externalApiRequest", {
+          apiKeyPrefix: apiKeyPrefixForRequest(request),
+          method: request.method,
+          userId: resolvedUserId,
+        });
+        Sentry.captureException(error);
+      });
+    } catch (sentryError) {
+      console.error("Sentry capture failed for external API throw.", sentryError);
+    }
+
+    const response = externalApiError(
+      "Internal server error.",
+      500,
+      headersWithRateLimit(undefined, rateLimitHeaders),
+      requestId,
+    );
+    attachWrapperHeaders(response, requestId, rateLimitHeaders);
+
     logExternalApiRequest(
       externalApiLogFields({
         outcome,
@@ -519,12 +585,12 @@ export async function withExternalApiObservability(
         requestId,
         route,
         startedAt,
-        status: 500,
+        status: response.status,
         userId: resolvedUserId,
       }),
     );
 
-    throw error;
+    return response;
   }
 }
 
