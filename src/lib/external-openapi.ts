@@ -46,6 +46,19 @@ function responseHeaders() {
         type: "string",
       },
     },
+    "X-RateLimit-Limit": {
+      description: "Max requests allowed per rate-limit window.",
+      schema: { type: "integer", minimum: 1 },
+    },
+    "X-RateLimit-Remaining": {
+      description:
+        "Requests remaining in the current rate-limit window after this request was counted.",
+      schema: { type: "integer", minimum: 0 },
+    },
+    "X-RateLimit-Reset": {
+      description: "Unix epoch second when the current rate-limit window resets.",
+      schema: { type: "integer", minimum: 0 },
+    },
   };
 }
 

@@ -5,6 +5,8 @@ import { GET as getBoard } from "@/app/api/external/v1/boards/[slug]/route";
 import { GET as getBoards } from "@/app/api/external/v1/boards/route";
 import { GET as getDailySummary } from "@/app/api/external/v1/daily-summary/route";
 import { GET as getDashboard } from "@/app/api/external/v1/dashboard/route";
+import { rateLimitKey } from "@/lib/api";
+import { demoUser } from "@/lib/domain";
 import {
   externalApiJson,
   withExternalApiObservability,
@@ -15,10 +17,15 @@ import {
   externalDailySummaryResponseSchema,
   externalDashboardResponseSchema,
 } from "@/lib/external-contract";
+import { evaluateRateLimit } from "@/lib/rate-limit";
 import { resetDatabase, seedPlanningData } from "../../helpers/database";
 
 const uuidV4Pattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const externalRateLimit = {
+  limit: 120,
+  windowMs: 60_000,
+};
 
 type StructuredExternalApiLog = {
   kind: "external_api_request";
@@ -84,6 +91,22 @@ async function expectJsonContract<T>(response: Response, schema: ZodType<T>) {
   return body;
 }
 
+function expectRateLimitHeaders(response: Response) {
+  const limit = response.headers.get("X-RateLimit-Limit");
+  const remaining = response.headers.get("X-RateLimit-Remaining");
+  const reset = response.headers.get("X-RateLimit-Reset");
+
+  expect(limit).toMatch(/^\d+$/);
+  expect(remaining).toMatch(/^\d+$/);
+  expect(reset).toMatch(/^\d+$/);
+
+  return {
+    limit: Number(limit),
+    remaining: Number(remaining),
+    reset: Number(reset),
+  };
+}
+
 describe("external v1 route contracts", () => {
   beforeEach(async () => {
     await resetDatabase();
@@ -127,6 +150,76 @@ describe("external v1 route contracts", () => {
     );
 
     await expectJsonContract(response, externalDailySummaryResponseSchema);
+  });
+
+  test("GET /api/external/v1/dashboard returns rate-limit headers on success", async () => {
+    const startedAtSeconds = Math.floor(Date.now() / 1000);
+    const response = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
+    const headers = expectRateLimitHeaders(response);
+    const finishedAtSeconds = Math.ceil(Date.now() / 1000);
+
+    expect(response.status).toBe(200);
+    expect(headers.limit).toBe(externalRateLimit.limit);
+    expect(headers.remaining).toBeGreaterThanOrEqual(0);
+    expect(headers.remaining).toBeLessThanOrEqual(externalRateLimit.limit - 1);
+    expect(headers.reset).toBeGreaterThanOrEqual(startedAtSeconds);
+    expect(headers.reset).toBeLessThanOrEqual(
+      finishedAtSeconds + externalRateLimit.windowMs / 1000,
+    );
+  });
+
+  test("rate-limit remaining decrements across consecutive requests", async () => {
+    const first = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
+    const second = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
+    const firstHeaders = expectRateLimitHeaders(first);
+    const secondHeaders = expectRateLimitHeaders(second);
+
+    expect(secondHeaders.reset).toBe(firstHeaders.reset);
+    expect(secondHeaders.remaining).toBe(firstHeaders.remaining - 1);
+  });
+
+  test("rate-limit reset is stable within the same window", async () => {
+    const first = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
+    const second = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
+    const firstHeaders = expectRateLimitHeaders(first);
+    const secondHeaders = expectRateLimitHeaders(second);
+
+    expect(secondHeaders.reset).toBe(firstHeaders.reset);
+  });
+
+  test("GET /api/external/v1/dashboard returns rate-limit headers on auth failure", async () => {
+    const response = await getDashboard(
+      externalGetRequestWithoutAuthorization("/api/external/v1/dashboard"),
+    );
+    const headers = expectRateLimitHeaders(response);
+
+    expect(response.status).toBe(401);
+    expect(headers.limit).toBe(externalRateLimit.limit);
+    expect(headers.remaining).toBe(externalRateLimit.limit - 1);
+  });
+
+  test("GET /api/external/v1/dashboard returns rate-limit headers on 429", async () => {
+    const request = externalGetRequest("/api/external/v1/dashboard");
+    const key = rateLimitKey(request, "external-api");
+
+    for (let count = 0; count <= externalRateLimit.limit; count += 1) {
+      await evaluateRateLimit({ key, ...externalRateLimit });
+    }
+
+    const response = await getDashboard(request);
+    const body = await response.json();
+    const headers = expectRateLimitHeaders(response);
+
+    expect(response.status).toBe(429);
+    expect(body).toEqual({
+      message: "Too many attempts. Please try again shortly.",
+    });
+    expect(response.headers.get("Retry-After")).toMatch(/^[1-9]\d*$/);
+    expect(response.headers.get("X-Request-Id")).toMatch(uuidV4Pattern);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(headers.limit).toBe(externalRateLimit.limit);
+    expect(headers.remaining).toBe(0);
   });
 
   test("GET /api/external/v1/daily-summary rejects an invalid external key", async () => {
@@ -212,6 +305,17 @@ describe("external v1 route contracts", () => {
     expect(log.apiKeyPrefix).toBe(token.slice(0, 8));
     expect(logged).not.toContain(token);
     expect(logged).not.toContain(configuredKey);
+  });
+
+  test("GET /api/external/v1/dashboard logs the resolved auth user", async () => {
+    // tokenMatchesAny is module-private and timingSafeEqual is imported as a
+    // named binding during module evaluation, so vi.spyOn cannot reliably
+    // observe the call count here. This guards the observable threading result.
+    const response = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
+    const log = structuredLog();
+
+    expect(response.status).toBe(200);
+    expect(log.userId).toBe(process.env.EXTERNAL_USER_ID?.trim() || demoUser.id);
   });
 
   test("X-Internal-Outcome is not returned on success or validation failure", async () => {

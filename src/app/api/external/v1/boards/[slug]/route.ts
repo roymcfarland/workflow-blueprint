@@ -2,7 +2,6 @@ import { getBoardSnapshot } from "@/lib/data";
 import {
   externalApiError,
   externalApiJson,
-  requireExternalApiUser,
   withExternalApiObservability,
 } from "@/lib/external-api";
 import { externalBoardResponseSchema } from "@/lib/external-contract";
@@ -18,15 +17,9 @@ export async function GET(
   return withExternalApiObservability(
     request,
     "/api/external/v1/boards/[slug]",
-    async ({ requestId }) => {
-      const user = await requireExternalApiUser(request, { requestId });
-
-      if (!user.ok) {
-        return user.response;
-      }
-
+    async ({ requestId, user }) => {
       const { slug } = await params;
-      const board = await getBoardSnapshot(user.data.userId, slug);
+      const board = await getBoardSnapshot(user.userId, slug);
 
       if (!board) {
         return externalApiError("Board not found.", 404, undefined, requestId);

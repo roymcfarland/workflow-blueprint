@@ -35,6 +35,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "401":
           content:
             application/json:
@@ -57,6 +72,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "403":
           content:
             application/json:
@@ -79,6 +109,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "404":
           content:
             application/json:
@@ -101,6 +146,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "429":
           content:
             application/json:
@@ -123,6 +183,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "500":
           content:
             application/json:
@@ -145,6 +220,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "503":
           content:
             application/json:
@@ -167,6 +257,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
       security:
         - ExternalApiKeyAuth: []
       summary: Aggregate dashboard payload.
@@ -198,6 +303,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "401":
           content:
             application/json:
@@ -220,6 +340,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "403":
           content:
             application/json:
@@ -242,6 +377,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "404":
           content:
             application/json:
@@ -264,6 +414,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "429":
           content:
             application/json:
@@ -286,6 +451,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "500":
           content:
             application/json:
@@ -308,6 +488,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "503":
           content:
             application/json:
@@ -330,6 +525,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
       security:
         - ExternalApiKeyAuth: []
       summary: List boards owned by the configured external user.
@@ -361,6 +571,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "401":
           content:
             application/json:
@@ -383,6 +608,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "403":
           content:
             application/json:
@@ -405,6 +645,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "404":
           content:
             application/json:
@@ -427,6 +682,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "429":
           content:
             application/json:
@@ -449,6 +719,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "500":
           content:
             application/json:
@@ -471,6 +756,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "503":
           content:
             application/json:
@@ -493,6 +793,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
       security:
         - ExternalApiKeyAuth: []
       summary: Get one board by slug, including tasks, subtasks, and note content.
@@ -531,6 +846,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "401":
           content:
             application/json:
@@ -553,6 +883,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "403":
           content:
             application/json:
@@ -575,6 +920,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "429":
           content:
             application/json:
@@ -597,6 +957,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "500":
           content:
             application/json:
@@ -619,6 +994,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
         "503":
           content:
             application/json:
@@ -641,6 +1031,21 @@ paths:
               schema:
                 format: uuid
                 type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
       security:
         - ExternalApiKeyAuth: []
       summary: Daily briefing payload used by external automation.

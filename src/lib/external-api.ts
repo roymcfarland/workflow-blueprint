@@ -5,7 +5,7 @@ import { subDays } from "date-fns";
 import { NextResponse } from "next/server";
 import type { ZodType } from "zod";
 
-import { checkRateLimit, rateLimitKey } from "@/lib/api";
+import { rateLimitKey } from "@/lib/api";
 import { userExists } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { demoUser, type ItemPriority } from "@/lib/domain";
@@ -20,6 +20,10 @@ import {
   type ExternalApiLogFields,
   type ExternalApiOutcome,
 } from "@/lib/observability";
+import {
+  evaluateRateLimit,
+  type RateLimitDecision,
+} from "@/lib/rate-limit";
 
 type ApiResult<T> =
   | {
@@ -38,7 +42,29 @@ type BearerResult =
 
 type RequireExternalApiAccessOptions = {
   rateLimitScope?: string;
+  rateLimitHeaders?: RateLimitHeaders;
   requestId?: string;
+};
+
+type RateLimitHeaders = {
+  "X-RateLimit-Limit": string;
+  "X-RateLimit-Remaining": string;
+  "X-RateLimit-Reset": string;
+};
+
+type ExternalRateLimitResult =
+  | { kind: "ok"; headers: RateLimitHeaders }
+  | { kind: "limited"; response: NextResponse; headers: RateLimitHeaders };
+
+export type ExternalApiContext = {
+  requestId: string;
+  rateLimitHeaders: RateLimitHeaders;
+  user: { userId: string };
+};
+
+type ExternalApiObservabilityOptions = {
+  requireExistingUser?: boolean;
+  rateLimitScope?: string;
 };
 
 const externalRateLimit = {
@@ -75,6 +101,48 @@ function externalHeaders(headers?: HeadersInit) {
   return nextHeaders;
 }
 
+function setRateLimitHeaders(headers: Headers, rateLimitHeaders: RateLimitHeaders) {
+  headers.set("X-RateLimit-Limit", rateLimitHeaders["X-RateLimit-Limit"]);
+  headers.set(
+    "X-RateLimit-Remaining",
+    rateLimitHeaders["X-RateLimit-Remaining"],
+  );
+  headers.set("X-RateLimit-Reset", rateLimitHeaders["X-RateLimit-Reset"]);
+}
+
+function headersWithRateLimit(
+  headers: HeadersInit | undefined,
+  rateLimitHeaders: RateLimitHeaders | undefined,
+) {
+  const nextHeaders = new Headers(headers);
+
+  if (rateLimitHeaders) {
+    setRateLimitHeaders(nextHeaders, rateLimitHeaders);
+  }
+
+  return nextHeaders;
+}
+
+function rateLimitHeadersFor(decision: RateLimitDecision): RateLimitHeaders {
+  return {
+    "X-RateLimit-Limit": String(decision.limit),
+    "X-RateLimit-Remaining": String(decision.remaining),
+    "X-RateLimit-Reset": String(
+      Math.floor(decision.resetAt.getTime() / 1000),
+    ),
+  };
+}
+
+function attachWrapperHeaders(
+  response: NextResponse,
+  requestId: string,
+  rateLimitHeaders: RateLimitHeaders,
+) {
+  response.headers.set("X-Request-Id", requestId);
+  setRateLimitHeaders(response.headers, rateLimitHeaders);
+  response.headers.delete(internalOutcomeHeader);
+}
+
 function elapsedMs(startedAt: number) {
   return Math.max(0, Math.round(performance.now() - startedAt));
 }
@@ -87,26 +155,6 @@ function apiKeyPrefixForRequest(request: Request) {
   }
 
   return bearer.token.slice(0, 8);
-}
-
-function validExternalApiUserIdForRequest(
-  request: Request,
-  outcome: ExternalApiOutcome,
-) {
-  if (outcome === "auth_failed" || outcome === "rate_limited") {
-    return null;
-  }
-
-  const bearer = readBearerToken(request);
-
-  if (
-    bearer.kind !== "ok" ||
-    !tokenMatchesAny(bearer.token, getRequiredExternalApiKeys())
-  ) {
-    return null;
-  }
-
-  return externalUserId();
 }
 
 function outcomeForResponse(
@@ -139,6 +187,7 @@ function externalApiLogFields({
   route,
   startedAt,
   status,
+  userId,
 }: {
   outcome: ExternalApiOutcome;
   request: Request;
@@ -146,6 +195,7 @@ function externalApiLogFields({
   route: string;
   startedAt: number;
   status: number;
+  userId: string | null;
 }): ExternalApiLogFields {
   return {
     requestId,
@@ -154,7 +204,7 @@ function externalApiLogFields({
     status,
     durationMs: elapsedMs(startedAt),
     apiKeyPrefix: apiKeyPrefixForRequest(request),
-    userId: validExternalApiUserIdForRequest(request, outcome),
+    userId,
     outcome,
   };
 }
@@ -221,22 +271,36 @@ async function checkExternalRateLimit(
   request: Request,
   scope: string,
   requestId?: string,
-) {
-  const rateLimitResponse = await checkRateLimit({
+): Promise<ExternalRateLimitResult> {
+  const decision = await evaluateRateLimit({
     key: rateLimitKey(request, scope),
     ...externalRateLimit,
   });
+  const headers = rateLimitHeadersFor(decision);
 
-  if (rateLimitResponse) {
-    rateLimitResponse.headers.set("Cache-Control", "no-store");
-    rateLimitResponse.headers.set("X-Robots-Tag", "noindex");
-
-    if (requestId) {
-      rateLimitResponse.headers.set("X-Request-Id", requestId);
-    }
+  if (!decision.limited) {
+    return { kind: "ok", headers };
   }
 
-  return rateLimitResponse;
+  const responseHeaders = externalHeaders(headers);
+
+  responseHeaders.set("Retry-After", String(decision.retryAfterSeconds));
+
+  if (requestId) {
+    responseHeaders.set("X-Request-Id", requestId);
+  }
+
+  return {
+    kind: "limited",
+    headers,
+    response: NextResponse.json(
+      { message: "Too many attempts. Please try again shortly." },
+      {
+        headers: responseHeaders,
+        status: 429,
+      },
+    ),
+  };
 }
 
 function deriveNumericId(value: string) {
@@ -333,18 +397,103 @@ export function externalApiJson<T>(
 export async function withExternalApiObservability(
   request: Request,
   route: string,
-  handler: (ctx: { requestId: string }) => Promise<NextResponse>,
+  handler: (ctx: ExternalApiContext) => Promise<NextResponse>,
+  {
+    rateLimitScope = "external-api",
+    requireExistingUser = true,
+  }: ExternalApiObservabilityOptions = {},
 ): Promise<NextResponse> {
   const requestId = newRequestId();
   const startedAt = performance.now();
+  let rateLimitHeaders: RateLimitHeaders | undefined;
+  let resolvedUserId: string | null = null;
 
   try {
-    const response = await handler({ requestId });
+    const rateLimit = await checkExternalRateLimit(
+      request,
+      rateLimitScope,
+      requestId,
+    );
+    rateLimitHeaders = rateLimit.headers;
+
+    if (rateLimit.kind === "limited") {
+      attachWrapperHeaders(rateLimit.response, requestId, rateLimit.headers);
+
+      logExternalApiRequest(
+        externalApiLogFields({
+          outcome: "rate_limited",
+          request,
+          requestId,
+          route,
+          startedAt,
+          status: rateLimit.response.status,
+          userId: null,
+        }),
+      );
+
+      return rateLimit.response;
+    }
+
+    const access = await resolveExternalApiAccess(request, {
+      rateLimitHeaders,
+      requestId,
+    });
+
+    if (!access.ok) {
+      const internalOutcome = access.response.headers.get(internalOutcomeHeader);
+      const outcome = outcomeForResponse(access.response.status, internalOutcome);
+
+      attachWrapperHeaders(access.response, requestId, rateLimitHeaders);
+      logExternalApiRequest(
+        externalApiLogFields({
+          outcome,
+          request,
+          requestId,
+          route,
+          startedAt,
+          status: access.response.status,
+          userId: null,
+        }),
+      );
+
+      return access.response;
+    }
+
+    resolvedUserId = access.data.userId;
+
+    if (requireExistingUser && !(await userExists(resolvedUserId))) {
+      const response = externalApiError(
+        "External API user was not found.",
+        404,
+        headersWithRateLimit(undefined, rateLimitHeaders),
+        requestId,
+      );
+
+      attachWrapperHeaders(response, requestId, rateLimitHeaders);
+      logExternalApiRequest(
+        externalApiLogFields({
+          outcome: "not_found",
+          request,
+          requestId,
+          route,
+          startedAt,
+          status: response.status,
+          userId: resolvedUserId,
+        }),
+      );
+
+      return response;
+    }
+
+    const response = await handler({
+      requestId,
+      rateLimitHeaders,
+      user: { userId: resolvedUserId },
+    });
     const internalOutcome = response.headers.get(internalOutcomeHeader);
     const outcome = outcomeForResponse(response.status, internalOutcome);
 
-    response.headers.set("X-Request-Id", requestId);
-    response.headers.delete(internalOutcomeHeader);
+    attachWrapperHeaders(response, requestId, rateLimitHeaders);
 
     logExternalApiRequest(
       externalApiLogFields({
@@ -354,6 +503,7 @@ export async function withExternalApiObservability(
         route,
         startedAt,
         status: response.status,
+        userId: resolvedUserId,
       }),
     );
 
@@ -370,6 +520,7 @@ export async function withExternalApiObservability(
         route,
         startedAt,
         status: 500,
+        userId: resolvedUserId,
       }),
     );
 
@@ -377,26 +528,13 @@ export async function withExternalApiObservability(
   }
 }
 
-export async function requireExternalApiAccess(
+async function resolveExternalApiAccess(
   request: Request,
   {
-    rateLimitScope = "external-api",
+    rateLimitHeaders,
     requestId,
-  }: RequireExternalApiAccessOptions = {},
+  }: Pick<RequireExternalApiAccessOptions, "rateLimitHeaders" | "requestId"> = {},
 ): Promise<ApiResult<{ userId: string }>> {
-  const rateLimitResponse = await checkExternalRateLimit(
-    request,
-    rateLimitScope,
-    requestId,
-  );
-
-  if (rateLimitResponse) {
-    return {
-      ok: false,
-      response: rateLimitResponse,
-    };
-  }
-
   const expectedKeys = getRequiredExternalApiKeys();
 
   if (expectedKeys.length === 0) {
@@ -405,7 +543,7 @@ export async function requireExternalApiAccess(
       response: externalApiError(
         "External API is not configured.",
         503,
-        undefined,
+        headersWithRateLimit(undefined, rateLimitHeaders),
         requestId,
       ),
     };
@@ -420,9 +558,12 @@ export async function requireExternalApiAccess(
         response: externalApiError(
           "Missing Authorization header.",
           401,
-          {
-            "WWW-Authenticate": 'Bearer realm="external-api"',
-          },
+          headersWithRateLimit(
+            {
+              "WWW-Authenticate": 'Bearer realm="external-api"',
+            },
+            rateLimitHeaders,
+          ),
           requestId,
         ),
       };
@@ -432,9 +573,12 @@ export async function requireExternalApiAccess(
         response: externalApiError(
           "Malformed Authorization header.",
           401,
-          {
-            "WWW-Authenticate": 'Bearer realm="external-api"',
-          },
+          headersWithRateLimit(
+            {
+              "WWW-Authenticate": 'Bearer realm="external-api"',
+            },
+            rateLimitHeaders,
+          ),
           requestId,
         ),
       };
@@ -445,7 +589,12 @@ export async function requireExternalApiAccess(
   if (!tokenMatchesAny(bearer.token, expectedKeys)) {
     return {
       ok: false,
-      response: externalApiError("Invalid API key.", 403, undefined, requestId),
+      response: externalApiError(
+        "Invalid API key.",
+        403,
+        headersWithRateLimit(undefined, rateLimitHeaders),
+        requestId,
+      ),
     };
   }
 
@@ -457,11 +606,54 @@ export async function requireExternalApiAccess(
   };
 }
 
+export async function requireExternalApiAccess(
+  request: Request,
+  {
+    rateLimitHeaders,
+    rateLimitScope = "external-api",
+    requestId,
+  }: RequireExternalApiAccessOptions = {},
+): Promise<ApiResult<{ userId: string }>> {
+  const rateLimit: ExternalRateLimitResult = rateLimitHeaders
+    ? { kind: "ok", headers: rateLimitHeaders }
+    : await checkExternalRateLimit(request, rateLimitScope, requestId);
+
+  if (rateLimit.kind === "limited") {
+    return {
+      ok: false,
+      response: rateLimit.response,
+    };
+  }
+
+  return resolveExternalApiAccess(request, {
+    rateLimitHeaders: rateLimit.headers,
+    requestId,
+  });
+}
+
 export async function requireExternalApiUser(
   request: Request,
   options: RequireExternalApiAccessOptions = {},
 ) {
-  const access = await requireExternalApiAccess(request, options);
+  const rateLimit: ExternalRateLimitResult = options.rateLimitHeaders
+    ? { kind: "ok", headers: options.rateLimitHeaders }
+    : await checkExternalRateLimit(
+        request,
+        options.rateLimitScope ?? "external-api",
+        options.requestId,
+      );
+
+  if (rateLimit.kind === "limited") {
+    return {
+      ok: false as const,
+      response: rateLimit.response,
+    };
+  }
+
+  const access = await resolveExternalApiAccess(request, {
+    rateLimitHeaders: rateLimit.headers,
+    requestId: options.requestId,
+  });
 
   if (!access.ok) {
     return access;
@@ -473,7 +665,7 @@ export async function requireExternalApiUser(
       response: externalApiError(
         "External API user was not found.",
         404,
-        undefined,
+        headersWithRateLimit(undefined, rateLimit.headers),
         options.requestId,
       ),
     };
@@ -588,22 +780,10 @@ export async function buildExternalDailySummary(
   };
 }
 
-export async function handleExternalDailySummary(
-  request: Request,
-  requestId?: string,
-) {
-  const access = await requireExternalApiAccess(request, {
-    rateLimitScope: "external-daily-summary",
-    requestId,
-  });
-
-  if (!access.ok) {
-    return access.response;
-  }
-
+export async function handleExternalDailySummary(userId: string, requestId?: string) {
   return externalApiJson(
     externalDailySummaryResponseSchema,
-    await buildExternalDailySummary(access.data.userId),
+    await buildExternalDailySummary(userId),
     undefined,
     requestId,
   );
