@@ -80,6 +80,39 @@ const archiveOptions = [
 type ViewMode = (typeof boardViewOptions)[number]["value"];
 type ArchiveMode = (typeof archiveOptions)[number]["value"];
 
+function archiveModeStorageKey(boardSlug: string) {
+  return `wb.board.${boardSlug}.archiveMode`;
+}
+
+function isArchiveMode(value: string | null): value is ArchiveMode {
+  return value === "on" || value === "off";
+}
+
+function readStoredArchiveMode(boardSlug: string): ArchiveMode | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(archiveModeStorageKey(boardSlug));
+    return isArchiveMode(storedValue) ? storedValue : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistArchiveMode(boardSlug: string, archiveMode: ArchiveMode) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(archiveModeStorageKey(boardSlug), archiveMode);
+  } catch {
+    // Archive-mode persistence is a progressive enhancement.
+  }
+}
+
 function formatApiFailure(
   response: Response,
   message: string | undefined,
@@ -1712,7 +1745,7 @@ export function BoardWorkspace({
 }) {
   const [tasks, setTasks] = useState(board.tasks);
   const [viewMode, setViewMode] = useState<ViewMode>("board");
-  const [archiveMode, setArchiveMode] = useState<ArchiveMode>("on");
+  const [archiveMode, setArchiveMode] = useState<ArchiveMode>("off");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [drawerTask, setDrawerTask] = useState<SerializedTask | null>(null);
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(defaultNewTaskStatus);
@@ -1756,6 +1789,20 @@ export function BoardWorkspace({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+
+  useEffect(() => {
+    let mounted = true;
+
+    queueMicrotask(() => {
+      if (mounted) {
+        setArchiveMode(readStoredArchiveMode(board.slug) ?? "off");
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [board.slug]);
 
   useEffect(() => {
     if (!subtasksPanelTaskId) {
@@ -2041,6 +2088,11 @@ export function BoardWorkspace({
     setSubtasksPanelTaskId((current) => (current === taskId ? null : taskId));
   };
 
+  const handleArchiveModeChange = (nextArchiveMode: ArchiveMode) => {
+    setArchiveMode(nextArchiveMode);
+    persistArchiveMode(board.slug, nextArchiveMode);
+  };
+
   const boardArea = (
     <DndContext
       collisionDetection={kanbanCollisionDetection}
@@ -2124,7 +2176,7 @@ export function BoardWorkspace({
           <BoardHeaderControls
             archiveMode={archiveMode}
             notesOpen={notesOpen}
-            onArchiveModeChange={setArchiveMode}
+            onArchiveModeChange={handleArchiveModeChange}
             onNewTask={() => openNewTask()}
             onToggleNotes={() => setNotesOpen((value) => !value)}
             onViewModeChange={setViewMode}
