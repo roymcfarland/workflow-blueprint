@@ -38,7 +38,16 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, useTransition, type CSSProperties, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import {
   Controller,
   useFieldArray,
@@ -63,6 +72,19 @@ import {
   type ItemPriority,
   type TaskStatus,
 } from "@/lib/domain";
+import {
+  ARCHIVE_MODE_DEFAULT,
+  NOTES_OPEN_DEFAULT,
+  VIEW_MODE_DEFAULT,
+  readArchiveMode,
+  readNotesOpen,
+  readViewMode,
+  writeArchiveMode,
+  writeNotesOpen,
+  writeViewMode,
+  type ArchiveMode,
+  type ViewMode,
+} from "@/lib/board-preferences";
 import type { BoardSnapshot, SerializedTask } from "@/lib/data";
 import { formatShortDate, cn } from "@/lib/utils";
 import type { TaskInput } from "@/lib/validators";
@@ -76,42 +98,6 @@ const archiveOptions = [
   { label: "Show", value: "on" },
   { label: "Hide", value: "off" },
 ] as const;
-
-type ViewMode = (typeof boardViewOptions)[number]["value"];
-type ArchiveMode = (typeof archiveOptions)[number]["value"];
-
-function archiveModeStorageKey(boardSlug: string) {
-  return `wb.board.${boardSlug}.archiveMode`;
-}
-
-function isArchiveMode(value: string | null): value is ArchiveMode {
-  return value === "on" || value === "off";
-}
-
-function readStoredArchiveMode(boardSlug: string): ArchiveMode | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const storedValue = window.localStorage.getItem(archiveModeStorageKey(boardSlug));
-    return isArchiveMode(storedValue) ? storedValue : null;
-  } catch {
-    return null;
-  }
-}
-
-function persistArchiveMode(boardSlug: string, archiveMode: ArchiveMode) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(archiveModeStorageKey(boardSlug), archiveMode);
-  } catch {
-    // Archive-mode persistence is a progressive enhancement.
-  }
-}
 
 function formatApiFailure(
   response: Response,
@@ -1744,8 +1730,8 @@ export function BoardWorkspace({
   board: BoardSnapshot;
 }) {
   const [tasks, setTasks] = useState(board.tasks);
-  const [viewMode, setViewMode] = useState<ViewMode>("board");
-  const [archiveMode, setArchiveMode] = useState<ArchiveMode>("off");
+  const [viewMode, setViewMode] = useState<ViewMode>(VIEW_MODE_DEFAULT);
+  const [archiveMode, setArchiveMode] = useState<ArchiveMode>(ARCHIVE_MODE_DEFAULT);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [drawerTask, setDrawerTask] = useState<SerializedTask | null>(null);
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(defaultNewTaskStatus);
@@ -1758,7 +1744,7 @@ export function BoardWorkspace({
   const [noteMessage, setNoteMessage] = useState<string | null>(null);
   const [taskSaveStatus, setTaskSaveStatus] = useState<SaveStatus>("idle");
   const [taskSaveMessage, setTaskSaveMessage] = useState<string | null>(null);
-  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState<boolean>(NOTES_OPEN_DEFAULT);
   const boardDndId = `${board.slug}-tasks-dnd`;
   const noteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteAbortRef = useRef<AbortController | null>(null);
@@ -1794,9 +1780,13 @@ export function BoardWorkspace({
     let mounted = true;
 
     queueMicrotask(() => {
-      if (mounted) {
-        setArchiveMode(readStoredArchiveMode(board.slug) ?? "off");
+      if (!mounted) {
+        return;
       }
+
+      setArchiveMode(readArchiveMode(board.slug) ?? ARCHIVE_MODE_DEFAULT);
+      setViewMode(readViewMode(board.slug) ?? VIEW_MODE_DEFAULT);
+      setNotesOpen(readNotesOpen(board.slug) ?? NOTES_OPEN_DEFAULT);
     });
 
     return () => {
@@ -2090,8 +2080,29 @@ export function BoardWorkspace({
 
   const handleArchiveModeChange = (nextArchiveMode: ArchiveMode) => {
     setArchiveMode(nextArchiveMode);
-    persistArchiveMode(board.slug, nextArchiveMode);
+    writeArchiveMode(board.slug, nextArchiveMode);
   };
+
+  const handleViewModeChange = useCallback(
+    (nextViewMode: ViewMode) => {
+      setViewMode(nextViewMode);
+      writeViewMode(board.slug, nextViewMode);
+    },
+    [board.slug],
+  );
+
+  const handleToggleNotes = useCallback(() => {
+    setNotesOpen((value) => {
+      const next = !value;
+      writeNotesOpen(board.slug, next);
+      return next;
+    });
+  }, [board.slug]);
+
+  const handleCloseNotes = useCallback(() => {
+    setNotesOpen(false);
+    writeNotesOpen(board.slug, false);
+  }, [board.slug]);
 
   const boardArea = (
     <DndContext
@@ -2178,8 +2189,8 @@ export function BoardWorkspace({
             notesOpen={notesOpen}
             onArchiveModeChange={handleArchiveModeChange}
             onNewTask={() => openNewTask()}
-            onToggleNotes={() => setNotesOpen((value) => !value)}
-            onViewModeChange={setViewMode}
+            onToggleNotes={handleToggleNotes}
+            onViewModeChange={handleViewModeChange}
             viewMode={viewMode}
           />
           <div className="flex justify-end">
@@ -2223,7 +2234,7 @@ export function BoardWorkspace({
             noteMessage={noteMessage}
             noteStatus={noteStatus}
             onChange={setNoteDraft}
-            onClose={() => setNotesOpen(false)}
+            onClose={handleCloseNotes}
           />
         ) : null}
       </div>
