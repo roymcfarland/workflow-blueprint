@@ -35,10 +35,13 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **PR 4** | Read-only deprecation cleanup | `#9` | Deleted the legacy `/api/external/daily-summary` alias and the entire `/api/read-only/*` surface; removed `READ_ONLY_API_KEY` and `READ_ONLY_USER_ID` from the codebase and from Vercel. The v1 contract under `/api/external/v1/*` is now the only supported external surface. |
 | **PR 5** | OpenAPI contract guard | `#10` | Added `docs/openapi.yaml` as the authoritative OpenAPI 3.1 reference for `/api/external/v1/*`, generated from `src/lib/external-contract.ts`; added a CI drift test that fails when the committed spec and Zod schemas diverge. |
 | **PR 7** | Rate-limit headers + resolved external user threading | `#13` | Exposed `X-RateLimit-*` headers on all `/api/external/v1/*` wrapper responses and threaded the resolved external user through the observability wrapper, closing the PR 7 follow-up from the external API observability sequence. |
+| **PR 8** | Server-side Sentry + Q6 scope discipline | `#14` | Added server-side Sentry capture for uncaught API errors, correlated events with `X-Request-Id`, and introduced the Q6 rule requiring out-of-scope diff enumeration in PR bodies. |
 
 ### Active phase
 
-No PRs are currently sequenced. New work is proposed via PRs that update this section before (or in) the same PR that introduces the work.
+| PR | Title | GitHub PR | Status |
+|---|---|---|---|
+| **PR 9** | Hover-with-intent sidebar + per-board hide-archive default | `#?` | In flight in this PR. |
 
 ### Standing Builder guardrails (post-PR-1)
 
