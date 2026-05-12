@@ -34,14 +34,16 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **PR 3** | Consumer migration | (external repo) | `www.roymcfarland.news` briefing job migrated to `EXTERNAL_API_KEY` and the v1 endpoint paths in the `agentic-daily-briefing` repo. |
 | **PR 4** | Read-only deprecation cleanup | `#9` | Deleted the legacy `/api/external/daily-summary` alias and the entire `/api/read-only/*` surface; removed `READ_ONLY_API_KEY` and `READ_ONLY_USER_ID` from the codebase and from Vercel. The v1 contract under `/api/external/v1/*` is now the only supported external surface. |
 | **PR 5** | OpenAPI contract guard | `#10` | Added `docs/openapi.yaml` as the authoritative OpenAPI 3.1 reference for `/api/external/v1/*`, generated from `src/lib/external-contract.ts`; added a CI drift test that fails when the committed spec and Zod schemas diverge. |
+| **PR 6** | External API observability | `#12` | Added `src/lib/observability.ts`, the `withExternalApiObservability` wrapper, structured per-request log lines via `console.log`, and `X-Request-Id` UUID v4 response headers on every `/api/external/v1/*` route. Foundation for the PR 8 Sentry correlation. |
 | **PR 7** | Rate-limit headers + resolved external user threading | `#13` | Exposed `X-RateLimit-*` headers on all `/api/external/v1/*` wrapper responses and threaded the resolved external user through the observability wrapper, closing the PR 7 follow-up from the external API observability sequence. |
 | **PR 8** | Server-side Sentry + Q6 scope discipline | `#14` | Added server-side Sentry capture for uncaught API errors, correlated events with `X-Request-Id`, and introduced the Q6 rule requiring out-of-scope diff enumeration in PR bodies. |
+| **PR 9** | Hover-with-intent sidebar + per-board hide-archive default | `#16` | Replaced the click-toggle desktop sidebar with a hover-with-intent + pin model (`localStorage["wb.sidebar.pinned"]`), changed the per-board archive default to "Hide" with per-slug persistence (`wb.board.{slug}.archiveMode`), and established the canonical hydration-safe persistence pattern (static `useState` + `queueMicrotask` in `useEffect`) plus the jsdom + `@dnd-kit/*` mock pattern for `BoardWorkspace`. |
 
 ### Active phase
 
 | PR | Title | GitHub PR | Status |
 |---|---|---|---|
-| **PR 9** | Hover-with-intent sidebar + per-board hide-archive default | `#?` | In flight in this PR. |
+| **PR 10** | Per-board view-mode + notes-open persistence; extract `src/lib/board-preferences.ts` | `#?` | In flight in this PR. |
 
 ### Standing Builder guardrails (post-PR-1)
 
