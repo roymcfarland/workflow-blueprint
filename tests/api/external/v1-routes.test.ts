@@ -430,7 +430,7 @@ describe("external v1 route contracts", () => {
       async ({ requestId }) =>
         externalApiJson(
           validationSchema,
-          { ok: false } as { ok: true },
+          { ok: false } as unknown as { ok: true },
           undefined,
           requestId,
         ),
