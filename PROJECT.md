@@ -54,6 +54,7 @@ The Q1 test-coverage rule has been enforceable since PR 1 (`#7`) merged. It appl
 - **No "tests come in a follow-up PR" PRs are accepted.** If a PR's test coverage is insufficient, the missing tests must be added to that same PR before merge.
 - Documentation-only PRs (no changes outside `*.md` files) are exempt from the test-coverage rule but must still pass `npm run lint` if linting covers Markdown.
 - **PR size is judged by review surface, not raw line count.** Test-harness, lockfile, and dependency-bootstrap PRs (e.g., `#7`, `#14`) are intentionally larger because they are gated by reviewer attention rather than by feature scope; small-PR discipline applies to feature and contract changes, not to one-time scaffolding.
+- **Merged feature branches are deleted, remote and local.** Once a PR merges, its feature branch must not linger. The repository has GitHub's "Automatically delete head branches" setting enabled, so the remote branch is removed automatically on merge; the local branch is pruned by the standard pre-flight block at the start of the next slice (`git branch --merged main … | git branch -d`). No long-lived merged branches should accumulate in either location.
 
 ---
 
