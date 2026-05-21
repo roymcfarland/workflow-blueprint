@@ -38,12 +38,13 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **PR 7** | Rate-limit headers + resolved external user threading | `#13` | Exposed `X-RateLimit-*` headers on all `/api/external/v1/*` wrapper responses and threaded the resolved external user through the observability wrapper, closing the PR 7 follow-up from the external API observability sequence. |
 | **PR 8** | Server-side Sentry + Q6 scope discipline | `#14` | Added server-side Sentry capture for uncaught API errors, correlated events with `X-Request-Id`, and introduced the Q6 rule requiring out-of-scope diff enumeration in PR bodies. |
 | **PR 9** | Hover-with-intent sidebar + per-board hide-archive default | `#16` | Replaced the click-toggle desktop sidebar with a hover-with-intent + pin model (`localStorage["wb.sidebar.pinned"]`), changed the per-board archive default to "Hide" with per-slug persistence (`wb.board.{slug}.archiveMode`), and established the canonical hydration-safe persistence pattern (static `useState` + `queueMicrotask` in `useEffect`) plus the jsdom + `@dnd-kit/*` mock pattern for `BoardWorkspace`. |
+| **PR 10** | Per-board view-mode + notes-open persistence; extract `src/lib/board-preferences.ts` | `#17` | Added per-board view-mode and notes-open persistence and extracted the shared persistence helpers into `src/lib/board-preferences.ts`, with tests per Q1 (`tests/lib/board-preferences.test.ts`, `tests/components/board-workspace-preferences.test.tsx`). |
+| **PR 11** | Harden public schema RLS | `#18` | Hardened row-level security on the public schema; covered by `tests/database-rls.test.ts`. |
+| **PR 12** | CI typecheck gate | `#19` | Added a `typecheck` npm script (`tsc --noEmit`) and a dedicated CI `typecheck` job, and fixed a pre-existing TS2352 error in `tests/api/external/v1-routes.test.ts` that had slipped through because CI previously ran no type check. |
 
 ### Active phase
 
-| PR | Title | GitHub PR | Status |
-|---|---|---|---|
-| **PR 10** | Per-board view-mode + notes-open persistence; extract `src/lib/board-preferences.ts` | `#?` | In flight in this PR. |
+_No PRs are currently in flight. The next slice will be added here before work begins, per the sequencing rule above._
 
 ### Standing Builder guardrails (post-PR-1)
 
