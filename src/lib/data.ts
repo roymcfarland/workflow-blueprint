@@ -17,7 +17,16 @@ import {
   type TaskStatus,
   type ThemePreference,
 } from "@/lib/domain";
-import type { CreateBoardInput, ProfileInput, TaskInput, TaskReorderInput, UpdateBoardInput } from "@/lib/validators";
+import type {
+  CreateBoardInput,
+  ProfileInput,
+  SubtaskCreateInput,
+  SubtaskReorderInput,
+  SubtaskUpdateInput,
+  TaskInput,
+  TaskReorderInput,
+  UpdateBoardInput,
+} from "@/lib/validators";
 
 const taskInclude = {
   subtasks: {
@@ -644,6 +653,230 @@ export async function deleteTaskForUser(userId: string, taskId: string) {
   if (deleted.count === 0) {
     throw new Error("Task not found.");
   }
+}
+
+export async function createSubtaskForUser(
+  userId: string,
+  taskId: string,
+  input: SubtaskCreateInput,
+): Promise<SerializedTask> {
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.findFirst({
+        where: {
+          id: taskId,
+          board: {
+            userId,
+          },
+        },
+        include: taskInclude,
+      });
+
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
+      if (task.subtasks.length >= 50) {
+        throw new Error("Tasks can include up to 50 subtasks.");
+      }
+
+      const sortOrder =
+        task.subtasks.reduce(
+          (highestSortOrder, subtask) => Math.max(highestSortOrder, subtask.sortOrder),
+          -1,
+        ) + 1;
+
+      await tx.subtask.create({
+        data: {
+          id: randomUUID(),
+          taskId: task.id,
+          title: input.title,
+          isComplete: false,
+          priority: input.priority as PrismaItemPriority,
+          sortOrder,
+        },
+      });
+
+      const parentTask = await tx.task.findUnique({
+        where: {
+          id: task.id,
+        },
+        include: taskInclude,
+      });
+
+      if (!parentTask) {
+        throw new Error("Task not found.");
+      }
+
+      return serializeTask(parentTask);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function updateSubtaskForUser(
+  userId: string,
+  subtaskId: string,
+  input: SubtaskUpdateInput,
+): Promise<SerializedTask> {
+  return prisma.$transaction(async (tx) => {
+    const subtask = await tx.subtask.findFirst({
+      where: {
+        id: subtaskId,
+        task: {
+          board: {
+            userId,
+          },
+        },
+      },
+      select: {
+        taskId: true,
+      },
+    });
+
+    if (!subtask) {
+      throw new Error("Subtask not found.");
+    }
+
+    await tx.subtask.update({
+      where: {
+        id: subtaskId,
+      },
+      data: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.isComplete !== undefined ? { isComplete: input.isComplete } : {}),
+        ...(input.priority !== undefined
+          ? { priority: input.priority as PrismaItemPriority }
+          : {}),
+      },
+    });
+
+    const parentTask = await tx.task.findFirst({
+      where: {
+        id: subtask.taskId,
+        board: {
+          userId,
+        },
+      },
+      include: taskInclude,
+    });
+
+    if (!parentTask) {
+      throw new Error("Task not found.");
+    }
+
+    return serializeTask(parentTask);
+  });
+}
+
+export async function deleteSubtaskForUser(
+  userId: string,
+  subtaskId: string,
+): Promise<SerializedTask> {
+  return prisma.$transaction(async (tx) => {
+    const subtask = await tx.subtask.findFirst({
+      where: {
+        id: subtaskId,
+        task: {
+          board: {
+            userId,
+          },
+        },
+      },
+      select: {
+        taskId: true,
+      },
+    });
+
+    if (!subtask) {
+      throw new Error("Subtask not found.");
+    }
+
+    await tx.subtask.delete({
+      where: {
+        id: subtaskId,
+      },
+    });
+
+    const parentTask = await tx.task.findFirst({
+      where: {
+        id: subtask.taskId,
+        board: {
+          userId,
+        },
+      },
+      include: taskInclude,
+    });
+
+    if (!parentTask) {
+      throw new Error("Task not found.");
+    }
+
+    return serializeTask(parentTask);
+  });
+}
+
+export async function reorderSubtasksForUser(
+  userId: string,
+  taskId: string,
+  input: SubtaskReorderInput,
+): Promise<SerializedTask> {
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.findFirst({
+        where: {
+          id: taskId,
+          board: {
+            userId,
+          },
+        },
+        include: taskInclude,
+      });
+
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
+      const currentSubtaskIds = new Set(task.subtasks.map((subtask) => subtask.id));
+      const hasSameSubtasks =
+        input.subtaskIds.length === task.subtasks.length &&
+        input.subtaskIds.every((subtaskId) => currentSubtaskIds.has(subtaskId));
+
+      if (!hasSameSubtasks) {
+        throw new Error("Reorder payload does not match the task's subtasks.");
+      }
+
+      for (const [sortOrder, subtaskId] of input.subtaskIds.entries()) {
+        const updated = await tx.subtask.updateMany({
+          where: {
+            id: subtaskId,
+            taskId: task.id,
+          },
+          data: {
+            sortOrder,
+          },
+        });
+
+        if (updated.count !== 1) {
+          throw new Error("Reorder payload does not match the task's subtasks.");
+        }
+      }
+
+      const parentTask = await tx.task.findUnique({
+        where: {
+          id: task.id,
+        },
+        include: taskInclude,
+      });
+
+      if (!parentTask) {
+        throw new Error("Task not found.");
+      }
+
+      return serializeTask(parentTask);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 export async function reorderTasksForUser(userId: string, input: TaskReorderInput) {
