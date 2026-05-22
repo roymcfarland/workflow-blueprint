@@ -168,6 +168,50 @@ export const taskReorderSchema = z
     });
   });
 
+export const subtaskCreateSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "Subtask title is required.")
+    .max(180, "Subtask titles should stay under 180 characters."),
+  priority: z.enum(itemPriorities).default("NONE"),
+});
+
+export const subtaskUpdateSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Subtask title is required.")
+      .max(180, "Subtask titles should stay under 180 characters.")
+      .optional(),
+    isComplete: z.boolean().optional(),
+    priority: z.enum(itemPriorities).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Provide at least one field to update.",
+  });
+
+export const subtaskReorderSchema = z
+  .object({
+    subtaskIds: z.array(z.string().trim().min(1)).min(1).max(50),
+  })
+  .superRefine((value, context) => {
+    const seen = new Set<string>();
+
+    value.subtaskIds.forEach((id, index) => {
+      if (seen.has(id)) {
+        context.addIssue({
+          code: "custom",
+          message: "Reorder payload contains duplicate subtask ids.",
+          path: ["subtaskIds", index],
+        });
+      }
+
+      seen.add(id);
+    });
+  });
+
 export const noteSchema = z.object({
   content: z
     .string()
@@ -260,5 +304,8 @@ export type InvitePreviewInput = z.infer<typeof invitePreviewSchema>;
 export type AdminInvitationInput = z.infer<typeof adminInvitationSchema>;
 export type TaskInput = z.infer<typeof taskInputSchema>;
 export type TaskReorderInput = z.infer<typeof taskReorderSchema>;
+export type SubtaskCreateInput = z.infer<typeof subtaskCreateSchema>;
+export type SubtaskUpdateInput = z.infer<typeof subtaskUpdateSchema>;
+export type SubtaskReorderInput = z.infer<typeof subtaskReorderSchema>;
 export type NoteInput = z.infer<typeof noteSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;
