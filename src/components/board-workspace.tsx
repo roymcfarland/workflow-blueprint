@@ -1938,47 +1938,136 @@ function TaskDetailsButton({
   );
 }
 
-function AddTaskToStatusButton({
-  onNewTask,
+function QuickAddTask({
+  onCreate,
+  onOpenChange,
+  open,
   status,
 }: {
-  onNewTask: (status: TaskStatus) => void;
+  onCreate: (title: string, status: TaskStatus) => Promise<void>;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
   status: TaskStatus;
 }) {
   const label = `Add task to ${statusLabels[status]}`;
 
+  if (!open) {
+    return (
+      <button
+        aria-label={label}
+        className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line-soft px-3 py-2 text-sm font-semibold text-text-muted transition hover:border-line-strong hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+        onClick={() => onOpenChange(true)}
+        title={label}
+        type="button"
+      >
+        <Plus className="h-4 w-4" />
+        Add task
+      </button>
+    );
+  }
+
   return (
-    <BlueprintButton
-      aria-label={label}
-      className="h-8 w-8 shrink-0 px-0 py-0"
-      onClick={() => onNewTask(status)}
-      title={label}
-      type="button"
-      variant="outline"
-    >
-      <Plus className="h-4 w-4" />
-      <span className="sr-only">{label}</span>
-    </BlueprintButton>
+    <QuickAddTaskInput
+      label={label}
+      onCreate={onCreate}
+      onOpenChange={onOpenChange}
+      status={status}
+    />
+  );
+}
+
+function QuickAddTaskInput({
+  label,
+  onCreate,
+  onOpenChange,
+  status,
+}: {
+  label: string;
+  onCreate: (title: string, status: TaskStatus) => Promise<void>;
+  onOpenChange: (open: boolean) => void;
+  status: TaskStatus;
+}) {
+  const [title, setTitle] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = async () => {
+    const value = title.trim();
+    if (!value || pending) {
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      await onCreate(value, status);
+      setTitle("");
+      inputRef.current?.focus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create task.");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <input
+        aria-label={label}
+        className="blueprint-control h-9 w-full rounded-md px-3 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+        disabled={pending}
+        onBlur={() => {
+          if (!title.trim()) {
+            onOpenChange(false);
+          }
+        }}
+        onChange={(event) => setTitle(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            void submit();
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onOpenChange(false);
+          }
+        }}
+        placeholder="Task title, then press Enter"
+        ref={inputRef}
+        value={title}
+      />
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+    </div>
   );
 }
 
 function ListViewStatusBody({
+  onCreateTask,
+  onQuickAddOpenChange,
   onOpenTask,
   onRenameTask,
   onSaveTask,
   onTaskUpdated,
   onToggleSubtasksPanel,
   panelRef,
+  quickAddOpen,
   status,
   subtasksPanelTaskId,
   tasks,
 }: {
+  onCreateTask: (title: string, status: TaskStatus) => Promise<void>;
+  onQuickAddOpenChange: (open: boolean) => void;
   onOpenTask: (task: SerializedTask) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
   onToggleSubtasksPanel: (taskId: string) => void;
   onSaveTask: PanelTaskSaveHandler;
   onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
+  quickAddOpen: boolean;
   status: TaskStatus;
   subtasksPanelTaskId: string | null;
   tasks: SerializedTask[];
@@ -2016,29 +2105,39 @@ function ListViewStatusBody({
           Nothing here yet — drag a card here from another lane.
         </div>
       ) : null}
+      <QuickAddTask
+        onCreate={onCreateTask}
+        onOpenChange={onQuickAddOpenChange}
+        open={quickAddOpen}
+        status={status}
+      />
     </div>
   );
 }
 
 function BoardColumn({
-  onNewTask,
+  onCreateTask,
+  onQuickAddOpenChange,
   onOpenTask,
   onRenameTask,
   onToggleSubtasksPanel,
   onSaveTask,
   onTaskUpdated,
   panelRef,
+  quickAddOpen,
   status,
   subtasksPanelTaskId,
   tasks,
 }: {
-  onNewTask: (status: TaskStatus) => void;
+  onCreateTask: (title: string, status: TaskStatus) => Promise<void>;
+  onQuickAddOpenChange: (open: boolean) => void;
   onOpenTask: (task: SerializedTask) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
   onToggleSubtasksPanel: (taskId: string) => void;
   onSaveTask: PanelTaskSaveHandler;
   onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
+  quickAddOpen: boolean;
   status: TaskStatus;
   subtasksPanelTaskId: string | null;
   tasks: SerializedTask[];
@@ -2059,7 +2158,6 @@ function BoardColumn({
             <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
               {tasks.length}
             </span>
-            <AddTaskToStatusButton onNewTask={onNewTask} status={status} />
           </div>
         </div>
       </div>
@@ -2091,6 +2189,12 @@ function BoardColumn({
             Drop a task here
           </div>
         ) : null}
+        <QuickAddTask
+          onCreate={onCreateTask}
+          onOpenChange={onQuickAddOpenChange}
+          open={quickAddOpen}
+          status={status}
+        />
       </div>
     </div>
   );
@@ -2443,8 +2547,10 @@ export function BoardWorkspace({
   const [archiveMode, setArchiveMode] = useState<ArchiveMode>(ARCHIVE_MODE_DEFAULT);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [drawerTask, setDrawerTask] = useState<SerializedTask | null>(null);
-  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(defaultNewTaskStatus);
-  const [drawerOpen, setDrawerOpen] = useState(autoOpenNewTask ?? false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeQuickAddStatus, setActiveQuickAddStatus] = useState<TaskStatus | null>(
+    autoOpenNewTask ? defaultNewTaskStatus : null,
+  );
   const [drawerVersion, setDrawerVersion] = useState(0);
   const [subtasksPanelTaskId, setSubtasksPanelTaskId] = useState<string | null>(null);
   const subtasksPanelRef = useRef<HTMLDivElement | null>(null);
@@ -2522,13 +2628,6 @@ export function BoardWorkspace({
   const openTask = (task: SerializedTask) => {
     setDrawerVersion((value) => value + 1);
     setDrawerTask(task);
-    setDrawerOpen(true);
-  };
-
-  const openNewTask = (status: TaskStatus = defaultNewTaskStatus) => {
-    setDrawerVersion((value) => value + 1);
-    setNewTaskStatus(status);
-    setDrawerTask(null);
     setDrawerOpen(true);
   };
 
@@ -2672,6 +2771,13 @@ export function BoardWorkspace({
       setTaskSaveStatus("idle");
       setTaskSaveMessage(null);
     }, 1800);
+  }
+
+  async function handleQuickCreateTask(title: string, status: TaskStatus) {
+    await handleSaveTask(
+      { title, description: null, status, dueDate: null, priority: "NONE", subtasks: [] },
+      undefined,
+    );
   }
 
   const handleTaskUpdatedFromServer = useCallback((nextTask: SerializedTask) => {
@@ -2832,13 +2938,15 @@ export function BoardWorkspace({
           {visibleStatuses.map((status) => (
             <div className={kanbanLaneItemClassName} key={status}>
               <BoardColumn
-                onNewTask={openNewTask}
+                onCreateTask={handleQuickCreateTask}
                 onOpenTask={openTask}
+                onQuickAddOpenChange={(open) => setActiveQuickAddStatus(open ? status : null)}
                 onRenameTask={handleRenameTask}
                 onSaveTask={handleSaveTask}
                 onTaskUpdated={handleTaskUpdatedFromServer}
                 onToggleSubtasksPanel={toggleSubtasksPanel}
                 panelRef={subtasksPanelRef}
+                quickAddOpen={activeQuickAddStatus === status}
                 status={status}
                 subtasksPanelTaskId={subtasksPanelTaskId}
                 tasks={grouped[status]}
@@ -2858,16 +2966,18 @@ export function BoardWorkspace({
                   <span className="rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-primary">
                     {grouped[status].length}
                   </span>
-                  <AddTaskToStatusButton onNewTask={openNewTask} status={status} />
                 </div>
               </div>
               <ListViewStatusBody
+                onCreateTask={handleQuickCreateTask}
                 onOpenTask={openTask}
+                onQuickAddOpenChange={(open) => setActiveQuickAddStatus(open ? status : null)}
                 onRenameTask={handleRenameTask}
                 onSaveTask={handleSaveTask}
                 onTaskUpdated={handleTaskUpdatedFromServer}
                 onToggleSubtasksPanel={toggleSubtasksPanel}
                 panelRef={subtasksPanelRef}
+                quickAddOpen={activeQuickAddStatus === status}
                 status={status}
                 subtasksPanelTaskId={subtasksPanelTaskId}
                 tasks={grouped[status]}
@@ -2903,7 +3013,7 @@ export function BoardWorkspace({
             archiveMode={archiveMode}
             notesOpen={notesOpen}
             onArchiveModeChange={handleArchiveModeChange}
-            onNewTask={() => openNewTask()}
+            onNewTask={() => setActiveQuickAddStatus(defaultNewTaskStatus)}
             onToggleNotes={handleToggleNotes}
             onViewModeChange={handleViewModeChange}
             viewMode={viewMode}
@@ -2927,7 +3037,7 @@ export function BoardWorkspace({
                 <span className="font-semibold text-text-primary">{board.name}</span>.
               </p>
             </div>
-            <BlueprintButton onClick={() => openNewTask()} variant="hero">
+            <BlueprintButton onClick={() => setActiveQuickAddStatus(defaultNewTaskStatus)} variant="hero">
               <Plus className="h-4 w-4" />
               New task
             </BlueprintButton>
@@ -2956,7 +3066,7 @@ export function BoardWorkspace({
 
       <TaskDrawer
         boardName={board.name}
-        initialStatus={newTaskStatus}
+        initialStatus={defaultNewTaskStatus}
         key={drawerVersion}
         onClose={() => {
           setDrawerOpen(false);
