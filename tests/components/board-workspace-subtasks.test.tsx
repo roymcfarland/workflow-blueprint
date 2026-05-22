@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -141,6 +141,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -161,7 +162,7 @@ describe("BoardWorkspace subtask panel granular API", () => {
           isComplete: false,
           priority: "NONE",
           sortOrder: 1,
-          title: "New subtask",
+          title: "Review copy",
         }),
       ],
     });
@@ -174,7 +175,7 @@ describe("BoardWorkspace subtask panel granular API", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
 
-    expect(screen.getByText("Draft outline")).toBeDefined();
+    expect(screen.getByDisplayValue("Draft outline")).toBeDefined();
     expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
 
     fireEvent.click(screen.getByRole("checkbox"));
@@ -191,16 +192,126 @@ describe("BoardWorkspace subtask panel granular API", () => {
       expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Add subtask" }));
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" }) as HTMLInputElement;
+    addInput.focus();
+    fireEvent.change(addInput, { target: { value: "Review copy" } });
+    fireEvent.keyDown(addInput, { key: "Enter" });
+
+    expect(addInput.value).toBe("");
+    await waitFor(() => expect(document.activeElement).toBe(addInput));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
     const [addUrl, addInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(addUrl).toBe(`/api/tasks/${initialTask.id}/subtasks`);
     expect(addInit.method).toBe("POST");
-    expect(requestJsonBody(addInit)).toEqual({ priority: "NONE", title: "New subtask" });
+    expect(requestJsonBody(addInit)).toEqual({ priority: "NONE", title: "Review copy" });
 
-    await waitFor(() => expect(screen.getByText("New subtask")).toBeDefined());
+    await waitFor(() => expect(screen.getByDisplayValue("Review copy")).toBeDefined());
     expect((screen.getAllByRole("checkbox")[0] as HTMLInputElement).checked).toBe(true);
+  });
+
+  test("debounces inline title edits through the granular endpoint", async () => {
+    vi.useFakeTimers();
+    const initialTask = task();
+    const renamedTask = task({
+      subtasks: [subtask({ title: "Draft outline updated" })],
+    });
+
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: renamedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLInputElement;
+    fireEvent.change(titleInput, { target: { value: "Draft outline updated" } });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(650);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [renameUrl, renameInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(renameUrl).toBe("/api/subtasks/subtask-1");
+    expect(renameInit.method).toBe("PATCH");
+    expect(requestJsonBody(renameInit)).toEqual({ title: "Draft outline updated" });
+    expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
+  });
+
+  test("keeps a focused dirty title while toggling another row", async () => {
+    vi.useFakeTimers();
+    const initialTask = task({
+      subtasks: [
+        subtask(),
+        subtask({
+          id: "subtask-2",
+          priority: "NONE",
+          sortOrder: 1,
+          title: "Check copy",
+        }),
+      ],
+    });
+    const titleSavedTask = task({
+      subtasks: [
+        subtask({ title: "Half-written title" }),
+        subtask({
+          id: "subtask-2",
+          priority: "NONE",
+          sortOrder: 1,
+          title: "Check copy",
+        }),
+      ],
+    });
+    const staleToggleTask = task({
+      subtasks: [
+        subtask(),
+        subtask({
+          id: "subtask-2",
+          isComplete: true,
+          priority: "NONE",
+          sortOrder: 1,
+          title: "Check copy",
+        }),
+      ],
+    });
+
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ ok: true, task: titleSavedTask }))
+      .mockResolvedValueOnce(apiResponse({ ok: true, task: staleToggleTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+
+    const firstTitle = screen.getByDisplayValue("Draft outline") as HTMLInputElement;
+    fireEvent.focus(firstTitle);
+    fireEvent.change(firstTitle, { target: { value: "Half-written title" } });
+    fireEvent.blur(firstTitle);
+
+    const secondCheckbox = screen.getAllByRole("checkbox")[1] as HTMLInputElement;
+    fireEvent.click(secondCheckbox);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [renameUrl, renameInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(renameUrl).toBe("/api/subtasks/subtask-1");
+    expect(renameInit.method).toBe("PATCH");
+    expect(requestJsonBody(renameInit)).toEqual({ title: "Half-written title" });
+
+    const [toggleUrl, toggleInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(toggleUrl).toBe("/api/subtasks/subtask-2");
+    expect(toggleInit.method).toBe("PATCH");
+    expect(requestJsonBody(toggleInit)).toEqual({ isComplete: true });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByDisplayValue("Half-written title")).toBeDefined();
+    expect((screen.getAllByRole("checkbox")[1] as HTMLInputElement).checked).toBe(true);
+    expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
   });
 });
