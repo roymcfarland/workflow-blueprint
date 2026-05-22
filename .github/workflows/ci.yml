@@ -29,6 +29,21 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
 
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://user:password@localhost:5432/workflow_blueprint
+      AUTH_SECRET: workflow-blueprint-ci-auth-secret-for-build
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
   test:
     runs-on: ubuntu-latest
     services:
