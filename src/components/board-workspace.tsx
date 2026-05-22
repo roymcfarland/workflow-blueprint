@@ -533,6 +533,14 @@ type PanelSubtaskRow = {
   priority: ItemPriority;
 };
 
+type PanelTaskSaveHandler = (
+  values: TaskInput,
+  taskId: string,
+  options?: { closeDrawer?: boolean },
+) => Promise<void>;
+
+type TaskUpdatedHandler = (task: SerializedTask) => void;
+
 function rowsFromTask(task: SerializedTask): PanelSubtaskRow[] {
   return [...task.subtasks]
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -543,13 +551,6 @@ function rowsFromTask(task: SerializedTask): PanelSubtaskRow[] {
       isComplete: s.isComplete,
       priority: s.priority,
     }));
-}
-
-/** Bumps when server task shape changes so the panel remounts and picks up fresh state without a sync effect. */
-function subtasksPanelSyncKey(task: SerializedTask): string {
-  return `${task.id}:${task.priority}:${task.subtasks
-    .map((s) => `${s.id}:${s.sortOrder}:${s.title}:${s.priority}:${s.isComplete}`)
-    .join("|")}`;
 }
 
 function buildTaskInputFromPanel(
@@ -570,13 +571,17 @@ function buildTaskInputFromPanel(
 }
 
 function PanelSubtaskEditorRow({
+  disabled = false,
+  onEditingChange,
   onPriorityChange,
   onRemove,
   onTitleCommit,
   onToggleComplete,
   row,
 }: {
+  disabled?: boolean;
   row: PanelSubtaskRow;
+  onEditingChange?: (editing: boolean) => void;
   onPriorityChange: (priority: ItemPriority) => void;
   onRemove: () => void;
   onTitleCommit: (title: string) => void;
@@ -586,6 +591,10 @@ function PanelSubtaskEditorRow({
     useSortable({ id: row.key });
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
+
+  useEffect(() => {
+    onEditingChange?.(editing);
+  }, [editing, onEditingChange]);
 
   return (
     <div
@@ -599,6 +608,7 @@ function PanelSubtaskEditorRow({
       <button
         aria-label="Reorder subtask"
         className="shrink-0 text-text-muted"
+        disabled={disabled}
         ref={setActivatorNodeRef}
         type="button"
         {...attributes}
@@ -609,6 +619,7 @@ function PanelSubtaskEditorRow({
       <input
         checked={row.isComplete}
         className="h-4 w-4 shrink-0 rounded border-line-strong accent-brand"
+        disabled={disabled}
         onChange={onToggleComplete}
         type="checkbox"
       />
@@ -616,6 +627,7 @@ function PanelSubtaskEditorRow({
         <input
           autoFocus
           className="min-w-0 flex-1 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand"
+          disabled={disabled}
           maxLength={180}
           onBlur={() => {
             onTitleCommit(draftTitle.trim() || "Untitled");
@@ -641,6 +653,7 @@ function PanelSubtaskEditorRow({
             "min-w-0 flex-1 truncate rounded px-1 text-left text-sm font-semibold text-text-primary transition hover:bg-surface-control-hover",
             row.isComplete && "text-text-muted line-through",
           )}
+          disabled={disabled}
           onClick={() => {
             setDraftTitle(row.title);
             setEditing(true);
@@ -653,6 +666,7 @@ function PanelSubtaskEditorRow({
       <select
         aria-label="Subtask priority"
         className={prioritySelectClassName()}
+        disabled={disabled}
         onChange={(e) => onPriorityChange(e.target.value as ItemPriority)}
         value={row.priority}
       >
@@ -665,6 +679,7 @@ function PanelSubtaskEditorRow({
       <button
         aria-label="Remove subtask"
         className="shrink-0 text-text-muted transition hover:text-danger"
+        disabled={disabled}
         onClick={onRemove}
         type="button"
       >
@@ -677,12 +692,14 @@ function PanelSubtaskEditorRow({
 function SubtasksCardPanel({
   onSave,
   onClose,
+  onTaskUpdated,
   panelRef,
   placement = "dropdown",
   task,
 }: {
   onClose: () => void;
-  onSave: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  onSave: PanelTaskSaveHandler;
+  onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
   placement?: "dropdown" | "inline";
   task: SerializedTask;
@@ -691,22 +708,301 @@ function SubtasksCardPanel({
   const [taskPriority, setTaskPriority] = useState(task.priority);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingRowKeys, setEditingRowKeys] = useState<Set<string>>(() => new Set());
+  const hasEditingRows = editingRowKeys.size > 0;
   const subtaskSensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: 6 },
     }),
   );
+  const taskSubtasksSignature = JSON.stringify(
+    task.subtasks.map((subtask) => [
+      subtask.id,
+      subtask.sortOrder,
+      subtask.title,
+      subtask.priority,
+      subtask.isComplete,
+    ]),
+  );
 
-  const persist = async (nextRows: PanelSubtaskRow[], prio: ItemPriority) => {
+  const markRowEditing = useCallback((rowKey: string, editing: boolean) => {
+    setEditingRowKeys((current) => {
+      const isTracked = current.has(rowKey);
+      if (isTracked === editing) {
+        return current;
+      }
+
+      const next = new Set(current);
+      if (editing) {
+        next.add(rowKey);
+      } else {
+        next.delete(rowKey);
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (saving || hasEditingRows) {
+      return;
+    }
+
+    let mounted = true;
+    queueMicrotask(() => {
+      if (!mounted) {
+        return;
+      }
+
+      setRows(rowsFromTask(task));
+      setTaskPriority(task.priority);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [hasEditingRows, saving, task, taskSubtasksSignature]);
+
+  const applyServerTask = (nextTask: SerializedTask) => {
+    onTaskUpdated(nextTask);
+    setRows(rowsFromTask(nextTask));
+    setTaskPriority(nextTask.priority);
+  };
+
+  const fetchUpdatedTask = async ({
+    body,
+    fallback,
+    method,
+    url,
+  }: {
+    body?: unknown;
+    fallback: string;
+    method: "DELETE" | "PATCH" | "POST";
+    url: string;
+  }) => {
+    const response = await fetch(url, {
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      method,
+    });
+    const result = (await response.json().catch(() => null)) as {
+      message?: string;
+      ok?: boolean;
+      task?: SerializedTask;
+    } | null;
+
+    if (!response.ok || !result?.task) {
+      throw new Error(formatApiFailure(response, result?.message, fallback));
+    }
+
+    return result.task;
+  };
+
+  const commitSubtaskMutation = async ({
+    optimisticRows,
+    previousRows,
+    request,
+  }: {
+    optimisticRows: PanelSubtaskRow[];
+    previousRows: PanelSubtaskRow[];
+    request: () => Promise<SerializedTask>;
+  }) => {
+    if (saving) {
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+    setRows(optimisticRows);
+    try {
+      applyServerTask(await request());
+    } catch (err) {
+      setRows(previousRows);
+      setError(err instanceof Error ? err.message : "Unable to save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveTaskPriority = async (nextPriority: ItemPriority) => {
     setError(null);
     setSaving(true);
     try {
-      await onSave(buildTaskInputFromPanel(task, prio, nextRows), task.id, { closeDrawer: false });
+      await onSave(buildTaskInputFromPanel(task, nextPriority, rows), task.id, {
+        closeDrawer: false,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const requireServerId = (row: PanelSubtaskRow, message: string) => {
+    if (row.serverId) {
+      return row.serverId;
+    }
+
+    setError(message);
+    return null;
+  };
+
+  const patchSubtask = (
+    row: PanelSubtaskRow,
+    body: Partial<Pick<PanelSubtaskRow, "isComplete" | "priority" | "title">>,
+    optimisticRows: PanelSubtaskRow[],
+    fallback: string,
+  ) => {
+    const subtaskId = requireServerId(
+      row,
+      "Wait for the subtask to finish saving before updating it.",
+    );
+    if (!subtaskId) {
+      return;
+    }
+
+    void commitSubtaskMutation({
+      optimisticRows,
+      previousRows: rows,
+      request: () =>
+        fetchUpdatedTask({
+          body,
+          fallback,
+          method: "PATCH",
+          url: `/api/subtasks/${subtaskId}`,
+        }),
+    });
+  };
+
+  const handleSubtaskPriorityChange = (row: PanelSubtaskRow, priority: ItemPriority) => {
+    if (saving || hasEditingRows || priority === row.priority) {
+      return;
+    }
+
+    patchSubtask(
+      row,
+      { priority },
+      rows.map((r) => (r.key === row.key ? { ...r, priority } : r)),
+      "Unable to update subtask priority.",
+    );
+  };
+
+  const handleSubtaskRemove = (row: PanelSubtaskRow) => {
+    if (saving || hasEditingRows) {
+      return;
+    }
+
+    const subtaskId = requireServerId(
+      row,
+      "Wait for the subtask to finish saving before removing it.",
+    );
+    if (!subtaskId) {
+      return;
+    }
+
+    void commitSubtaskMutation({
+      optimisticRows: rows.filter((r) => r.key !== row.key),
+      previousRows: rows,
+      request: () =>
+        fetchUpdatedTask({
+          fallback: "Unable to remove subtask.",
+          method: "DELETE",
+          url: `/api/subtasks/${subtaskId}`,
+        }),
+    });
+  };
+
+  const handleSubtaskTitleCommit = (row: PanelSubtaskRow, title: string) => {
+    if (saving || title === row.title) {
+      return;
+    }
+
+    patchSubtask(
+      row,
+      { title },
+      rows.map((r) => (r.key === row.key ? { ...r, title } : r)),
+      "Unable to rename subtask.",
+    );
+  };
+
+  const handleSubtaskToggle = (row: PanelSubtaskRow) => {
+    if (saving || hasEditingRows) {
+      return;
+    }
+
+    const isComplete = !row.isComplete;
+    patchSubtask(
+      row,
+      { isComplete },
+      rows.map((r) => (r.key === row.key ? { ...r, isComplete } : r)),
+      "Unable to update subtask.",
+    );
+  };
+
+  const handleSubtaskDragEnd = (event: DragEndEvent) => {
+    if (saving || hasEditingRows) {
+      return;
+    }
+
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = rows.findIndex((r) => r.key === active.id);
+    const newIndex = rows.findIndex((r) => r.key === over.id);
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+
+    const next = arrayMove(rows, oldIndex, newIndex);
+    const subtaskIds = next
+      .map((r) => r.serverId)
+      .filter((serverId): serverId is string => Boolean(serverId));
+
+    if (subtaskIds.length !== next.length) {
+      setError("Wait for the subtask to finish saving before reordering.");
+      return;
+    }
+
+    void commitSubtaskMutation({
+      optimisticRows: next,
+      previousRows: rows,
+      request: () =>
+        fetchUpdatedTask({
+          body: { subtaskIds },
+          fallback: "Unable to reorder subtasks.",
+          method: "POST",
+          url: `/api/tasks/${task.id}/subtasks/reorder`,
+        }),
+    });
+  };
+
+  const handleSubtaskAdd = () => {
+    if (saving || hasEditingRows) {
+      return;
+    }
+
+    const next = [
+      ...rows,
+      {
+        key: crypto.randomUUID(),
+        title: "New subtask",
+        isComplete: false,
+        priority: "NONE" as const,
+      },
+    ];
+
+    void commitSubtaskMutation({
+      optimisticRows: next,
+      previousRows: rows,
+      request: () =>
+        fetchUpdatedTask({
+          body: { priority: "NONE", title: "New subtask" },
+          fallback: "Unable to add subtask.",
+          method: "POST",
+          url: `/api/tasks/${task.id}/subtasks`,
+        }),
+    });
   };
 
   const subtaskDndId = `card-subtasks-${task.id}`;
@@ -727,11 +1023,11 @@ function SubtasksCardPanel({
           <span>Task priority</span>
           <select
             className={prioritySelectClassName()}
-            disabled={saving}
+            disabled={saving || hasEditingRows}
             onChange={(e) => {
               const p = e.target.value as ItemPriority;
               setTaskPriority(p);
-              void persist(rows, p);
+              void saveTaskPriority(p);
             }}
             value={taskPriority}
           >
@@ -758,20 +1054,7 @@ function SubtasksCardPanel({
       <DndContext
         id={subtaskDndId}
         collisionDetection={closestCenter}
-        onDragEnd={(event) => {
-          const { active, over } = event;
-          if (!over || active.id === over.id) {
-            return;
-          }
-          const oldIndex = rows.findIndex((r) => r.key === active.id);
-          const newIndex = rows.findIndex((r) => r.key === over.id);
-          if (oldIndex < 0 || newIndex < 0) {
-            return;
-          }
-          const next = arrayMove(rows, oldIndex, newIndex);
-          setRows(next);
-          void persist(next, taskPriority);
-        }}
+        onDragEnd={handleSubtaskDragEnd}
         sensors={subtaskSensors}
       >
         <SortableContext items={rows.map((r) => r.key)} strategy={verticalListSortingStrategy}>
@@ -779,28 +1062,12 @@ function SubtasksCardPanel({
             {rows.map((row) => (
               <PanelSubtaskEditorRow
                 key={row.key}
-                onPriorityChange={(priority) => {
-                  const next = rows.map((r) => (r.key === row.key ? { ...r, priority } : r));
-                  setRows(next);
-                  void persist(next, taskPriority);
-                }}
-                onRemove={() => {
-                  const next = rows.filter((r) => r.key !== row.key);
-                  setRows(next);
-                  void persist(next, taskPriority);
-                }}
-                onTitleCommit={(title) => {
-                  const next = rows.map((r) => (r.key === row.key ? { ...r, title } : r));
-                  setRows(next);
-                  void persist(next, taskPriority);
-                }}
-                onToggleComplete={() => {
-                  const next = rows.map((r) =>
-                    r.key === row.key ? { ...r, isComplete: !r.isComplete } : r,
-                  );
-                  setRows(next);
-                  void persist(next, taskPriority);
-                }}
+                disabled={saving}
+                onEditingChange={(editing) => markRowEditing(row.key, editing)}
+                onPriorityChange={(priority) => handleSubtaskPriorityChange(row, priority)}
+                onRemove={() => handleSubtaskRemove(row)}
+                onTitleCommit={(title) => handleSubtaskTitleCommit(row, title)}
+                onToggleComplete={() => handleSubtaskToggle(row)}
                 row={row}
               />
             ))}
@@ -811,20 +1078,8 @@ function SubtasksCardPanel({
       <div className="mt-3 border-t border-line-soft pt-2">
         <BlueprintButton
           className="w-full justify-center"
-          disabled={saving}
-          onClick={() => {
-            const next = [
-              ...rows,
-              {
-                key: crypto.randomUUID(),
-                title: "New subtask",
-                isComplete: false,
-                priority: "NONE" as const,
-              },
-            ];
-            setRows(next);
-            void persist(next, taskPriority);
-          }}
+          disabled={saving || hasEditingRows}
+          onClick={handleSubtaskAdd}
           type="button"
           variant="outline"
         >
@@ -917,6 +1172,7 @@ function TaskPreview({
 function SortableTaskCard({
   onOpen,
   onRename,
+  onTaskUpdated,
   onToggleSubtasksPanel,
   panelRef,
   subtasksPanelTaskId,
@@ -925,10 +1181,11 @@ function SortableTaskCard({
 }: {
   onOpen: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
+  onTaskUpdated: TaskUpdatedHandler;
   onToggleSubtasksPanel: (taskId: string) => void;
   panelRef: RefObject<HTMLDivElement | null>;
   subtasksPanelTaskId: string | null;
-  onSave: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  onSave: PanelTaskSaveHandler;
   task: SerializedTask;
 }) {
   const subtasksMenuOpen = subtasksPanelTaskId === task.id;
@@ -982,9 +1239,10 @@ function SortableTaskCard({
       />
       {subtasksPanelTaskId === task.id ? (
         <SubtasksCardPanel
-          key={subtasksPanelSyncKey(task)}
+          key={task.id}
           onClose={() => onToggleSubtasksPanel(task.id)}
           onSave={onSave}
+          onTaskUpdated={onTaskUpdated}
           panelRef={panelRef}
           task={task}
         />
@@ -996,6 +1254,7 @@ function SortableTaskCard({
 function SortableListTaskRow({
   onOpen,
   onRename,
+  onTaskUpdated,
   onToggleSubtasksPanel,
   panelRef,
   subtasksPanelTaskId,
@@ -1004,10 +1263,11 @@ function SortableListTaskRow({
 }: {
   onOpen: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
+  onTaskUpdated: TaskUpdatedHandler;
   onToggleSubtasksPanel: (taskId: string) => void;
   panelRef: RefObject<HTMLDivElement | null>;
   subtasksPanelTaskId: string | null;
-  onSave: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  onSave: PanelTaskSaveHandler;
   task: SerializedTask;
 }) {
   const subtasksMenuOpen = subtasksPanelTaskId === task.id;
@@ -1080,9 +1340,10 @@ function SortableListTaskRow({
         {subtasksPanelTaskId === task.id ? (
           <div className="px-4 pb-4">
             <SubtasksCardPanel
-              key={subtasksPanelSyncKey(task)}
+              key={task.id}
               onClose={() => onToggleSubtasksPanel(task.id)}
               onSave={onSave}
+              onTaskUpdated={onTaskUpdated}
               panelRef={panelRef}
               placement="inline"
               task={task}
@@ -1263,6 +1524,7 @@ function ListViewStatusBody({
   onOpenTask,
   onRenameTask,
   onSaveTask,
+  onTaskUpdated,
   onToggleSubtasksPanel,
   panelRef,
   status,
@@ -1272,7 +1534,8 @@ function ListViewStatusBody({
   onOpenTask: (task: SerializedTask) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
   onToggleSubtasksPanel: (taskId: string) => void;
-  onSaveTask: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  onSaveTask: PanelTaskSaveHandler;
+  onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
   status: TaskStatus;
   subtasksPanelTaskId: string | null;
@@ -1298,6 +1561,7 @@ function ListViewStatusBody({
             onOpen={onOpenTask}
             onRename={onRenameTask}
             onSave={onSaveTask}
+            onTaskUpdated={onTaskUpdated}
             onToggleSubtasksPanel={onToggleSubtasksPanel}
             panelRef={panelRef}
             subtasksPanelTaskId={subtasksPanelTaskId}
@@ -1320,6 +1584,7 @@ function BoardColumn({
   onRenameTask,
   onToggleSubtasksPanel,
   onSaveTask,
+  onTaskUpdated,
   panelRef,
   status,
   subtasksPanelTaskId,
@@ -1329,7 +1594,8 @@ function BoardColumn({
   onOpenTask: (task: SerializedTask) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
   onToggleSubtasksPanel: (taskId: string) => void;
-  onSaveTask: (values: TaskInput, taskId: string, options?: { closeDrawer?: boolean }) => Promise<void>;
+  onSaveTask: PanelTaskSaveHandler;
+  onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
   status: TaskStatus;
   subtasksPanelTaskId: string | null;
@@ -1369,6 +1635,7 @@ function BoardColumn({
               onOpen={onOpenTask}
               onRename={onRenameTask}
               onSave={onSaveTask}
+              onTaskUpdated={onTaskUpdated}
               onToggleSubtasksPanel={onToggleSubtasksPanel}
               panelRef={panelRef}
               subtasksPanelTaskId={subtasksPanelTaskId}
@@ -1965,6 +2232,10 @@ export function BoardWorkspace({
     }, 1800);
   }
 
+  const handleTaskUpdatedFromServer = useCallback((nextTask: SerializedTask) => {
+    setTasks((current) => mergeTask(current, nextTask));
+  }, []);
+
   async function handleRenameTask(task: SerializedTask, title: string) {
     await handleSaveTask(taskToInput(task, title), task.id, { closeDrawer: false });
   }
@@ -2123,6 +2394,7 @@ export function BoardWorkspace({
                 onOpenTask={openTask}
                 onRenameTask={handleRenameTask}
                 onSaveTask={handleSaveTask}
+                onTaskUpdated={handleTaskUpdatedFromServer}
                 onToggleSubtasksPanel={toggleSubtasksPanel}
                 panelRef={subtasksPanelRef}
                 status={status}
@@ -2151,6 +2423,7 @@ export function BoardWorkspace({
                 onOpenTask={openTask}
                 onRenameTask={handleRenameTask}
                 onSaveTask={handleSaveTask}
+                onTaskUpdated={handleTaskUpdatedFromServer}
                 onToggleSubtasksPanel={toggleSubtasksPanel}
                 panelRef={subtasksPanelRef}
                 status={status}
