@@ -767,14 +767,12 @@ function SubtasksCardPanel({
   onClose,
   onTaskUpdated,
   panelRef,
-  placement = "dropdown",
   task,
 }: {
   onClose: () => void;
   onSave: PanelTaskSaveHandler;
   onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
-  placement?: "dropdown" | "inline";
   task: SerializedTask;
 }) {
   const [rows, setRows] = useState(() => rowsFromTask(task));
@@ -1408,11 +1406,7 @@ function SubtasksCardPanel({
   return (
     <div
       ref={panelRef}
-      className={cn(
-        "max-h-[min(24rem,70vh)] overflow-y-auto rounded-lg border border-line-strong bg-surface-flat p-3 shadow-lg",
-        placement === "dropdown" && "absolute left-0 right-0 top-full z-50 mt-1",
-        placement === "inline" && "mt-2",
-      )}
+      className="max-h-[min(24rem,70vh)] overflow-y-auto border-t border-line-soft px-4 py-3"
       role="region"
       aria-label={`Subtasks for ${task.title}`}
     >
@@ -1550,6 +1544,7 @@ function TaskPreview({
   onRename,
   onToggleSubtasksMenu,
   presentation,
+  expandedContent,
 }: {
   dragHandle?: React.ReactNode;
   task: SerializedTask;
@@ -1559,6 +1554,8 @@ function TaskPreview({
   onToggleSubtasksMenu?: (taskId: string) => void;
   /** When true, a non-interactive grip is shown for drag overlay visuals only. */
   presentation?: boolean;
+  /** Rendered inside the card surface, below the header — used for the inline subtask panel. */
+  expandedContent?: React.ReactNode;
 }) {
   return (
     <div className="blueprint-note w-full overflow-hidden text-left text-text-primary">
@@ -1610,6 +1607,7 @@ function TaskPreview({
 
         <TaskMeta task={task} />
       </div>
+      {expandedContent}
     </div>
   );
 }
@@ -1676,23 +1674,24 @@ function SortableTaskCard({
             <GripVertical className="h-4 w-4" />
           </button>
         }
+        expandedContent={
+          subtasksMenuOpen ? (
+            <SubtasksCardPanel
+              key={task.id}
+              onClose={() => onToggleSubtasksPanel(task.id)}
+              onSave={onSave}
+              onTaskUpdated={onTaskUpdated}
+              panelRef={panelRef}
+              task={task}
+            />
+          ) : null
+        }
         onOpen={onOpen}
         onRename={onRename}
         onToggleSubtasksMenu={onToggleSubtasksPanel}
         subtasksMenuOpen={subtasksMenuOpen}
         task={task}
       />
-      {subtasksPanelTaskId === task.id ? (
-        <SubtasksCardPanel
-          key={task.id}
-          onClose={() => onToggleSubtasksPanel(task.id)}
-          onSave={onSave}
-          onTaskUpdated={onTaskUpdated}
-          panelRef={panelRef}
-          placement="inline"
-          task={task}
-        />
-      ) : null}
     </div>
   );
 }
@@ -1784,17 +1783,14 @@ function SortableListTaskRow({
           </div>
         </div>
         {subtasksPanelTaskId === task.id ? (
-          <div className="px-4 pb-4">
-            <SubtasksCardPanel
-              key={task.id}
-              onClose={() => onToggleSubtasksPanel(task.id)}
-              onSave={onSave}
-              onTaskUpdated={onTaskUpdated}
-              panelRef={panelRef}
-              placement="inline"
-              task={task}
-            />
-          </div>
+          <SubtasksCardPanel
+            key={task.id}
+            onClose={() => onToggleSubtasksPanel(task.id)}
+            onSave={onSave}
+            onTaskUpdated={onTaskUpdated}
+            panelRef={panelRef}
+            task={task}
+          />
         ) : null}
       </div>
     </div>
