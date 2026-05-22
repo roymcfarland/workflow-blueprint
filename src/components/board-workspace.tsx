@@ -660,45 +660,13 @@ function PanelSubtaskEditorRow({
 }) {
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
     useSortable({ id: row.key });
-  const [priorityMenuOpen, setPriorityMenuOpen] = useState(false);
-  const priorityMenuVisible = priorityMenuOpen && !disabled;
-  const priorityMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!priorityMenuVisible) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && priorityMenuRef.current?.contains(target)) {
-        return;
-      }
-      setPriorityMenuOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setPriorityMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [priorityMenuVisible]);
 
   return (
     <div
       aria-busy={isSaving || undefined}
       ref={setNodeRef}
       className={cn(
-        "flex items-center gap-2 rounded-md border border-line-soft bg-surface-base px-2 py-1.5 transition",
+        "group flex items-center gap-2 rounded-md border border-line-soft bg-surface-base px-2 py-1.5 transition",
         row.isComplete && "border-success/30 bg-success-soft",
       )}
       style={{
@@ -751,54 +719,35 @@ function PanelSubtaskEditorRow({
         placeholder="Untitled"
         value={row.title}
       />
-      <div className="relative shrink-0" ref={priorityMenuRef}>
-        <button
-          aria-expanded={priorityMenuVisible}
-          aria-haspopup="menu"
-          aria-label="Subtask priority"
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-md border transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
-            priorityFlagButtonClass[row.priority],
-          )}
-          disabled={disabled}
-          onClick={() => setPriorityMenuOpen((open) => !open)}
-          type="button"
-        >
-          <PriorityFlagIcon className="h-4 w-4" priority={row.priority} />
-        </button>
-        {priorityMenuVisible ? (
-          <div
-            aria-label="Subtask priority options"
-            className="absolute bottom-full right-0 z-30 mb-1 w-40 rounded-md border border-line-strong bg-surface-raised p-1 shadow-lg"
-            role="menu"
-          >
-            {itemPriorities.map((priority) => {
-              const selected = priority === row.priority;
+      <div
+        aria-label="Subtask priority"
+        className="flex shrink-0 items-center justify-end gap-0.5"
+        role="radiogroup"
+      >
+        {itemPriorities.map((priority) => {
+          const selected = priority === row.priority;
 
-              return (
-                <button
-                  aria-checked={selected}
-                  autoFocus={selected}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-semibold transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand",
-                    selected ? "bg-brand-soft text-text-primary" : "text-text-muted",
-                  )}
-                  disabled={disabled}
-                  key={priority}
-                  onClick={() => {
-                    onPriorityChange(priority);
-                    setPriorityMenuOpen(false);
-                  }}
-                  role="menuitemradio"
-                  type="button"
-                >
-                  <PriorityFlagIcon className="h-3.5 w-3.5" priority={priority} />
-                  <span>{priorityLabels[priority]}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+          return (
+            <button
+              aria-checked={selected}
+              aria-label={priorityLabels[priority]}
+              className={cn(
+                "flex h-7 items-center justify-center overflow-hidden rounded-md border transition-all focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
+                priorityFlagButtonClass[priority],
+                selected
+                  ? "w-7 opacity-100 ring-2 ring-brand"
+                  : "pointer-events-none w-0 border-transparent opacity-0 group-hover:pointer-events-auto group-hover:w-7 group-hover:border group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:w-7 group-focus-within:border group-focus-within:opacity-100",
+              )}
+              disabled={disabled}
+              key={priority}
+              onClick={() => onPriorityChange(priority)}
+              role="radio"
+              type="button"
+            >
+              <PriorityFlagIcon className="h-4 w-4 shrink-0" priority={priority} />
+            </button>
+          );
+        })}
       </div>
       <button
         aria-label="Remove subtask"
