@@ -541,6 +541,12 @@ type PanelTaskSaveHandler = (
 
 type TaskUpdatedHandler = (task: SerializedTask) => void;
 
+const SUBTASK_TITLE_SAVE_DELAY_MS = 600;
+
+type PanelRowsUpdater =
+  | PanelSubtaskRow[]
+  | ((current: PanelSubtaskRow[]) => PanelSubtaskRow[]);
+
 function rowsFromTask(task: SerializedTask): PanelSubtaskRow[] {
   return [...task.subtasks]
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -553,6 +559,28 @@ function rowsFromTask(task: SerializedTask): PanelSubtaskRow[] {
     }));
 }
 
+function normalizeSubtaskTitle(title: string) {
+  return title.trim() || "Untitled";
+}
+
+function setStringSetMembership(
+  current: Set<string>,
+  key: string,
+  shouldInclude: boolean,
+) {
+  if (current.has(key) === shouldInclude) {
+    return current;
+  }
+
+  const next = new Set(current);
+  if (shouldInclude) {
+    next.add(key);
+  } else {
+    next.delete(key);
+  }
+  return next;
+}
+
 function buildTaskInputFromPanel(
   task: SerializedTask,
   taskPriority: ItemPriority,
@@ -563,7 +591,7 @@ function buildTaskInputFromPanel(
     priority: taskPriority,
     subtasks: rows.map((r) => ({
       ...(r.serverId ? { id: r.serverId } : {}),
-      title: r.title.trim() || "Untitled",
+      title: normalizeSubtaskTitle(r.title),
       isComplete: r.isComplete,
       priority: r.priority,
     })),
@@ -572,32 +600,35 @@ function buildTaskInputFromPanel(
 
 function PanelSubtaskEditorRow({
   disabled = false,
-  onEditingChange,
+  isSaving = false,
   onPriorityChange,
   onRemove,
-  onTitleCommit,
+  onTitleBlur,
+  onTitleCancel,
+  onTitleChange,
+  onTitleFocus,
+  onTitleFlush,
   onToggleComplete,
   row,
 }: {
   disabled?: boolean;
+  isSaving?: boolean;
   row: PanelSubtaskRow;
-  onEditingChange?: (editing: boolean) => void;
   onPriorityChange: (priority: ItemPriority) => void;
   onRemove: () => void;
-  onTitleCommit: (title: string) => void;
+  onTitleBlur: (title: string) => void;
+  onTitleCancel: () => void;
+  onTitleChange: (title: string) => void;
+  onTitleFocus: () => void;
+  onTitleFlush: (title: string) => void;
   onToggleComplete: () => void;
 }) {
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
     useSortable({ id: row.key });
-  const [editing, setEditing] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
-
-  useEffect(() => {
-    onEditingChange?.(editing);
-  }, [editing, onEditingChange]);
 
   return (
     <div
+      aria-busy={isSaving || undefined}
       ref={setNodeRef}
       className="flex items-center gap-2 rounded-md border border-line-soft bg-surface-base px-2 py-1.5"
       style={{
@@ -623,46 +654,30 @@ function PanelSubtaskEditorRow({
         onChange={onToggleComplete}
         type="checkbox"
       />
-      {editing ? (
-        <input
-          autoFocus
-          className="min-w-0 flex-1 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand"
-          disabled={disabled}
-          maxLength={180}
-          onBlur={() => {
-            onTitleCommit(draftTitle.trim() || "Untitled");
-            setEditing(false);
-          }}
-          onChange={(e) => setDraftTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setDraftTitle(row.title);
-              setEditing(false);
-            }
-          }}
-          value={draftTitle}
-        />
-      ) : (
-        <button
-          className={cn(
-            "min-w-0 flex-1 truncate rounded px-1 text-left text-sm font-semibold text-text-primary transition hover:bg-surface-control-hover",
-            row.isComplete && "text-text-muted line-through",
-          )}
-          disabled={disabled}
-          onClick={() => {
-            setDraftTitle(row.title);
-            setEditing(true);
-          }}
-          type="button"
-        >
-          {row.title || "Untitled"}
-        </button>
-      )}
+      <input
+        aria-label="Subtask title"
+        className={cn(
+          "min-w-0 flex-1 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand",
+          row.isComplete && "text-text-muted line-through",
+        )}
+        disabled={disabled}
+        maxLength={180}
+        onBlur={(e) => onTitleBlur(e.currentTarget.value)}
+        onChange={(e) => onTitleChange(e.target.value)}
+        onFocus={onTitleFocus}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onTitleFlush(e.currentTarget.value);
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onTitleCancel();
+          }
+        }}
+        placeholder="Untitled"
+        value={row.title}
+      />
       <select
         aria-label="Subtask priority"
         className={prioritySelectClassName()}
@@ -705,11 +720,37 @@ function SubtasksCardPanel({
   task: SerializedTask;
 }) {
   const [rows, setRows] = useState(() => rowsFromTask(task));
+  const rowsRef = useRef(rows);
   const [taskPriority, setTaskPriority] = useState(task.priority);
-  const [saving, setSaving] = useState(false);
+  const [taskPrioritySaving, setTaskPrioritySaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editingRowKeys, setEditingRowKeys] = useState<Set<string>>(() => new Set());
-  const hasEditingRows = editingRowKeys.size > 0;
+  const [addTitle, setAddTitle] = useState("");
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const createQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const createdServerIdByTempKeyRef = useRef(new Map<string, string>());
+  const locallySavedTitleByServerIdRef = useRef(new Map<string, string>());
+  const serverTitleByIdRef = useRef(
+    new Map(task.subtasks.map((subtask) => [subtask.id, subtask.title])),
+  );
+  const titleSaveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const titleSaveInFlightCountsRef = useRef(new Map<string, number>());
+  const titleSaveVersionRef = useRef(new Map<string, number>());
+  const pendingRowKeysRef = useRef(new Set<string>());
+  const pendingCreateRowKeysRef = useRef(new Set<string>());
+  const pendingTitleRowKeysRef = useRef(new Set<string>());
+  const dirtyTitleRowKeysRef = useRef(new Set<string>());
+  const focusedTitleRowKeysRef = useRef(new Set<string>());
+  const [pendingRowKeys, setPendingRowKeys] = useState<Set<string>>(() => new Set());
+  const [pendingCreateRowKeys, setPendingCreateRowKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [pendingTitleRowKeys, setPendingTitleRowKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [dirtyTitleRowKeys, setDirtyTitleRowKeys] = useState<Set<string>>(() => new Set());
+  const [focusedTitleRowKeys, setFocusedTitleRowKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const subtaskSensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: 6 },
@@ -724,26 +765,182 @@ function SubtasksCardPanel({
       subtask.isComplete,
     ]),
   );
+  const hasProtectedTitleRows =
+    dirtyTitleRowKeys.size > 0 ||
+    focusedTitleRowKeys.size > 0 ||
+    pendingTitleRowKeys.size > 0;
+  const isSaving =
+    taskPrioritySaving ||
+    pendingCreateRowKeys.size > 0 ||
+    pendingRowKeys.size > 0 ||
+    pendingTitleRowKeys.size > 0;
 
-  const markRowEditing = useCallback((rowKey: string, editing: boolean) => {
-    setEditingRowKeys((current) => {
-      const isTracked = current.has(rowKey);
-      if (isTracked === editing) {
-        return current;
+  const setRowsSafely = useCallback((updater: PanelRowsUpdater) => {
+    const next = typeof updater === "function" ? updater(rowsRef.current) : updater;
+    rowsRef.current = next;
+    setRows(next);
+  }, []);
+
+  const markPendingRow = useCallback((rowKey: string, isPending: boolean) => {
+    const next = setStringSetMembership(pendingRowKeysRef.current, rowKey, isPending);
+    pendingRowKeysRef.current = next;
+    setPendingRowKeys(next);
+  }, []);
+
+  const markPendingCreateRow = useCallback((rowKey: string, isPending: boolean) => {
+    const next = setStringSetMembership(pendingCreateRowKeysRef.current, rowKey, isPending);
+    pendingCreateRowKeysRef.current = next;
+    setPendingCreateRowKeys(next);
+  }, []);
+
+  const markPendingTitle = useCallback((rowKey: string, isPending: boolean) => {
+    const next = setStringSetMembership(pendingTitleRowKeysRef.current, rowKey, isPending);
+    pendingTitleRowKeysRef.current = next;
+    setPendingTitleRowKeys(next);
+  }, []);
+
+  const markDirtyTitle = useCallback((rowKey: string, isDirty: boolean) => {
+    const next = setStringSetMembership(dirtyTitleRowKeysRef.current, rowKey, isDirty);
+    dirtyTitleRowKeysRef.current = next;
+    setDirtyTitleRowKeys(next);
+  }, []);
+
+  const markFocusedTitle = useCallback((rowKey: string, isFocused: boolean) => {
+    const next = setStringSetMembership(focusedTitleRowKeysRef.current, rowKey, isFocused);
+    focusedTitleRowKeysRef.current = next;
+    setFocusedTitleRowKeys(next);
+  }, []);
+
+  const refreshTitlePending = useCallback(
+    (rowKey: string) => {
+      const hasInFlight = (titleSaveInFlightCountsRef.current.get(rowKey) ?? 0) > 0;
+      markPendingTitle(rowKey, titleSaveTimersRef.current.has(rowKey) || hasInFlight);
+    },
+    [markPendingTitle],
+  );
+
+  const clearTitleTimer = useCallback(
+    (rowKey: string) => {
+      const timer = titleSaveTimersRef.current.get(rowKey);
+      if (timer) {
+        clearTimeout(timer);
+        titleSaveTimersRef.current.delete(rowKey);
       }
+      refreshTitlePending(rowKey);
+    },
+    [refreshTitlePending],
+  );
 
-      const next = new Set(current);
-      if (editing) {
-        next.add(rowKey);
+  const trackTitleInFlight = useCallback(
+    (rowKey: string, delta: 1 | -1) => {
+      const current = titleSaveInFlightCountsRef.current.get(rowKey) ?? 0;
+      const next = Math.max(0, current + delta);
+      if (next > 0) {
+        titleSaveInFlightCountsRef.current.set(rowKey, next);
       } else {
-        next.delete(rowKey);
+        titleSaveInFlightCountsRef.current.delete(rowKey);
       }
-      return next;
-    });
+      refreshTitlePending(rowKey);
+    },
+    [refreshTitlePending],
+  );
+
+  const syncServerTitleCache = useCallback((nextTask: SerializedTask) => {
+    serverTitleByIdRef.current = new Map(
+      nextTask.subtasks.map((subtask) => [
+        subtask.id,
+        locallySavedTitleByServerIdRef.current.get(subtask.id) ?? subtask.title,
+      ]),
+    );
+  }, []);
+
+  const isTitleProtected = useCallback((rowKey: string) => {
+    return (
+      dirtyTitleRowKeysRef.current.has(rowKey) ||
+      focusedTitleRowKeysRef.current.has(rowKey) ||
+      pendingTitleRowKeysRef.current.has(rowKey)
+    );
+  }, []);
+
+  const mergeRowsWithServerTask = useCallback(
+    (nextTask: SerializedTask, currentRows: PanelSubtaskRow[]) => {
+      const serverRows = rowsFromTask(nextTask);
+      const localByKey = new Map(currentRows.map((row) => [row.key, row]));
+      const localByServerId = new Map(
+        currentRows.flatMap((row) => (row.serverId ? [[row.serverId, row]] : [])),
+      );
+      const tempKeyByServerId = new Map(
+        [...createdServerIdByTempKeyRef.current.entries()].map(([tempKey, serverId]) => [
+          serverId,
+          tempKey,
+        ]),
+      );
+
+      const mergedServerRows = serverRows.map((serverRow) => {
+        const tempKey = serverRow.serverId ? tempKeyByServerId.get(serverRow.serverId) : undefined;
+        const localRow =
+          (tempKey ? localByKey.get(tempKey) : undefined) ??
+          (serverRow.serverId ? localByServerId.get(serverRow.serverId) : undefined) ??
+          localByKey.get(serverRow.key);
+        const localKey = localRow?.key ?? serverRow.key;
+        const shouldKeepTempKey = Boolean(tempKey && localRow && isTitleProtected(tempKey));
+        const locallySavedTitle = serverRow.serverId
+          ? locallySavedTitleByServerIdRef.current.get(serverRow.serverId)
+          : undefined;
+        let nextRow = shouldKeepTempKey ? { ...serverRow, key: tempKey! } : serverRow;
+
+        if (locallySavedTitle && serverRow.title !== locallySavedTitle) {
+          nextRow = { ...nextRow, title: locallySavedTitle };
+        }
+
+        if (localRow && isTitleProtected(localKey)) {
+          nextRow = { ...nextRow, title: localRow.title };
+        }
+
+        if (localRow && pendingRowKeysRef.current.has(localKey)) {
+          nextRow = {
+            ...nextRow,
+            isComplete: localRow.isComplete,
+            priority: localRow.priority,
+          };
+        }
+
+        return nextRow;
+      });
+
+      const pendingCreateRows = currentRows.filter(
+        (row) => !row.serverId && pendingCreateRowKeysRef.current.has(row.key),
+      );
+      return [...mergedServerRows, ...pendingCreateRows];
+    },
+    [isTitleProtected],
+  );
+
+  const applyServerTask = useCallback(
+    (nextTask: SerializedTask) => {
+      syncServerTitleCache(nextTask);
+      onTaskUpdated(nextTask);
+      setRowsSafely((current) => mergeRowsWithServerTask(nextTask, current));
+      setTaskPriority(nextTask.priority);
+    },
+    [mergeRowsWithServerTask, onTaskUpdated, setRowsSafely, syncServerTitleCache],
+  );
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  useEffect(() => {
+    const titleSaveTimers = titleSaveTimersRef.current;
+    return () => {
+      titleSaveTimers.forEach((timer) => clearTimeout(timer));
+      titleSaveTimers.clear();
+    };
   }, []);
 
   useEffect(() => {
-    if (saving || hasEditingRows) {
+    syncServerTitleCache(task);
+    if (hasProtectedTitleRows) {
       return;
     }
 
@@ -753,22 +950,23 @@ function SubtasksCardPanel({
         return;
       }
 
-      setRows(rowsFromTask(task));
+      setRowsSafely((current) => mergeRowsWithServerTask(task, current));
       setTaskPriority(task.priority);
     });
 
     return () => {
       mounted = false;
     };
-  }, [hasEditingRows, saving, task, taskSubtasksSignature]);
+  }, [
+    hasProtectedTitleRows,
+    mergeRowsWithServerTask,
+    setRowsSafely,
+    syncServerTitleCache,
+    task,
+    taskSubtasksSignature,
+  ]);
 
-  const applyServerTask = (nextTask: SerializedTask) => {
-    onTaskUpdated(nextTask);
-    setRows(rowsFromTask(nextTask));
-    setTaskPriority(nextTask.priority);
-  };
-
-  const fetchUpdatedTask = async ({
+  const fetchUpdatedTask = useCallback(async ({
     body,
     fallback,
     method,
@@ -795,45 +993,47 @@ function SubtasksCardPanel({
     }
 
     return result.task;
-  };
+  }, []);
 
-  const commitSubtaskMutation = async ({
-    optimisticRows,
-    previousRows,
+  const commitSubtaskMutation = useCallback(async ({
+    applyOptimistic,
+    rollback,
     request,
+    rowKeys = [],
   }: {
-    optimisticRows: PanelSubtaskRow[];
-    previousRows: PanelSubtaskRow[];
+    applyOptimistic: (currentRows: PanelSubtaskRow[]) => PanelSubtaskRow[];
+    rollback: (
+      currentRows: PanelSubtaskRow[],
+      previousRows: PanelSubtaskRow[],
+    ) => PanelSubtaskRow[];
     request: () => Promise<SerializedTask>;
+    rowKeys?: string[];
   }) => {
-    if (saving) {
-      return;
-    }
-
+    const previousRows = rowsRef.current;
     setError(null);
-    setSaving(true);
-    setRows(optimisticRows);
+    rowKeys.forEach((rowKey) => markPendingRow(rowKey, true));
+    setRowsSafely((current) => applyOptimistic(current));
     try {
       applyServerTask(await request());
     } catch (err) {
-      setRows(previousRows);
+      setRowsSafely((current) => rollback(current, previousRows));
       setError(err instanceof Error ? err.message : "Unable to save.");
     } finally {
-      setSaving(false);
+      rowKeys.forEach((rowKey) => markPendingRow(rowKey, false));
     }
-  };
+  }, [applyServerTask, markPendingRow, setRowsSafely]);
 
   const saveTaskPriority = async (nextPriority: ItemPriority) => {
     setError(null);
-    setSaving(true);
+    setTaskPrioritySaving(true);
     try {
-      await onSave(buildTaskInputFromPanel(task, nextPriority, rows), task.id, {
+      await onSave(buildTaskInputFromPanel(task, nextPriority, rowsRef.current), task.id, {
         closeDrawer: false,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save.");
     } finally {
-      setSaving(false);
+      setTaskPrioritySaving(false);
     }
   };
 
@@ -849,9 +1049,12 @@ function SubtasksCardPanel({
   const patchSubtask = (
     row: PanelSubtaskRow,
     body: Partial<Pick<PanelSubtaskRow, "isComplete" | "priority" | "title">>,
-    optimisticRows: PanelSubtaskRow[],
     fallback: string,
   ) => {
+    if (pendingRowKeysRef.current.has(row.key) || pendingCreateRowKeysRef.current.has(row.key)) {
+      return;
+    }
+
     const subtaskId = requireServerId(
       row,
       "Wait for the subtask to finish saving before updating it.",
@@ -861,8 +1064,14 @@ function SubtasksCardPanel({
     }
 
     void commitSubtaskMutation({
-      optimisticRows,
-      previousRows: rows,
+      applyOptimistic: (current) =>
+        current.map((r) => (r.key === row.key ? { ...r, ...body } : r)),
+      rollback: (current, previous) => {
+        const previousRow = previous.find((r) => r.key === row.key);
+        return previousRow
+          ? current.map((r) => (r.key === row.key ? previousRow : r))
+          : current;
+      },
       request: () =>
         fetchUpdatedTask({
           body,
@@ -870,24 +1079,20 @@ function SubtasksCardPanel({
           method: "PATCH",
           url: `/api/subtasks/${subtaskId}`,
         }),
+      rowKeys: [row.key],
     });
   };
 
   const handleSubtaskPriorityChange = (row: PanelSubtaskRow, priority: ItemPriority) => {
-    if (saving || hasEditingRows || priority === row.priority) {
+    if (priority === row.priority) {
       return;
     }
 
-    patchSubtask(
-      row,
-      { priority },
-      rows.map((r) => (r.key === row.key ? { ...r, priority } : r)),
-      "Unable to update subtask priority.",
-    );
+    patchSubtask(row, { priority }, "Unable to update subtask priority.");
   };
 
   const handleSubtaskRemove = (row: PanelSubtaskRow) => {
-    if (saving || hasEditingRows) {
+    if (pendingRowKeysRef.current.has(row.key) || pendingCreateRowKeysRef.current.has(row.key)) {
       return;
     }
 
@@ -900,46 +1105,146 @@ function SubtasksCardPanel({
     }
 
     void commitSubtaskMutation({
-      optimisticRows: rows.filter((r) => r.key !== row.key),
-      previousRows: rows,
+      applyOptimistic: (current) => current.filter((r) => r.key !== row.key),
+      rollback: (current, previous) => {
+        const previousIndex = previous.findIndex((r) => r.key === row.key);
+        const previousRow = previous[previousIndex];
+        if (!previousRow || current.some((r) => r.key === row.key)) {
+          return current;
+        }
+
+        return [
+          ...current.slice(0, Math.max(0, previousIndex)),
+          previousRow,
+          ...current.slice(Math.max(0, previousIndex)),
+        ];
+      },
       request: () =>
         fetchUpdatedTask({
           fallback: "Unable to remove subtask.",
           method: "DELETE",
           url: `/api/subtasks/${subtaskId}`,
         }),
+      rowKeys: [row.key],
     });
   };
 
-  const handleSubtaskTitleCommit = (row: PanelSubtaskRow, title: string) => {
-    if (saving || title === row.title) {
+  const commitSubtaskTitle = async (rowKey: string, title: string) => {
+    const row = rowsRef.current.find((r) => r.key === rowKey);
+    if (!row?.serverId) {
       return;
     }
 
-    patchSubtask(
-      row,
-      { title },
-      rows.map((r) => (r.key === row.key ? { ...r, title } : r)),
-      "Unable to rename subtask.",
+    const serverTitle = serverTitleByIdRef.current.get(row.serverId) ?? row.title;
+    if (title === serverTitle) {
+      markDirtyTitle(rowKey, false);
+      refreshTitlePending(rowKey);
+      return;
+    }
+
+    const version = (titleSaveVersionRef.current.get(rowKey) ?? 0) + 1;
+    titleSaveVersionRef.current.set(rowKey, version);
+    setError(null);
+    trackTitleInFlight(rowKey, 1);
+    try {
+      const nextTask = await fetchUpdatedTask({
+        body: { title },
+        fallback: "Unable to rename subtask.",
+        method: "PATCH",
+        url: `/api/subtasks/${row.serverId}`,
+      });
+
+      if (titleSaveVersionRef.current.get(rowKey) !== version) {
+        return;
+      }
+
+      locallySavedTitleByServerIdRef.current.set(row.serverId, title);
+      applyServerTask(nextTask);
+      const currentRow = rowsRef.current.find((r) => r.key === rowKey);
+      if (currentRow && normalizeSubtaskTitle(currentRow.title) === title) {
+        markDirtyTitle(rowKey, false);
+      }
+    } catch (err) {
+      if (titleSaveVersionRef.current.get(rowKey) === version) {
+        const fallbackTitle = serverTitleByIdRef.current.get(row.serverId) ?? serverTitle;
+        setRowsSafely((current) =>
+          current.map((r) => (r.key === rowKey ? { ...r, title: fallbackTitle } : r)),
+        );
+        markDirtyTitle(rowKey, false);
+        setError(err instanceof Error ? err.message : "Unable to rename subtask.");
+      }
+    } finally {
+      trackTitleInFlight(rowKey, -1);
+    }
+  };
+
+  const scheduleSubtaskTitleSave = (rowKey: string, title: string) => {
+    clearTitleTimer(rowKey);
+    const row = rowsRef.current.find((r) => r.key === rowKey);
+    if (!row?.serverId) {
+      return;
+    }
+
+    const normalizedTitle = normalizeSubtaskTitle(title);
+    const serverTitle = serverTitleByIdRef.current.get(row.serverId) ?? row.title;
+    if (normalizedTitle === serverTitle) {
+      refreshTitlePending(rowKey);
+      return;
+    }
+
+    titleSaveTimersRef.current.set(
+      rowKey,
+      setTimeout(() => {
+        titleSaveTimersRef.current.delete(rowKey);
+        refreshTitlePending(rowKey);
+        void commitSubtaskTitle(rowKey, normalizedTitle);
+      }, SUBTASK_TITLE_SAVE_DELAY_MS),
     );
+    markPendingTitle(rowKey, true);
+  };
+
+  const handleSubtaskTitleChange = (row: PanelSubtaskRow, title: string) => {
+    const serverTitle = row.serverId ? serverTitleByIdRef.current.get(row.serverId) : row.title;
+    setRowsSafely((current) =>
+      current.map((r) => (r.key === row.key ? { ...r, title } : r)),
+    );
+    markDirtyTitle(row.key, title !== (serverTitle ?? ""));
+    scheduleSubtaskTitleSave(row.key, title);
+  };
+
+  const handleSubtaskTitleFlush = (row: PanelSubtaskRow, title: string) => {
+    const normalizedTitle = normalizeSubtaskTitle(title);
+    clearTitleTimer(row.key);
+    setRowsSafely((current) =>
+      current.map((r) => (r.key === row.key ? { ...r, title: normalizedTitle } : r)),
+    );
+    markDirtyTitle(row.key, true);
+    void commitSubtaskTitle(row.key, normalizedTitle);
+  };
+
+  const handleSubtaskTitleBlur = (row: PanelSubtaskRow, title: string) => {
+    handleSubtaskTitleFlush(row, title);
+    markFocusedTitle(row.key, false);
+  };
+
+  const handleSubtaskTitleCancel = (row: PanelSubtaskRow) => {
+    clearTitleTimer(row.key);
+    const serverTitle = row.serverId
+      ? (serverTitleByIdRef.current.get(row.serverId) ?? row.title)
+      : row.title;
+    setRowsSafely((current) =>
+      current.map((r) => (r.key === row.key ? { ...r, title: serverTitle } : r)),
+    );
+    markDirtyTitle(row.key, false);
   };
 
   const handleSubtaskToggle = (row: PanelSubtaskRow) => {
-    if (saving || hasEditingRows) {
-      return;
-    }
-
     const isComplete = !row.isComplete;
-    patchSubtask(
-      row,
-      { isComplete },
-      rows.map((r) => (r.key === row.key ? { ...r, isComplete } : r)),
-      "Unable to update subtask.",
-    );
+    patchSubtask(row, { isComplete }, "Unable to update subtask.");
   };
 
   const handleSubtaskDragEnd = (event: DragEndEvent) => {
-    if (saving || hasEditingRows) {
+    if (pendingCreateRowKeysRef.current.size > 0 || pendingRowKeysRef.current.size > 0) {
       return;
     }
 
@@ -948,13 +1253,14 @@ function SubtasksCardPanel({
       return;
     }
 
-    const oldIndex = rows.findIndex((r) => r.key === active.id);
-    const newIndex = rows.findIndex((r) => r.key === over.id);
+    const currentRows = rowsRef.current;
+    const oldIndex = currentRows.findIndex((r) => r.key === active.id);
+    const newIndex = currentRows.findIndex((r) => r.key === over.id);
     if (oldIndex < 0 || newIndex < 0) {
       return;
     }
 
-    const next = arrayMove(rows, oldIndex, newIndex);
+    const next = arrayMove(currentRows, oldIndex, newIndex);
     const subtaskIds = next
       .map((r) => r.serverId)
       .filter((serverId): serverId is string => Boolean(serverId));
@@ -965,8 +1271,8 @@ function SubtasksCardPanel({
     }
 
     void commitSubtaskMutation({
-      optimisticRows: next,
-      previousRows: rows,
+      applyOptimistic: () => next,
+      rollback: (_current, previous) => previous,
       request: () =>
         fetchUpdatedTask({
           body: { subtaskIds },
@@ -974,35 +1280,65 @@ function SubtasksCardPanel({
           method: "POST",
           url: `/api/tasks/${task.id}/subtasks/reorder`,
         }),
+      rowKeys: next.map((row) => row.key),
     });
   };
 
-  const handleSubtaskAdd = () => {
-    if (saving || hasEditingRows) {
+  const handleSubtaskAdd = (title: string, shouldRefocus: boolean) => {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
       return;
     }
 
-    const next = [
-      ...rows,
-      {
-        key: crypto.randomUUID(),
-        title: "New subtask",
-        isComplete: false,
-        priority: "NONE" as const,
-      },
-    ];
+    const tempKey = crypto.randomUUID();
+    const optimisticRow: PanelSubtaskRow = {
+      key: tempKey,
+      title: nextTitle,
+      isComplete: false,
+      priority: "NONE",
+    };
 
-    void commitSubtaskMutation({
-      optimisticRows: next,
-      previousRows: rows,
-      request: () =>
-        fetchUpdatedTask({
-          body: { priority: "NONE", title: "New subtask" },
+    setAddTitle("");
+    markPendingCreateRow(tempKey, true);
+    setRowsSafely((current) => [...current, optimisticRow]);
+
+    const createRequest = async () => {
+      const knownServerIds = new Set(
+        rowsRef.current
+          .map((row) => row.serverId)
+          .filter((serverId): serverId is string => Boolean(serverId)),
+      );
+
+      try {
+        setError(null);
+        const nextTask = await fetchUpdatedTask({
+          body: { priority: "NONE", title: nextTitle },
           fallback: "Unable to add subtask.",
           method: "POST",
           url: `/api/tasks/${task.id}/subtasks`,
-        }),
-    });
+        });
+        const createdRow = rowsFromTask(nextTask).find(
+          (row) => row.serverId && !knownServerIds.has(row.serverId),
+        );
+        if (createdRow?.serverId) {
+          createdServerIdByTempKeyRef.current.set(tempKey, createdRow.serverId);
+        }
+        markPendingCreateRow(tempKey, false);
+        applyServerTask(nextTask);
+      } catch (err) {
+        markPendingCreateRow(tempKey, false);
+        setRowsSafely((current) => current.filter((row) => row.key !== tempKey));
+        setError(err instanceof Error ? err.message : "Unable to add subtask.");
+      }
+    };
+
+    const queuedCreate = createQueueRef.current.then(createRequest, createRequest);
+    createQueueRef.current = queuedCreate.catch(() => undefined);
+    void queuedCreate;
+
+    if (shouldRefocus) {
+      queueMicrotask(() => addInputRef.current?.focus());
+    }
   };
 
   const subtaskDndId = `card-subtasks-${task.id}`;
@@ -1023,7 +1359,7 @@ function SubtasksCardPanel({
           <span>Task priority</span>
           <select
             className={prioritySelectClassName()}
-            disabled={saving || hasEditingRows}
+            disabled={taskPrioritySaving}
             onChange={(e) => {
               const p = e.target.value as ItemPriority;
               setTaskPriority(p);
@@ -1039,7 +1375,7 @@ function SubtasksCardPanel({
           </select>
         </label>
         <div className="flex items-center gap-2">
-          {saving ? <span className="text-xs text-text-muted">Saving…</span> : null}
+          {isSaving ? <span className="text-xs text-text-muted">Saving…</span> : null}
           <button
             aria-label="Close subtasks"
             className="blueprint-action rounded-md p-1 text-text-muted"
@@ -1062,11 +1398,19 @@ function SubtasksCardPanel({
             {rows.map((row) => (
               <PanelSubtaskEditorRow
                 key={row.key}
-                disabled={saving}
-                onEditingChange={(editing) => markRowEditing(row.key, editing)}
+                disabled={pendingCreateRowKeys.has(row.key) || pendingRowKeys.has(row.key)}
+                isSaving={
+                  pendingCreateRowKeys.has(row.key) ||
+                  pendingRowKeys.has(row.key) ||
+                  pendingTitleRowKeys.has(row.key)
+                }
                 onPriorityChange={(priority) => handleSubtaskPriorityChange(row, priority)}
                 onRemove={() => handleSubtaskRemove(row)}
-                onTitleCommit={(title) => handleSubtaskTitleCommit(row, title)}
+                onTitleBlur={(title) => handleSubtaskTitleBlur(row, title)}
+                onTitleCancel={() => handleSubtaskTitleCancel(row)}
+                onTitleChange={(title) => handleSubtaskTitleChange(row, title)}
+                onTitleFlush={(title) => handleSubtaskTitleFlush(row, title)}
+                onTitleFocus={() => markFocusedTitle(row.key, true)}
                 onToggleComplete={() => handleSubtaskToggle(row)}
                 row={row}
               />
@@ -1075,17 +1419,24 @@ function SubtasksCardPanel({
         </SortableContext>
       </DndContext>
 
-      <div className="mt-3 border-t border-line-soft pt-2">
-        <BlueprintButton
-          className="w-full justify-center"
-          disabled={saving || hasEditingRows}
-          onClick={handleSubtaskAdd}
-          type="button"
-          variant="outline"
-        >
-          <Plus className="h-4 w-4" />
-          Add subtask
-        </BlueprintButton>
+      <div className="mt-3 flex items-center gap-2 border-t border-line-soft pt-2">
+        <Plus className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
+        <input
+          aria-label="Add subtask"
+          className="min-w-0 flex-1 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand"
+          maxLength={180}
+          onBlur={(e) => handleSubtaskAdd(e.currentTarget.value, false)}
+          onChange={(e) => setAddTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSubtaskAdd(e.currentTarget.value, true);
+            }
+          }}
+          placeholder="Add subtask"
+          ref={addInputRef}
+          value={addTitle}
+        />
       </div>
 
       {error ? (
