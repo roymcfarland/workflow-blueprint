@@ -241,7 +241,7 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
   });
 
-  test("updates subtask priority from the flag popover through the granular endpoint", async () => {
+  test("updates subtask priority from the inline priority strip through the granular endpoint", async () => {
     const initialTask = task();
     const prioritizedTask = task({
       subtasks: [subtask({ priority: "URGENT" })],
@@ -253,11 +253,8 @@ describe("BoardWorkspace subtask panel granular API", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
 
-    const priorityButton = screen.getByRole("button", { name: "Subtask priority" });
-    fireEvent.click(priorityButton);
-
-    const urgentPriority = screen.getByRole("menuitemradio", { name: "Urgent" });
-    fireEvent.click(urgentPriority);
+    // No popover: the five priority flags render directly as a radiogroup.
+    fireEvent.click(screen.getByRole("radio", { name: "Urgent" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
@@ -266,7 +263,14 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(priorityInit.method).toBe("PATCH");
     expect(requestJsonBody(priorityInit)).toEqual({ priority: "URGENT" });
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
-    expect(screen.queryByRole("menuitemradio", { name: "Urgent" })).toBeNull();
+
+    // The selected flag reflects the new priority; there is no popover menu.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("radio", { name: "Urgent" }).getAttribute("aria-checked"),
+      ).toBe("true"),
+    );
+    expect(screen.queryByRole("menuitemradio")).toBeNull();
   });
 
   test("keeps a focused dirty title while toggling another row", async () => {
