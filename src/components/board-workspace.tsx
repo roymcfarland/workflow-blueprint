@@ -28,6 +28,7 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
+  Flag,
   GripVertical,
   NotebookPen,
   PanelRightClose,
@@ -331,6 +332,40 @@ const priorityBadgeClass: Record<ItemPriority, string> = {
   URGENT: "border-danger/50 bg-danger-soft text-danger",
 };
 
+const priorityFlagButtonClass: Record<ItemPriority, string> = {
+  NONE: "border-line-soft bg-surface-control text-text-muted",
+  LOW: priorityBadgeClass.LOW,
+  MEDIUM: priorityBadgeClass.MEDIUM,
+  HIGH: priorityBadgeClass.HIGH,
+  URGENT: priorityBadgeClass.URGENT,
+};
+
+const priorityFlagIconClass: Record<ItemPriority, string> = {
+  NONE: "text-text-muted",
+  LOW: "text-text-muted",
+  MEDIUM: "text-brand",
+  HIGH: "text-accent",
+  URGENT: "text-danger",
+};
+
+function PriorityFlagIcon({
+  className,
+  priority,
+}: {
+  className?: string;
+  priority: ItemPriority;
+}) {
+  return (
+    <Flag
+      className={cn(
+        className,
+        priorityFlagIconClass[priority],
+        priority !== "NONE" && "fill-current",
+      )}
+    />
+  );
+}
+
 function PriorityBadge({ priority }: { priority: ItemPriority }) {
   if (priority === "NONE") {
     return null;
@@ -625,12 +660,47 @@ function PanelSubtaskEditorRow({
 }) {
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
     useSortable({ id: row.key });
+  const [priorityMenuOpen, setPriorityMenuOpen] = useState(false);
+  const priorityMenuVisible = priorityMenuOpen && !disabled;
+  const priorityMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!priorityMenuVisible) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && priorityMenuRef.current?.contains(target)) {
+        return;
+      }
+      setPriorityMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPriorityMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [priorityMenuVisible]);
 
   return (
     <div
       aria-busy={isSaving || undefined}
       ref={setNodeRef}
-      className="flex items-center gap-2 rounded-md border border-line-soft bg-surface-base px-2 py-1.5"
+      className={cn(
+        "flex items-center gap-2 rounded-md border border-line-soft bg-surface-base px-2 py-1.5 transition",
+        row.isComplete && "border-success/30 bg-success-soft",
+      )}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -649,7 +719,10 @@ function PanelSubtaskEditorRow({
       </button>
       <input
         checked={row.isComplete}
-        className="h-4 w-4 shrink-0 rounded border-line-strong accent-brand"
+        className={cn(
+          "h-4 w-4 shrink-0 rounded border-line-strong",
+          row.isComplete ? "accent-success" : "accent-brand",
+        )}
         disabled={disabled}
         onChange={onToggleComplete}
         type="checkbox"
@@ -678,19 +751,55 @@ function PanelSubtaskEditorRow({
         placeholder="Untitled"
         value={row.title}
       />
-      <select
-        aria-label="Subtask priority"
-        className={prioritySelectClassName()}
-        disabled={disabled}
-        onChange={(e) => onPriorityChange(e.target.value as ItemPriority)}
-        value={row.priority}
-      >
-        {itemPriorities.map((p) => (
-          <option key={p} value={p}>
-            {priorityLabels[p]}
-          </option>
-        ))}
-      </select>
+      <div className="relative shrink-0" ref={priorityMenuRef}>
+        <button
+          aria-expanded={priorityMenuVisible}
+          aria-haspopup="menu"
+          aria-label="Subtask priority"
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-md border transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
+            priorityFlagButtonClass[row.priority],
+          )}
+          disabled={disabled}
+          onClick={() => setPriorityMenuOpen((open) => !open)}
+          type="button"
+        >
+          <PriorityFlagIcon className="h-4 w-4" priority={row.priority} />
+        </button>
+        {priorityMenuVisible ? (
+          <div
+            aria-label="Subtask priority options"
+            className="absolute bottom-full right-0 z-30 mb-1 w-40 rounded-md border border-line-strong bg-surface-raised p-1 shadow-lg"
+            role="menu"
+          >
+            {itemPriorities.map((priority) => {
+              const selected = priority === row.priority;
+
+              return (
+                <button
+                  aria-checked={selected}
+                  autoFocus={selected}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-semibold transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand",
+                    selected ? "bg-brand-soft text-text-primary" : "text-text-muted",
+                  )}
+                  disabled={disabled}
+                  key={priority}
+                  onClick={() => {
+                    onPriorityChange(priority);
+                    setPriorityMenuOpen(false);
+                  }}
+                  role="menuitemradio"
+                  type="button"
+                >
+                  <PriorityFlagIcon className="h-3.5 w-3.5" priority={priority} />
+                  <span>{priorityLabels[priority]}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
       <button
         aria-label="Remove subtask"
         className="shrink-0 text-text-muted transition hover:text-danger"
@@ -1342,6 +1451,10 @@ function SubtasksCardPanel({
   };
 
   const subtaskDndId = `card-subtasks-${task.id}`;
+  const completedCount = completedSubtaskCount(task);
+  const subtaskCount = task.subtasks.length;
+  const subtaskCompletionPercent = subtaskCount > 0 ? (completedCount / subtaskCount) * 100 : 0;
+  const subtaskSummary = formatSubtaskSummary(task);
 
   return (
     <div
@@ -1354,36 +1467,68 @@ function SubtasksCardPanel({
       role="region"
       aria-label={`Subtasks for ${task.title}`}
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-2">
-        <label className="flex flex-wrap items-center gap-2 text-xs font-semibold text-text-muted">
-          <span>Task priority</span>
-          <select
-            className={prioritySelectClassName()}
-            disabled={taskPrioritySaving}
-            onChange={(e) => {
-              const p = e.target.value as ItemPriority;
-              setTaskPriority(p);
-              void saveTaskPriority(p);
-            }}
-            value={taskPriority}
-          >
-            {itemPriorities.map((p) => (
-              <option key={p} value={p}>
-                {priorityLabels[p]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="flex items-center gap-2">
-          {isSaving ? <span className="text-xs text-text-muted">Saving…</span> : null}
-          <button
-            aria-label="Close subtasks"
-            className="blueprint-action rounded-md p-1 text-text-muted"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
+      <div className="mb-3 space-y-3 border-b border-line-soft pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="flex flex-wrap items-center gap-2 text-xs font-semibold text-text-muted">
+            <span>Task priority</span>
+            <select
+              className={prioritySelectClassName()}
+              disabled={taskPrioritySaving}
+              onChange={(e) => {
+                const p = e.target.value as ItemPriority;
+                setTaskPriority(p);
+                void saveTaskPriority(p);
+              }}
+              value={taskPriority}
+            >
+              {itemPriorities.map((p) => (
+                <option key={p} value={p}>
+                  {priorityLabels[p]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-center gap-2">
+            {isSaving ? <span className="text-xs text-text-muted">Saving…</span> : null}
+            <button
+              aria-label="Close subtasks"
+              className="blueprint-action rounded-md p-1 text-text-muted"
+              onClick={onClose}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <p
+              aria-label={`${subtaskSummary}, ${completedCount} done`}
+              className="text-sm font-extrabold text-text-primary"
+            >
+              {completedCount}/{subtaskCount} done
+            </p>
+            {subtaskCount > 0 ? (
+              <p className="text-xs font-semibold text-text-muted">
+                {Math.round(subtaskCompletionPercent)}%
+              </p>
+            ) : null}
+          </div>
+          {subtaskCount > 0 ? (
+            <div
+              aria-label={`${subtaskSummary} progress`}
+              aria-valuemax={subtaskCount}
+              aria-valuemin={0}
+              aria-valuenow={completedCount}
+              className="h-1.5 overflow-hidden rounded-full bg-surface-control"
+              role="progressbar"
+            >
+              <div
+                className="h-full rounded-full bg-brand"
+                style={{ width: `${subtaskCompletionPercent}%` }}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1595,6 +1740,7 @@ function SortableTaskCard({
           onSave={onSave}
           onTaskUpdated={onTaskUpdated}
           panelRef={panelRef}
+          placement="inline"
           task={task}
         />
       ) : null}
