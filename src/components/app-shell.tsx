@@ -3,8 +3,16 @@
 import Link from "next/link";
 import type { UserRole } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, Pin, PinOff, Settings, ShieldCheck, X } from "lucide-react";
-import { useEffect, useRef, useState, useTransition, type CSSProperties } from "react";
+import {
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+import { useEffect, useState, useTransition, type CSSProperties } from "react";
 
 import { BoardIcon } from "@/components/board-icon";
 import { BoardManagement } from "@/components/board-management";
@@ -37,9 +45,7 @@ const themeOptions = [
   { label: "Device", value: "system" },
 ] as const;
 
-const sidebarPinnedStorageKey = "wb.sidebar.pinned";
-const sidebarHoverIntentMs = 300;
-const sidebarCollapseGraceMs = 500;
+const sidebarCollapsedStorageKey = "wb.sidebar.collapsed";
 
 type SidebarNavItem =
   | {
@@ -60,38 +66,25 @@ type BoardAccentStyle = CSSProperties & {
   "--board-accent"?: string;
 };
 
-type TimerRef = {
-  current: ReturnType<typeof setTimeout> | null;
-};
-
-function clearTimer(timerRef: TimerRef) {
-  if (!timerRef.current) {
-    return;
-  }
-
-  clearTimeout(timerRef.current);
-  timerRef.current = null;
-}
-
-function readStoredSidebarPinned() {
+function readStoredSidebarCollapsed() {
   if (typeof window === "undefined") {
     return false;
   }
 
   try {
-    return window.localStorage.getItem(sidebarPinnedStorageKey) === "1";
+    return window.localStorage.getItem(sidebarCollapsedStorageKey) === "1";
   } catch {
     return false;
   }
 }
 
-function persistSidebarPinned(pinned: boolean) {
+function persistSidebarCollapsed(collapsed: boolean) {
   if (typeof window === "undefined") {
     return;
   }
 
   try {
-    window.localStorage.setItem(sidebarPinnedStorageKey, pinned ? "1" : "0");
+    window.localStorage.setItem(sidebarCollapsedStorageKey, collapsed ? "1" : "0");
   } catch {
     // Sidebar persistence is a progressive enhancement.
   }
@@ -133,13 +126,10 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const router = useRouter();
   const { setTheme } = useBlueprintTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const [hoverExpanded, setHoverExpanded] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [sidebarTransitionsEnabled, setSidebarTransitionsEnabled] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
   const [isPending, startTransition] = useTransition();
-  const expandIntentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAdmin = user.role === "ADMIN";
   const navItems: SidebarNavItem[] = [
     { href: "/dashboard", iconKey: "dashboard", kind: "dashboard", label: "Dashboard" },
@@ -151,14 +141,16 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       label: board.name,
     })),
   ];
-  const sidebarExpanded = pinned || hoverExpanded;
+  const sidebarExpanded = !collapsed;
   const showFullSidebarContent = sidebarExpanded || mobileOpen;
   const sidebarWidthClass = sidebarExpanded ? "lg:w-[15.5rem]" : "lg:w-14";
   const sidebarTransitionClass = sidebarTransitionsEnabled
     ? "lg:transition-[width] lg:duration-200 lg:ease-[cubic-bezier(0.4,0,0.2,1)]"
     : "lg:transition-none";
-  const navLinkClassName =
-    "flex h-10 items-center gap-3 rounded-lg border px-2.5 py-2 text-sm font-semibold transition lg:justify-start";
+  const navLinkClassName = cn(
+    "flex h-10 items-center gap-3 rounded-lg border px-2.5 py-2 text-sm font-semibold transition",
+    sidebarExpanded ? "lg:justify-start" : "lg:justify-center lg:px-0",
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -168,11 +160,8 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         return;
       }
 
-      const storedPinned = readStoredSidebarPinned();
-
-      if (storedPinned) {
-        setPinned(true);
-        setHoverExpanded(true);
+      if (readStoredSidebarCollapsed()) {
+        setCollapsed(true);
       }
     });
 
@@ -200,54 +189,6 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       clearTimeout(timer);
     };
   }, []);
-
-  useEffect(() => {
-    return () => {
-      clearTimer(expandIntentTimerRef);
-      clearTimer(collapseTimerRef);
-    };
-  }, []);
-
-  const scheduleHoverExpand = () => {
-    if (pinned) {
-      return;
-    }
-
-    clearTimer(collapseTimerRef);
-
-    if (sidebarExpanded) {
-      return;
-    }
-
-    clearTimer(expandIntentTimerRef);
-    expandIntentTimerRef.current = setTimeout(() => {
-      setHoverExpanded(true);
-      expandIntentTimerRef.current = null;
-    }, sidebarHoverIntentMs);
-  };
-
-  const expandForFocus = () => {
-    if (pinned) {
-      return;
-    }
-
-    clearTimer(expandIntentTimerRef);
-    clearTimer(collapseTimerRef);
-    setHoverExpanded(true);
-  };
-
-  const scheduleCollapse = () => {
-    if (pinned) {
-      return;
-    }
-
-    clearTimer(expandIntentTimerRef);
-    clearTimer(collapseTimerRef);
-    collapseTimerRef.current = setTimeout(() => {
-      setHoverExpanded(false);
-      collapseTimerRef.current = null;
-    }, sidebarCollapseGraceMs);
-  };
 
   const handleThemeChange = (nextTheme: ThemePreference) => {
     const previousTheme = themePreference;
@@ -280,24 +221,12 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     });
   };
 
-  const handleSidebarBlur = (event: React.FocusEvent<HTMLElement>) => {
-    const nextFocusTarget = event.relatedTarget;
-
-    if (nextFocusTarget instanceof Node && event.currentTarget.contains(nextFocusTarget)) {
-      return;
-    }
-
-    scheduleCollapse();
-  };
-
-  const handlePinToggle = () => {
-    const nextPinned = !pinned;
-
-    clearTimer(expandIntentTimerRef);
-    clearTimer(collapseTimerRef);
-    setPinned(nextPinned);
-    setHoverExpanded(nextPinned);
-    persistSidebarPinned(nextPinned);
+  const handleCollapseToggle = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      persistSidebarCollapsed(next);
+      return next;
+    });
   };
 
   const Sidebar = (
@@ -309,10 +238,6 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         sidebarTransitionClass,
         "lg:px-3",
       )}
-      onBlur={handleSidebarBlur}
-      onFocus={expandForFocus}
-      onMouseEnter={scheduleHoverExpand}
-      onMouseLeave={scheduleCollapse}
     >
       <button
         aria-label="Close navigation"
@@ -324,26 +249,37 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       </button>
 
       <div className="space-y-4">
-        <Link
-          aria-label="Workflow Blueprint home"
-          className="flex h-14 items-center focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-          href="/dashboard"
-          onClick={() => setMobileOpen(false)}
-        >
+        <div className="flex h-14 items-center justify-between gap-2">
           {showFullSidebarContent ? (
-            <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
-              <span className="block">Workflow</span>
-              <span className="block">Blueprint</span>
-            </h1>
-          ) : (
-            <span
-              aria-hidden
-              className="blueprint-display flex h-9 w-9 items-center justify-center rounded-lg border border-line-strong text-base leading-none text-text-primary"
+            <Link
+              aria-label="Workflow Blueprint home"
+              className="flex min-w-0 items-center focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              href="/dashboard"
+              onClick={() => setMobileOpen(false)}
             >
-              WB
-            </span>
-          )}
-        </Link>
+              <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
+                <span className="block">Workflow</span>
+                <span className="block">Blueprint</span>
+              </h1>
+            </Link>
+          ) : null}
+          <button
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            className={cn(
+              "hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 lg:flex",
+              !showFullSidebarContent && "lg:mx-auto",
+            )}
+            onClick={handleCollapseToggle}
+            type="button"
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </button>
+        </div>
 
         {isAdmin ? (
           <nav aria-label="Admin panel" className="space-y-2 pt-4">
@@ -422,19 +358,6 @@ export function AppShell({ boards, children, user }: AppShellProps) {
             />
           </div>
         ) : null}
-
-        <div className="hidden justify-center lg:flex">
-          <button
-            aria-label={pinned ? "Unpin sidebar" : "Pin sidebar open"}
-            aria-expanded={showFullSidebarContent}
-            aria-pressed={pinned}
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-            onClick={handlePinToggle}
-            type="button"
-          >
-            {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-          </button>
-        </div>
 
         <div
           className={cn(
