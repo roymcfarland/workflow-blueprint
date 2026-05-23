@@ -763,6 +763,7 @@ function PanelSubtaskEditorRow({
 }
 
 function SubtasksCardPanel({
+  onDelete,
   onSave,
   onClose,
   onTaskUpdated,
@@ -770,6 +771,7 @@ function SubtasksCardPanel({
   task,
 }: {
   onClose: () => void;
+  onDelete: (taskId: string) => Promise<void>;
   onSave: PanelTaskSaveHandler;
   onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
@@ -779,9 +781,15 @@ function SubtasksCardPanel({
   const rowsRef = useRef(rows);
   const [taskPriority, setTaskPriority] = useState(task.priority);
   const [taskPrioritySaving, setTaskPrioritySaving] = useState(false);
+  const [taskStatus, setTaskStatus] = useState(task.status);
+  const [taskDueDate, setTaskDueDate] = useState(task.dueDate ? task.dueDate.slice(0, 10) : "");
+  const [taskDescription, setTaskDescription] = useState(task.description ?? "");
+  const [taskFieldsSaving, setTaskFieldsSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addTitle, setAddTitle] = useState("");
   const addInputRef = useRef<HTMLInputElement>(null);
+  const descriptionFocusedRef = useRef(false);
   const createQueueRef = useRef<Promise<void>>(Promise.resolve());
   const createdServerIdByTempKeyRef = useRef(new Map<string, string>());
   const locallySavedTitleByServerIdRef = useRef(new Map<string, string>());
@@ -826,6 +834,7 @@ function SubtasksCardPanel({
     focusedTitleRowKeys.size > 0 ||
     pendingTitleRowKeys.size > 0;
   const isSaving =
+    taskFieldsSaving ||
     taskPrioritySaving ||
     pendingCreateRowKeys.size > 0 ||
     pendingRowKeys.size > 0 ||
@@ -978,6 +987,11 @@ function SubtasksCardPanel({
       onTaskUpdated(nextTask);
       setRowsSafely((current) => mergeRowsWithServerTask(nextTask, current));
       setTaskPriority(nextTask.priority);
+      setTaskStatus(nextTask.status);
+      setTaskDueDate(nextTask.dueDate ? nextTask.dueDate.slice(0, 10) : "");
+      if (!descriptionFocusedRef.current) {
+        setTaskDescription(nextTask.description ?? "");
+      }
     },
     [mergeRowsWithServerTask, onTaskUpdated, setRowsSafely, syncServerTitleCache],
   );
@@ -1008,6 +1022,11 @@ function SubtasksCardPanel({
 
       setRowsSafely((current) => mergeRowsWithServerTask(task, current));
       setTaskPriority(task.priority);
+      setTaskStatus(task.status);
+      setTaskDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
+      if (!descriptionFocusedRef.current) {
+        setTaskDescription(task.description ?? "");
+      }
     });
 
     return () => {
@@ -1090,6 +1109,37 @@ function SubtasksCardPanel({
       setError(err instanceof Error ? err.message : "Unable to save.");
     } finally {
       setTaskPrioritySaving(false);
+    }
+  };
+
+  const saveTaskFields = async (overrides: Partial<TaskInput>) => {
+    setError(null);
+    setTaskFieldsSaving(true);
+    try {
+      await onSave(
+        { ...buildTaskInputFromPanel(task, taskPriority, rowsRef.current), ...overrides },
+        task.id,
+        { closeDrawer: false },
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save.");
+    } finally {
+      setTaskFieldsSaving(false);
+    }
+  };
+
+  const handlePanelDelete = async () => {
+    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) {
+      return;
+    }
+
+    setError(null);
+    setDeleting(true);
+    try {
+      await onDelete(task.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete task.");
+      setDeleting(false);
     }
   };
 
@@ -1411,38 +1461,101 @@ function SubtasksCardPanel({
       aria-label={`Subtasks for ${task.title}`}
     >
       <div className="mb-3 space-y-3 border-b border-line-soft pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex flex-wrap items-center gap-2 text-xs font-semibold text-text-muted">
-            <span>Task priority</span>
+        <div className="flex items-center justify-end gap-2">
+          {isSaving ? <span className="text-xs text-text-muted">Saving…</span> : null}
+          <button
+            aria-label="Close subtasks"
+            className="blueprint-action rounded-md p-1 text-text-muted"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <label className="space-y-1 text-xs font-semibold text-text-muted">
+            <span>Status</span>
             <select
-              className={prioritySelectClassName()}
-              disabled={taskPrioritySaving}
+              aria-label="Status"
+              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={taskFieldsSaving}
               onChange={(e) => {
-                const p = e.target.value as ItemPriority;
-                setTaskPriority(p);
-                void saveTaskPriority(p);
+                const next = e.target.value as TaskStatus;
+                setTaskStatus(next);
+                void saveTaskFields({ status: next });
               }}
-              value={taskPriority}
+              value={taskStatus}
             >
-              {itemPriorities.map((p) => (
-                <option key={p} value={p}>
-                  {priorityLabels[p]}
+              {boardStatuses.map((s) => (
+                <option key={s} value={s}>
+                  {statusLabels[s]}
                 </option>
               ))}
             </select>
           </label>
-          <div className="flex items-center gap-2">
-            {isSaving ? <span className="text-xs text-text-muted">Saving…</span> : null}
-            <button
-              aria-label="Close subtasks"
-              className="blueprint-action rounded-md p-1 text-text-muted"
-              onClick={onClose}
-              type="button"
+
+          <label className="space-y-1 text-xs font-semibold text-text-muted">
+            <span>Priority</span>
+            <select
+              aria-label="Task priority"
+              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={taskPrioritySaving}
+              onChange={(e) => {
+                const next = e.target.value as ItemPriority;
+                setTaskPriority(next);
+                void saveTaskPriority(next);
+              }}
+              value={taskPriority}
             >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+              {itemPriorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priorityLabels[priority]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-1 text-xs font-semibold text-text-muted">
+            <span>Due date</span>
+            <input
+              aria-label="Due date"
+              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={taskFieldsSaving}
+              onChange={(e) => {
+                const next = e.target.value;
+                setTaskDueDate(next);
+                void saveTaskFields({ dueDate: next === "" ? null : next });
+              }}
+              type="date"
+              value={taskDueDate}
+            />
+          </label>
         </div>
+
+        <label className="space-y-1 text-xs font-semibold text-text-muted">
+          <span>Description</span>
+          <textarea
+            aria-label="Description"
+            className="blueprint-control min-h-[3.5rem] w-full rounded-md px-2 py-1.5 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+            disabled={taskFieldsSaving}
+            onBlur={() => {
+              descriptionFocusedRef.current = false;
+              const next = taskDescription.trim() === "" ? null : taskDescription;
+              const current = task.description ?? null;
+              if (next !== current) {
+                void saveTaskFields({ description: next });
+              }
+            }}
+            onChange={(e) => setTaskDescription(e.target.value)}
+            onFocus={() => {
+              descriptionFocusedRef.current = true;
+            }}
+            placeholder="Add detail…"
+            value={taskDescription}
+          />
+        </label>
+
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <p
@@ -1532,6 +1645,19 @@ function SubtasksCardPanel({
           {error}
         </p>
       ) : null}
+
+      <div className="mt-3 flex justify-end border-t border-line-soft pt-2">
+        <button
+          aria-label="Delete task"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-text-muted transition hover:text-danger focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={deleting}
+          onClick={() => void handlePanelDelete()}
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete task
+        </button>
+      </div>
     </div>
   );
 }
@@ -1613,6 +1739,7 @@ function TaskPreview({
 }
 
 function SortableTaskCard({
+  onDelete,
   onOpen,
   onRename,
   onTaskUpdated,
@@ -1622,6 +1749,7 @@ function SortableTaskCard({
   onSave,
   task,
 }: {
+  onDelete: (taskId: string) => Promise<void>;
   onOpen: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
   onTaskUpdated: TaskUpdatedHandler;
@@ -1679,6 +1807,7 @@ function SortableTaskCard({
             <SubtasksCardPanel
               key={task.id}
               onClose={() => onToggleSubtasksPanel(task.id)}
+              onDelete={onDelete}
               onSave={onSave}
               onTaskUpdated={onTaskUpdated}
               panelRef={panelRef}
@@ -1697,6 +1826,7 @@ function SortableTaskCard({
 }
 
 function SortableListTaskRow({
+  onDelete,
   onOpen,
   onRename,
   onTaskUpdated,
@@ -1706,6 +1836,7 @@ function SortableListTaskRow({
   onSave,
   task,
 }: {
+  onDelete: (taskId: string) => Promise<void>;
   onOpen: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
   onTaskUpdated: TaskUpdatedHandler;
@@ -1786,6 +1917,7 @@ function SortableListTaskRow({
           <SubtasksCardPanel
             key={task.id}
             onClose={() => onToggleSubtasksPanel(task.id)}
+            onDelete={onDelete}
             onSave={onSave}
             onTaskUpdated={onTaskUpdated}
             panelRef={panelRef}
@@ -2047,6 +2179,7 @@ function QuickAddTaskInput({
 
 function ListViewStatusBody({
   onCreateTask,
+  onDeleteTask,
   onQuickAddOpenChange,
   onOpenTask,
   onRenameTask,
@@ -2060,6 +2193,7 @@ function ListViewStatusBody({
   tasks,
 }: {
   onCreateTask: (title: string, status: TaskStatus) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
   onQuickAddOpenChange: (open: boolean) => void;
   onOpenTask: (task: SerializedTask) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
@@ -2089,6 +2223,7 @@ function ListViewStatusBody({
         {tasks.map((task) => (
           <SortableListTaskRow
             key={task.id}
+            onDelete={onDeleteTask}
             onOpen={onOpenTask}
             onRename={onRenameTask}
             onSave={onSaveTask}
@@ -2117,6 +2252,7 @@ function ListViewStatusBody({
 
 function BoardColumn({
   onCreateTask,
+  onDeleteTask,
   onQuickAddOpenChange,
   onOpenTask,
   onRenameTask,
@@ -2130,6 +2266,7 @@ function BoardColumn({
   tasks,
 }: {
   onCreateTask: (title: string, status: TaskStatus) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
   onQuickAddOpenChange: (open: boolean) => void;
   onOpenTask: (task: SerializedTask) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
@@ -2172,6 +2309,7 @@ function BoardColumn({
           {tasks.map((task) => (
             <SortableTaskCard
               key={task.id}
+              onDelete={onDeleteTask}
               onOpen={onOpenTask}
               onRename={onRenameTask}
               onSave={onSaveTask}
@@ -2939,6 +3077,7 @@ export function BoardWorkspace({
             <div className={kanbanLaneItemClassName} key={status}>
               <BoardColumn
                 onCreateTask={handleQuickCreateTask}
+                onDeleteTask={handleDeleteTask}
                 onOpenTask={openTask}
                 onQuickAddOpenChange={(open) => setActiveQuickAddStatus(open ? status : null)}
                 onRenameTask={handleRenameTask}
@@ -2970,6 +3109,7 @@ export function BoardWorkspace({
               </div>
               <ListViewStatusBody
                 onCreateTask={handleQuickCreateTask}
+                onDeleteTask={handleDeleteTask}
                 onOpenTask={openTask}
                 onQuickAddOpenChange={(open) => setActiveQuickAddStatus(open ? status : null)}
                 onRenameTask={handleRenameTask}

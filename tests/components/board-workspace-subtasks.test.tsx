@@ -273,6 +273,28 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(screen.queryByRole("menuitemradio")).toBeNull();
   });
 
+  test("updates task status from the expanded card through the task endpoint", async () => {
+    const initialTask = task();
+    const updatedTask = task({ status: "IN_PROGRESS" });
+
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+      target: { value: "IN_PROGRESS" },
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active");
+    expect(init.method).toBe("PATCH");
+    expect(requestJsonBody(init)?.status).toBe("IN_PROGRESS");
+  });
+
   test("keeps a focused dirty title while toggling another row", async () => {
     vi.useFakeTimers();
     const initialTask = task({
