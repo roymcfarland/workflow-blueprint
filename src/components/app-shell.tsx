@@ -417,7 +417,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       <div className="min-h-screen lg:flex">
         <div
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-[min(17rem,calc(100vw-1rem))] -translate-x-full transition-transform duration-200 lg:static lg:block lg:h-auto lg:translate-x-0 lg:self-start",
+            "fixed inset-y-0 left-0 z-50 w-[min(17rem,calc(100vw-1rem))] -translate-x-full transition-transform duration-200 lg:static lg:block lg:h-screen lg:translate-x-0 lg:overflow-y-auto",
             sidebarWidthClass,
             sidebarTransitionClass,
             mobileOpen && "translate-x-0",
@@ -447,7 +447,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
             </button>
           ) : null}
 
-          <main className="min-h-screen min-w-0 px-4 pb-10 pt-16 sm:px-6 lg:px-8 lg:pt-8">
+          <main className="min-h-screen min-w-0 px-4 pb-10 pt-16 sm:px-6 lg:h-screen lg:overflow-y-auto lg:px-8 lg:pt-8">
             {children}
           </main>
         </div>
