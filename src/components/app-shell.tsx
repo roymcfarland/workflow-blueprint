@@ -157,10 +157,8 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const sidebarTransitionClass = sidebarTransitionsEnabled
     ? "lg:transition-[width] lg:duration-200 lg:ease-[cubic-bezier(0.4,0,0.2,1)]"
     : "lg:transition-none";
-  const navLinkClassName = cn(
-    "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-semibold transition",
-    sidebarExpanded ? "lg:justify-start lg:px-3" : "lg:h-10 lg:justify-center lg:px-0",
-  );
+  const navLinkClassName =
+    "flex h-10 items-center gap-3 rounded-lg border px-2.5 py-2 text-sm font-semibold transition lg:justify-start";
 
   useEffect(() => {
     let mounted = true;
@@ -309,7 +307,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         "blueprint-surface blueprint-surface-strong flex h-full w-full max-w-none flex-col overflow-hidden rounded-none border-y-0 border-l-0 px-4 py-5 sm:px-5 lg:rounded-r-xl",
         sidebarWidthClass,
         sidebarTransitionClass,
-        sidebarExpanded ? "lg:px-5" : "lg:px-2",
+        "lg:px-3",
       )}
       onBlur={handleSidebarBlur}
       onFocus={expandForFocus}
@@ -326,28 +324,35 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       </button>
 
       <div className="space-y-4">
-        {showFullSidebarContent ? (
-          <Link
-            aria-label="Workflow Blueprint home"
-            className="block focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-            href="/dashboard"
-            onClick={() => setMobileOpen(false)}
-          >
+        <Link
+          aria-label="Workflow Blueprint home"
+          className="flex h-14 items-center focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+          href="/dashboard"
+          onClick={() => setMobileOpen(false)}
+        >
+          {showFullSidebarContent ? (
             <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
               <span className="block">Workflow</span>
               <span className="block">Blueprint</span>
             </h1>
-          </Link>
-        ) : null}
+          ) : (
+            <span
+              aria-hidden
+              className="blueprint-display flex h-9 w-9 items-center justify-center rounded-lg border border-line-strong text-base leading-none text-text-primary"
+            >
+              WB
+            </span>
+          )}
+        </Link>
 
         {isAdmin ? (
           <nav aria-label="Admin panel" className="space-y-2 pt-4">
-            {showFullSidebarContent ? (
-              <div className="flex items-center gap-2 text-text-primary">
-                <ShieldCheck className="h-4 w-4" />
+            <div className="flex h-5 items-center gap-2 px-2.5 text-text-primary">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              {showFullSidebarContent ? (
                 <p className="blueprint-eyebrow leading-none">Admin Panel</p>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
             <Link
               aria-label="Invitations"
               className={cn(
@@ -489,7 +494,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       <div className="min-h-screen lg:flex">
         <div
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-[min(17rem,calc(100vw-1rem))] -translate-x-full transition-transform duration-200 lg:sticky lg:top-0 lg:block lg:h-screen lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 w-[min(17rem,calc(100vw-1rem))] -translate-x-full transition-transform duration-200 lg:static lg:block lg:h-auto lg:translate-x-0 lg:self-start",
             sidebarWidthClass,
             sidebarTransitionClass,
             mobileOpen && "translate-x-0",
