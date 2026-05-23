@@ -2258,9 +2258,9 @@ function BoardColumn({
   });
 
   return (
-    <div className="blueprint-surface-flat blueprint-surface-strong min-w-0 overflow-hidden">
-      <div className="h-2" style={getStatusAccentStyle(status)} />
-      <div className="border-b border-line-soft px-4 py-3">
+    <div className="blueprint-surface-flat blueprint-surface-strong flex min-w-0 flex-col overflow-hidden lg:h-full">
+      <div className="h-2 shrink-0" style={getStatusAccentStyle(status)} />
+      <div className="shrink-0 border-b border-line-soft px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="blueprint-display text-lg text-text-primary sm:text-xl">
             {statusLabels[status]}
@@ -2275,7 +2275,7 @@ function BoardColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "blueprint-scrollbar min-h-[26rem] space-y-3 overflow-y-auto p-3 transition sm:min-h-[30rem] sm:p-4",
+          "blueprint-scrollbar min-h-[12rem] flex-1 space-y-3 overflow-y-auto p-3 transition sm:p-4 lg:min-h-0",
           isOver && "bg-brand-soft",
         )}
       >
@@ -2300,6 +2300,8 @@ function BoardColumn({
             Drop a task here
           </div>
         ) : null}
+      </div>
+      <div className="shrink-0 border-t border-line-soft p-3 sm:p-4">
         <QuickAddTask
           onCreate={onCreateTask}
           onOpenChange={onQuickAddOpenChange}
@@ -2689,9 +2691,9 @@ export function BoardWorkspace({
       sensors={sensors}
     >
       {viewMode === "board" ? (
-        <div className="blueprint-scrollbar flex min-w-0 snap-none items-start gap-4 overflow-x-auto overscroll-x-contain pb-3">
+        <div className="blueprint-scrollbar flex min-w-0 snap-none items-stretch gap-4 overflow-x-auto overscroll-x-contain pb-3 lg:h-full lg:min-h-0">
           {visibleStatuses.map((status) => (
-            <div className={kanbanLaneItemClassName} key={status}>
+            <div className={cn(kanbanLaneItemClassName, "lg:h-full")} key={status}>
               <BoardColumn
                 onCreateTask={handleQuickCreateTask}
                 onDeleteTask={handleDeleteTask}
@@ -2753,8 +2755,13 @@ export function BoardWorkspace({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div
+      className={cn(
+        "space-y-6",
+        viewMode === "board" && "lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-6 lg:space-y-0",
+      )}
+    >
+      <div className="flex flex-col gap-4 lg:shrink-0 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0 space-y-3">
           <PageTitle
             description={board.description ?? undefined}
@@ -2804,12 +2811,15 @@ export function BoardWorkspace({
         className={cn(
           "grid gap-5",
           notesOpen && "lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]",
+          viewMode === "board" && "lg:min-h-0 lg:flex-1 lg:grid-rows-1",
         )}
       >
-        <div className="min-w-0">{boardArea}</div>
+        <div className={cn("min-w-0", viewMode === "board" && "lg:h-full lg:min-h-0")}>
+          {boardArea}
+        </div>
         {notesOpen ? (
           <NotesPanel
-            className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]"
+            className="lg:h-full lg:min-h-0 lg:overflow-y-auto"
             noteDraft={noteDraft}
             noteMessage={noteMessage}
             noteStatus={noteStatus}
