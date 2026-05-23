@@ -41,6 +41,18 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **PR 10** | Per-board view-mode + notes-open persistence; extract `src/lib/board-preferences.ts` | `#17` | Added per-board view-mode and notes-open persistence and extracted the shared persistence helpers into `src/lib/board-preferences.ts`, with tests per Q1 (`tests/lib/board-preferences.test.ts`, `tests/components/board-workspace-preferences.test.tsx`). |
 | **PR 11** | Harden public schema RLS | `#18` | Hardened row-level security on the public schema; covered by `tests/database-rls.test.ts`. |
 | **PR 12** | CI typecheck gate | `#19` | Added a `typecheck` npm script (`tsc --noEmit`) and a dedicated CI `typecheck` job, and fixed a pre-existing TS2352 error in `tests/api/external/v1-routes.test.ts` that had slipped through because CI previously ran no type check. |
+| **PR 13** | Roadmap reconciliation | `#20` | Brought the Shipped ledger current and corrected the Active phase. Documentation-only. |
+| **PR 14** | Post-merge branch-deletion guardrail | `#21` | Added the standing guardrail that merged feature branches are deleted both remote and local, backed by GitHub's "Automatically delete head branches" setting and the pre-flight local prune. Documentation/repo-settings. |
+| **PR 15** | Granular subtask API | `#22` | Added per-subtask REST endpoints (`POST /api/tasks/[taskId]/subtasks`, `POST /api/tasks/[taskId]/subtasks/reorder`, `PATCH`/`DELETE /api/subtasks/[subtaskId]`) with `subtaskCreate`/`subtaskUpdate`/`subtaskReorder` validators and the matching `createSubtaskForUser`/`updateSubtaskForUser`/`deleteSubtaskForUser`/`reorderSubtasksForUser` data-layer functions. Additive; ships with tests per Q1. |
+| **PR 16** | Subtask panel on the granular API | `#23` | Rewired the board subtask panel to the granular endpoints, removing the whole-task re-save on every subtask edit and adding server reconciliation via `onTaskUpdated`/`applyServerTask`. |
+| **PR 17** | Subtask panel interaction redesign | `#24` | Persistent inline add input, always-editable titles, per-row pending/dirty tracking, and single-flight saves. |
+| **PR 18** | Subtask panel visual pass | `#25` | Per-subtask flag priority, inline-expand panel, and a completion progress bar. |
+| **PR 19** | CI build job | `#26` | Added a dedicated `build` job to `.github/workflows/ci.yml` so build-only failures are caught in CI rather than only by the Vercel deploy. |
+| **PR 20** | Inline subtask priority strip | `#27` | Replaced the per-subtask priority popover with an inline reveal flag strip (a `radiogroup`); no floating menu, portal, or open/close state. |
+| **PR 21** | Subtask panel folded into the card | `#28` | The subtask panel renders inside the task card surface (the card grows) instead of a detached, shadowed box; removed the dead `placement="dropdown"` overlay branch. |
+| **PR 22** | Inline quick-add task creation | `#29` | Replaced the drawer-based create flow with an inline quick-add composer (title + Enter) in each column/section; the header, empty-state, and `?new=1` deep link open it. The drawer was left for editing only. |
+| **PR 23** | Inline task-field editing on the card | `#30` | Status, priority, due date, description, and delete are edited inline on the expanded card via the existing whole-task PATCH; threaded an `onDelete` handler down to the panel. |
+| **PR 24** | Removed the TaskDrawer | `#31` | Deleted the slide-out `TaskDrawer`, `SortableSubtaskRow`, the per-card details button, the `onOpen`/`onOpenTask` prop chain, the drawer state, the `closeDrawer` save option, and now-unused imports. Task creation and editing are now fully inline on the card. |
 
 ### Active phase
 
