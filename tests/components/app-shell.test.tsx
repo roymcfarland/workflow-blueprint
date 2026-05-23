@@ -94,100 +94,51 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("AppShell hover sidebar", () => {
-  test("renders the desktop rail by default", () => {
+describe("AppShell collapsible sidebar", () => {
+  test("renders expanded by default", () => {
     renderShell();
-
-    expectWordmarkHidden();
-    expect(screen.queryByText("Dashboard")).toBeNull();
-    expect(screen.queryByText("Launch Plan")).toBeNull();
-    expect(screen.getByRole("button", { name: "Pin sidebar open" })).toBeDefined();
-  });
-
-  test("expands after a 300ms hover dwell", () => {
-    renderShell();
-
-    fireEvent.mouseEnter(getSidebar());
-    act(() => vi.advanceTimersByTime(300));
 
     expectWordmarkVisible();
     expect(screen.getByText("Dashboard")).toBeDefined();
-    expect(screen.getAllByText("Launch Plan").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeDefined();
   });
 
-  test("does not expand when hover ends before the 300ms dwell", () => {
+  test("collapses when the collapse toggle is clicked", () => {
     renderShell();
 
-    fireEvent.mouseEnter(getSidebar());
-    act(() => vi.advanceTimersByTime(250));
-    fireEvent.mouseLeave(getSidebar());
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
     expectWordmarkHidden();
+    expect(screen.queryByText("Dashboard")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeDefined();
   });
 
-  test("collapses after the 500ms mouseleave grace", () => {
+  test("expands again when the expand toggle is clicked", () => {
     renderShell();
 
-    fireEvent.mouseEnter(getSidebar());
-    act(() => vi.advanceTimersByTime(300));
-    expectWordmarkVisible();
-
-    fireEvent.mouseLeave(getSidebar());
-    act(() => vi.advanceTimersByTime(500));
-
-    expectWordmarkHidden();
-  });
-
-  test("cancels collapse when the cursor re-enters during the grace window", () => {
-    renderShell();
-
-    fireEvent.mouseEnter(getSidebar());
-    act(() => vi.advanceTimersByTime(300));
-    fireEvent.mouseLeave(getSidebar());
-    act(() => vi.advanceTimersByTime(300));
-    fireEvent.mouseEnter(getSidebar());
-    act(() => vi.advanceTimersByTime(500));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
 
     expectWordmarkVisible();
   });
 
-  test("pinning locks the sidebar open across hover events", () => {
+  test("persists the collapsed state to localStorage", () => {
     renderShell();
 
-    fireEvent.click(screen.getByRole("button", { name: "Pin sidebar open" }));
-    expectWordmarkVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
 
-    fireEvent.mouseLeave(getSidebar());
-    act(() => vi.advanceTimersByTime(1000));
-
-    expectWordmarkVisible();
+    expect(localStorage.getItem("wb.sidebar.collapsed")).toBe("1");
   });
 
-  test("persists the pinned state to localStorage", () => {
-    renderShell();
-
-    fireEvent.click(screen.getByRole("button", { name: "Pin sidebar open" }));
-
-    expect(localStorage.getItem("wb.sidebar.pinned")).toBe("1");
-  });
-
-  test("rehydrates a persisted pinned state on mount", async () => {
-    localStorage.setItem("wb.sidebar.pinned", "1");
+  test("rehydrates a persisted collapsed state on mount", async () => {
+    localStorage.setItem("wb.sidebar.collapsed", "1");
 
     renderShell();
     await act(async () => {
       await Promise.resolve();
     });
 
-    expectWordmarkVisible();
-  });
-
-  test("expands immediately when a nav link receives keyboard focus", () => {
-    renderShell();
-
-    fireEvent.focus(screen.getByRole("link", { name: "Dashboard" }));
-
-    expectWordmarkVisible();
+    expectWordmarkHidden();
   });
 
   test("keeps the mobile menu button path working below the lg breakpoint", () => {
