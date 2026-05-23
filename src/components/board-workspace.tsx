@@ -1766,50 +1766,55 @@ function SortableTaskCard({
   return (
     <div
       ref={setNodeRef}
-      className={cn(
-        "relative touch-manipulation select-none",
-        isDragging ? "opacity-0" : "",
-      )}
+      className="relative touch-manipulation select-none"
       style={{
         transform: CSS.Transform.toString(transform),
         transition: reduceMotion ? undefined : transition,
       }}
     >
-      <TaskPreview
-        dragHandle={
-          <button
-            aria-label={`Drag ${task.title}`}
-            className="blueprint-action cursor-grab rounded-md p-1 active:cursor-grabbing"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            ref={setActivatorNodeRef}
-            type="button"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-        }
-        expandedContent={
-          subtasksMenuOpen ? (
-            <SubtasksCardPanel
-              key={task.id}
-              onClose={() => onToggleSubtasksPanel(task.id)}
-              onDelete={onDelete}
-              onSave={onSave}
-              onTaskUpdated={onTaskUpdated}
-              panelRef={panelRef}
-              task={task}
-            />
-          ) : null
-        }
-        onRename={onRename}
-        onToggleSubtasksMenu={onToggleSubtasksPanel}
-        subtasksMenuOpen={subtasksMenuOpen}
-        task={task}
-      />
+      {isDragging ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-xl border-2 border-dashed border-brand/40 bg-brand/10"
+        />
+      ) : null}
+      <div className={isDragging ? "invisible" : undefined}>
+        <TaskPreview
+          dragHandle={
+            <button
+              aria-label={`Drag ${task.title}`}
+              className="blueprint-action cursor-grab rounded-md p-1 active:cursor-grabbing"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              ref={setActivatorNodeRef}
+              type="button"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          }
+          expandedContent={
+            subtasksMenuOpen ? (
+              <SubtasksCardPanel
+                key={task.id}
+                onClose={() => onToggleSubtasksPanel(task.id)}
+                onDelete={onDelete}
+                onSave={onSave}
+                onTaskUpdated={onTaskUpdated}
+                panelRef={panelRef}
+                task={task}
+              />
+            ) : null
+          }
+          onRename={onRename}
+          onToggleSubtasksMenu={onToggleSubtasksPanel}
+          subtasksMenuOpen={subtasksMenuOpen}
+          task={task}
+        />
+      </div>
     </div>
   );
 }
@@ -1848,16 +1853,24 @@ function SortableListTaskRow({
   return (
     <div
       ref={setNodeRef}
-      className={cn(
-        "relative touch-manipulation select-none",
-        isDragging ? "opacity-0" : "",
-      )}
+      className="relative touch-manipulation select-none"
       style={{
         transform: CSS.Transform.toString(transform),
         transition: reduceMotion ? undefined : transition,
       }}
     >
-      <div className="overflow-hidden rounded-lg border border-line-strong bg-surface-control">
+      {isDragging ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-lg border-2 border-dashed border-brand/40 bg-brand/10"
+        />
+      ) : null}
+      <div
+        className={cn(
+          "overflow-hidden rounded-lg border border-line-strong bg-surface-control",
+          isDragging && "invisible",
+        )}
+      >
         <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
         <div className="flex items-start justify-between gap-3 p-4">
           <div className="min-w-0 flex-1 space-y-2">
@@ -2731,7 +2744,7 @@ export function BoardWorkspace({
 
       <DragOverlay>
         {activeTaskId ? (
-          <div className="w-[15rem]">
+          <div className="w-[15rem] rotate-3 cursor-grabbing opacity-95 shadow-2xl shadow-foreground/30">
             {activeTask ? <TaskPreview presentation task={activeTask} /> : null}
           </div>
         ) : null}
