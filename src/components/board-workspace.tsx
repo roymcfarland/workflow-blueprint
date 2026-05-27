@@ -712,7 +712,6 @@ function SubtasksCardPanel({
   const rowsRef = useRef(rows);
   const [taskPriority, setTaskPriority] = useState(task.priority);
   const [taskPrioritySaving, setTaskPrioritySaving] = useState(false);
-  const [taskStatus, setTaskStatus] = useState(task.status);
   const [taskDueDate, setTaskDueDate] = useState(task.dueDate ? task.dueDate.slice(0, 10) : "");
   const [taskDescription, setTaskDescription] = useState(task.description ?? "");
   const [taskFieldsSaving, setTaskFieldsSaving] = useState(false);
@@ -918,7 +917,6 @@ function SubtasksCardPanel({
       onTaskUpdated(nextTask);
       setRowsSafely((current) => mergeRowsWithServerTask(nextTask, current));
       setTaskPriority(nextTask.priority);
-      setTaskStatus(nextTask.status);
       setTaskDueDate(nextTask.dueDate ? nextTask.dueDate.slice(0, 10) : "");
       if (!descriptionFocusedRef.current) {
         setTaskDescription(nextTask.description ?? "");
@@ -953,7 +951,6 @@ function SubtasksCardPanel({
 
       setRowsSafely((current) => mergeRowsWithServerTask(task, current));
       setTaskPriority(task.priority);
-      setTaskStatus(task.status);
       setTaskDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
       if (!descriptionFocusedRef.current) {
         setTaskDescription(task.description ?? "");
@@ -1393,28 +1390,7 @@ function SubtasksCardPanel({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <label className="space-y-1 text-xs font-semibold text-text-muted">
-            <span>Status</span>
-            <select
-              aria-label="Status"
-              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-              disabled={taskFieldsSaving}
-              onChange={(e) => {
-                const next = e.target.value as TaskStatus;
-                setTaskStatus(next);
-                void saveTaskFields({ status: next });
-              }}
-              value={taskStatus}
-            >
-              {boardStatuses.map((s) => (
-                <option key={s} value={s}>
-                  {statusLabels[s]}
-                </option>
-              ))}
-            </select>
-          </label>
-
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <label className="space-y-1 text-xs font-semibold text-text-muted">
             <span>Priority</span>
             <select
