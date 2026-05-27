@@ -1522,12 +1522,19 @@ function SortableTaskCard({
   return (
     <div
       ref={setNodeRef}
-      className="relative touch-manipulation select-none"
+      className="relative isolate touch-manipulation select-none"
       style={{
         transform: CSS.Transform.toString(transform),
         transition: reduceMotion ? undefined : transition,
       }}
     >
+      {isDragging ? null : (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-1 -z-10 rounded-2xl opacity-30 blur-xl"
+          style={getStatusAccentStyle(task.status)}
+        />
+      )}
       {isDragging ? (
         <div
           aria-hidden
@@ -1606,12 +1613,19 @@ function SortableListTaskRow({
   return (
     <div
       ref={setNodeRef}
-      className="relative touch-manipulation select-none"
+      className="relative isolate touch-manipulation select-none"
       style={{
         transform: CSS.Transform.toString(transform),
         transition: reduceMotion ? undefined : transition,
       }}
     >
+      {isDragging ? null : (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-1 -z-10 rounded-2xl opacity-30 blur-xl"
+          style={getStatusAccentStyle(task.status)}
+        />
+      )}
       {isDragging ? (
         <div
           aria-hidden
