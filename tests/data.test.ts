@@ -22,7 +22,6 @@ describe("src/lib/data.ts", () => {
       subtasks: [
         {
           isComplete: false,
-          priority: "LOW",
           title: "Draft the harness notes",
         },
       ],
@@ -38,7 +37,7 @@ describe("src/lib/data.ts", () => {
       subtasks: [
         expect.objectContaining({
           isComplete: false,
-          priority: "LOW",
+          priority: "NONE",
           sortOrder: 0,
           title: "Draft the harness notes",
         }),

@@ -178,7 +178,8 @@ function serializeTask(task: DbTask): SerializedTask {
       title: subtask.title,
       isComplete: subtask.isComplete,
       sortOrder: subtask.sortOrder,
-      priority: subtask.priority as ItemPriority,
+      // Subtasks no longer carry a priority; the external contract still expects the field, so it is a constant.
+      priority: "NONE",
     })),
   };
 }
@@ -541,7 +542,6 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
               id: randomUUID(),
               title: subtask.title,
               isComplete: subtask.isComplete,
-              priority: subtask.priority as PrismaItemPriority,
               sortOrder: index,
             })),
           },
@@ -618,14 +618,12 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
                   title: subtask.title,
                   isComplete: subtask.isComplete,
                   sortOrder: index,
-                  priority: subtask.priority as PrismaItemPriority,
                 },
                 create: {
                   id: subtaskId,
                   title: subtask.title,
                   isComplete: subtask.isComplete,
                   sortOrder: index,
-                  priority: subtask.priority as PrismaItemPriority,
                 },
               };
             }),
@@ -692,7 +690,6 @@ export async function createSubtaskForUser(
           taskId: task.id,
           title: input.title,
           isComplete: false,
-          priority: input.priority as PrismaItemPriority,
           sortOrder,
         },
       });
@@ -745,9 +742,6 @@ export async function updateSubtaskForUser(
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.isComplete !== undefined ? { isComplete: input.isComplete } : {}),
-        ...(input.priority !== undefined
-          ? { priority: input.priority as PrismaItemPriority }
-          : {}),
       },
     });
 

@@ -36,7 +36,6 @@ const subtaskSchema = z.object({
     .min(1, "Subtask title is required.")
     .max(180, "Subtask titles should stay under 180 characters."),
   isComplete: z.boolean().default(false),
-  priority: z.enum(itemPriorities).default("NONE"),
 });
 
 export const signInSchema = z.object({
@@ -174,7 +173,6 @@ export const subtaskCreateSchema = z.object({
     .trim()
     .min(1, "Subtask title is required.")
     .max(180, "Subtask titles should stay under 180 characters."),
-  priority: z.enum(itemPriorities).default("NONE"),
 });
 
 export const subtaskUpdateSchema = z
@@ -186,7 +184,6 @@ export const subtaskUpdateSchema = z
       .max(180, "Subtask titles should stay under 180 characters.")
       .optional(),
     isComplete: z.boolean().optional(),
-    priority: z.enum(itemPriorities).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "Provide at least one field to update.",
