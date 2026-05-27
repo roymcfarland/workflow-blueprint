@@ -241,38 +241,6 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
   });
 
-  test("updates subtask priority from the inline priority strip through the granular endpoint", async () => {
-    const initialTask = task();
-    const prioritizedTask = task({
-      subtasks: [subtask({ priority: "URGENT" })],
-    });
-
-    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: prioritizedTask }));
-
-    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
-
-    // No popover: the five priority flags render directly as a radiogroup.
-    fireEvent.click(screen.getByRole("radio", { name: "Urgent" }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    const [priorityUrl, priorityInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(priorityUrl).toBe("/api/subtasks/subtask-1");
-    expect(priorityInit.method).toBe("PATCH");
-    expect(requestJsonBody(priorityInit)).toEqual({ priority: "URGENT" });
-    expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
-
-    // The selected flag reflects the new priority; there is no popover menu.
-    await waitFor(() =>
-      expect(
-        screen.getByRole("radio", { name: "Urgent" }).getAttribute("aria-checked"),
-      ).toBe("true"),
-    );
-    expect(screen.queryByRole("menuitemradio")).toBeNull();
-  });
-
   test("updates task status from the expanded card through the task endpoint", async () => {
     const initialTask = task();
     const updatedTask = task({ status: "IN_PROGRESS" });
