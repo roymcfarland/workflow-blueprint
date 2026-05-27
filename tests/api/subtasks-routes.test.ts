@@ -111,12 +111,10 @@ async function seedSubtask(
   taskId: string,
   {
     isComplete = false,
-    priority = PrismaItemPriority.NONE,
     sortOrder = 0,
     title = "Existing subtask",
   }: {
     isComplete?: boolean;
-    priority?: PrismaItemPriority;
     sortOrder?: number;
     title?: string;
   } = {},
@@ -127,7 +125,6 @@ async function seedSubtask(
       taskId,
       title,
       isComplete,
-      priority,
       sortOrder,
     },
   });
@@ -160,7 +157,6 @@ describe("subtask route handlers", () => {
     const response = await createSubtask(
       jsonRequest(`/api/tasks/${task.id}/subtasks`, {
         title: "Ship release notes",
-        priority: "HIGH",
       }),
       taskParams(task.id),
     );
@@ -170,7 +166,7 @@ describe("subtask route handlers", () => {
     expect(body.task.subtasks).toHaveLength(3);
     expect(body.task.subtasks.at(-1)).toMatchObject({
       isComplete: false,
-      priority: "HIGH",
+      priority: "NONE",
       sortOrder: 2,
       title: "Ship release notes",
     });
@@ -186,7 +182,6 @@ describe("subtask route handlers", () => {
         taskId: task.id,
         title: `Existing subtask ${sortOrder}`,
         isComplete: false,
-        priority: PrismaItemPriority.NONE,
         sortOrder,
       })),
     });
@@ -201,10 +196,9 @@ describe("subtask route handlers", () => {
     await expectBadRequest(response, "Tasks can include up to 50 subtasks.");
   });
 
-  test("PATCH /api/subtasks/[subtaskId] updates title, completion, and priority", async () => {
+  test("PATCH /api/subtasks/[subtaskId] updates title and completion", async () => {
     const { task, user } = await seedTask();
     const subtask = await seedSubtask(task.id, {
-      priority: PrismaItemPriority.LOW,
       title: "Original title",
     });
     authenticate(user);
@@ -215,7 +209,6 @@ describe("subtask route handlers", () => {
         {
           title: "Updated title",
           isComplete: true,
-          priority: "URGENT",
         },
         { method: "PATCH" },
       ),
@@ -227,7 +220,6 @@ describe("subtask route handlers", () => {
       expect.objectContaining({
         id: subtask.id,
         isComplete: true,
-        priority: "URGENT",
         title: "Updated title",
       }),
     ]);
@@ -354,9 +346,7 @@ describe("subtask route handlers", () => {
     authenticate(user);
 
     const missingTitleResponse = await createSubtask(
-      jsonRequest(`/api/tasks/${task.id}/subtasks`, {
-        priority: "LOW",
-      }),
+      jsonRequest(`/api/tasks/${task.id}/subtasks`, {}),
       taskParams(task.id),
     );
 

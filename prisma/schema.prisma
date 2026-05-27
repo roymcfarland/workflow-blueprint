@@ -90,7 +90,6 @@ model Subtask {
   taskId     String
   title      String
   isComplete Boolean      @default(false)
-  priority   ItemPriority @default(NONE)
   sortOrder  Int
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
