@@ -28,7 +28,6 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronRight,
-  Flag,
   GripVertical,
   NotebookPen,
   PanelRightClose,
@@ -338,40 +337,6 @@ const priorityBadgeClass: Record<ItemPriority, string> = {
   URGENT: "border-danger/50 bg-danger-soft text-danger",
 };
 
-const priorityFlagButtonClass: Record<ItemPriority, string> = {
-  NONE: "border-line-soft bg-surface-control text-text-muted",
-  LOW: priorityBadgeClass.LOW,
-  MEDIUM: priorityBadgeClass.MEDIUM,
-  HIGH: priorityBadgeClass.HIGH,
-  URGENT: priorityBadgeClass.URGENT,
-};
-
-const priorityFlagIconClass: Record<ItemPriority, string> = {
-  NONE: "text-text-muted",
-  LOW: "text-text-muted",
-  MEDIUM: "text-brand",
-  HIGH: "text-accent",
-  URGENT: "text-danger",
-};
-
-function PriorityFlagIcon({
-  className,
-  priority,
-}: {
-  className?: string;
-  priority: ItemPriority;
-}) {
-  return (
-    <Flag
-      className={cn(
-        className,
-        priorityFlagIconClass[priority],
-        priority !== "NONE" && "fill-current",
-      )}
-    />
-  );
-}
-
 function PriorityBadge({ priority }: { priority: ItemPriority }) {
   if (priority === "NONE") {
     return null;
@@ -634,7 +599,6 @@ function buildTaskInputFromPanel(
 function PanelSubtaskEditorRow({
   disabled = false,
   isSaving = false,
-  onPriorityChange,
   onRemove,
   onTitleBlur,
   onTitleCancel,
@@ -647,7 +611,6 @@ function PanelSubtaskEditorRow({
   disabled?: boolean;
   isSaving?: boolean;
   row: PanelSubtaskRow;
-  onPriorityChange: (priority: ItemPriority) => void;
   onRemove: () => void;
   onTitleBlur: (title: string) => void;
   onTitleCancel: () => void;
@@ -696,7 +659,7 @@ function PanelSubtaskEditorRow({
       <input
         aria-label="Subtask title"
         className={cn(
-          "min-w-0 flex-1 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand",
+          "min-w-0 flex-1 cursor-text rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-semibold text-text-primary outline-none transition hover:bg-surface-control/60 focus:border-line-soft focus:bg-surface-control focus-visible:outline-2 focus-visible:outline-brand",
           row.isComplete && "text-text-muted line-through",
         )}
         disabled={disabled}
@@ -717,36 +680,6 @@ function PanelSubtaskEditorRow({
         placeholder="Untitled"
         value={row.title}
       />
-      <div
-        aria-label="Subtask priority"
-        className="flex shrink-0 items-center justify-end gap-0.5"
-        role="radiogroup"
-      >
-        {itemPriorities.map((priority) => {
-          const selected = priority === row.priority;
-
-          return (
-            <button
-              aria-checked={selected}
-              aria-label={priorityLabels[priority]}
-              className={cn(
-                "flex h-7 items-center justify-center overflow-hidden rounded-md border transition-all focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
-                priorityFlagButtonClass[priority],
-                selected
-                  ? "w-7 opacity-100 ring-2 ring-brand"
-                  : "pointer-events-none w-0 border-transparent opacity-0 group-hover:pointer-events-auto group-hover:w-7 group-hover:border group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:w-7 group-focus-within:border group-focus-within:opacity-100",
-              )}
-              disabled={disabled}
-              key={priority}
-              onClick={() => onPriorityChange(priority)}
-              role="radio"
-              type="button"
-            >
-              <PriorityFlagIcon className="h-4 w-4 shrink-0" priority={priority} />
-            </button>
-          );
-        })}
-      </div>
       <button
         aria-label="Remove subtask"
         className="shrink-0 text-text-muted transition hover:text-danger"
@@ -1184,14 +1117,6 @@ function SubtasksCardPanel({
     });
   };
 
-  const handleSubtaskPriorityChange = (row: PanelSubtaskRow, priority: ItemPriority) => {
-    if (priority === row.priority) {
-      return;
-    }
-
-    patchSubtask(row, { priority }, "Unable to update subtask priority.");
-  };
-
   const handleSubtaskRemove = (row: PanelSubtaskRow) => {
     if (pendingRowKeysRef.current.has(row.key) || pendingCreateRowKeysRef.current.has(row.key)) {
       return;
@@ -1600,7 +1525,6 @@ function SubtasksCardPanel({
                   pendingRowKeys.has(row.key) ||
                   pendingTitleRowKeys.has(row.key)
                 }
-                onPriorityChange={(priority) => handleSubtaskPriorityChange(row, priority)}
                 onRemove={() => handleSubtaskRemove(row)}
                 onTitleBlur={(title) => handleSubtaskTitleBlur(row, title)}
                 onTitleCancel={() => handleSubtaskTitleCancel(row)}
