@@ -314,4 +314,25 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect((screen.getAllByRole("checkbox")[1] as HTMLInputElement).checked).toBe(true);
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
   });
+
+  test("editing priority in the detail modal patches the task", async () => {
+    const initialTask = task();
+    const updatedTask = task({ priority: "URGENT" });
+
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Task priority" }), {
+      target: { value: "URGENT" },
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active");
+    expect(init.method).toBe("PATCH");
+    expect(requestJsonBody(init)?.priority).toBe("URGENT");
+  });
 });
