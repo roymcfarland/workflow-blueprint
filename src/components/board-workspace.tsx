@@ -32,6 +32,7 @@ import {
   NotebookPen,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   Plus,
   Sparkles,
   Trash2,
@@ -535,8 +536,6 @@ type PanelSubtaskRow = {
   priority: ItemPriority;
 };
 
-type PanelTaskSaveHandler = (values: TaskInput, taskId: string) => Promise<void>;
-
 type TaskUpdatedHandler = (task: SerializedTask) => void;
 
 const SUBTASK_TITLE_SAVE_DELAY_MS = 600;
@@ -577,23 +576,6 @@ function setStringSetMembership(
     next.delete(key);
   }
   return next;
-}
-
-function buildTaskInputFromPanel(
-  task: SerializedTask,
-  taskPriority: ItemPriority,
-  rows: PanelSubtaskRow[],
-): TaskInput {
-  return {
-    ...taskToInput(task),
-    priority: taskPriority,
-    subtasks: rows.map((r) => ({
-      ...(r.serverId ? { id: r.serverId } : {}),
-      title: normalizeSubtaskTitle(r.title),
-      isComplete: r.isComplete,
-      priority: r.priority,
-    })),
-  };
 }
 
 function PanelSubtaskEditorRow({
@@ -694,32 +676,21 @@ function PanelSubtaskEditorRow({
 }
 
 function SubtasksCardPanel({
-  onDelete,
-  onSave,
   onClose,
   onTaskUpdated,
   panelRef,
   task,
 }: {
   onClose: () => void;
-  onDelete: (taskId: string) => Promise<void>;
-  onSave: PanelTaskSaveHandler;
   onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
   task: SerializedTask;
 }) {
   const [rows, setRows] = useState(() => rowsFromTask(task));
   const rowsRef = useRef(rows);
-  const [taskPriority, setTaskPriority] = useState(task.priority);
-  const [taskPrioritySaving, setTaskPrioritySaving] = useState(false);
-  const [taskDueDate, setTaskDueDate] = useState(task.dueDate ? task.dueDate.slice(0, 10) : "");
-  const [taskDescription, setTaskDescription] = useState(task.description ?? "");
-  const [taskFieldsSaving, setTaskFieldsSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addTitle, setAddTitle] = useState("");
   const addInputRef = useRef<HTMLInputElement>(null);
-  const descriptionFocusedRef = useRef(false);
   const createQueueRef = useRef<Promise<void>>(Promise.resolve());
   const createdServerIdByTempKeyRef = useRef(new Map<string, string>());
   const locallySavedTitleByServerIdRef = useRef(new Map<string, string>());
@@ -764,8 +735,6 @@ function SubtasksCardPanel({
     focusedTitleRowKeys.size > 0 ||
     pendingTitleRowKeys.size > 0;
   const isSaving =
-    taskFieldsSaving ||
-    taskPrioritySaving ||
     pendingCreateRowKeys.size > 0 ||
     pendingRowKeys.size > 0 ||
     pendingTitleRowKeys.size > 0;
@@ -916,11 +885,6 @@ function SubtasksCardPanel({
       syncServerTitleCache(nextTask);
       onTaskUpdated(nextTask);
       setRowsSafely((current) => mergeRowsWithServerTask(nextTask, current));
-      setTaskPriority(nextTask.priority);
-      setTaskDueDate(nextTask.dueDate ? nextTask.dueDate.slice(0, 10) : "");
-      if (!descriptionFocusedRef.current) {
-        setTaskDescription(nextTask.description ?? "");
-      }
     },
     [mergeRowsWithServerTask, onTaskUpdated, setRowsSafely, syncServerTitleCache],
   );
@@ -950,11 +914,6 @@ function SubtasksCardPanel({
       }
 
       setRowsSafely((current) => mergeRowsWithServerTask(task, current));
-      setTaskPriority(task.priority);
-      setTaskDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
-      if (!descriptionFocusedRef.current) {
-        setTaskDescription(task.description ?? "");
-      }
     });
 
     return () => {
@@ -1025,48 +984,6 @@ function SubtasksCardPanel({
       rowKeys.forEach((rowKey) => markPendingRow(rowKey, false));
     }
   }, [applyServerTask, markPendingRow, setRowsSafely]);
-
-  const saveTaskPriority = async (nextPriority: ItemPriority) => {
-    setError(null);
-    setTaskPrioritySaving(true);
-    try {
-      await onSave(buildTaskInputFromPanel(task, nextPriority, rowsRef.current), task.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save.");
-    } finally {
-      setTaskPrioritySaving(false);
-    }
-  };
-
-  const saveTaskFields = async (overrides: Partial<TaskInput>) => {
-    setError(null);
-    setTaskFieldsSaving(true);
-    try {
-      await onSave(
-        { ...buildTaskInputFromPanel(task, taskPriority, rowsRef.current), ...overrides },
-        task.id,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save.");
-    } finally {
-      setTaskFieldsSaving(false);
-    }
-  };
-
-  const handlePanelDelete = async () => {
-    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) {
-      return;
-    }
-
-    setError(null);
-    setDeleting(true);
-    try {
-      await onDelete(task.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to delete task.");
-      setDeleting(false);
-    }
-  };
 
   const requireServerId = (row: PanelSubtaskRow, message: string) => {
     if (row.serverId) {
@@ -1390,68 +1307,6 @@ function SubtasksCardPanel({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="space-y-1 text-xs font-semibold text-text-muted">
-            <span>Priority</span>
-            <select
-              aria-label="Task priority"
-              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-              disabled={taskPrioritySaving}
-              onChange={(e) => {
-                const next = e.target.value as ItemPriority;
-                setTaskPriority(next);
-                void saveTaskPriority(next);
-              }}
-              value={taskPriority}
-            >
-              {itemPriorities.map((priority) => (
-                <option key={priority} value={priority}>
-                  {priorityLabels[priority]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1 text-xs font-semibold text-text-muted">
-            <span>Due date</span>
-            <input
-              aria-label="Due date"
-              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-              disabled={taskFieldsSaving}
-              onChange={(e) => {
-                const next = e.target.value;
-                setTaskDueDate(next);
-                void saveTaskFields({ dueDate: next === "" ? null : next });
-              }}
-              type="date"
-              value={taskDueDate}
-            />
-          </label>
-        </div>
-
-        <label className="space-y-1 text-xs font-semibold text-text-muted">
-          <span>Description</span>
-          <textarea
-            aria-label="Description"
-            className="blueprint-control min-h-[3.5rem] w-full rounded-md px-2 py-1.5 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-            disabled={taskFieldsSaving}
-            onBlur={() => {
-              descriptionFocusedRef.current = false;
-              const next = taskDescription.trim() === "" ? null : taskDescription;
-              const current = task.description ?? null;
-              if (next !== current) {
-                void saveTaskFields({ description: next });
-              }
-            }}
-            onChange={(e) => setTaskDescription(e.target.value)}
-            onFocus={() => {
-              descriptionFocusedRef.current = true;
-            }}
-            placeholder="Add detail…"
-            value={taskDescription}
-          />
-        </label>
-
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <p
@@ -1540,19 +1395,6 @@ function SubtasksCardPanel({
           {error}
         </p>
       ) : null}
-
-      <div className="mt-3 flex justify-end border-t border-line-soft pt-2">
-        <button
-          aria-label="Delete task"
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-text-muted transition hover:text-danger focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={deleting}
-          onClick={() => void handlePanelDelete()}
-          type="button"
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete task
-        </button>
-      </div>
     </div>
   );
 }
@@ -1562,6 +1404,7 @@ function TaskPreview({
   task,
   subtasksMenuOpen,
   onRename,
+  onOpenDetail,
   onToggleSubtasksMenu,
   presentation,
   expandedContent,
@@ -1570,6 +1413,7 @@ function TaskPreview({
   task: SerializedTask;
   subtasksMenuOpen?: boolean;
   onRename?: (task: SerializedTask, title: string) => Promise<void>;
+  onOpenDetail?: (task: SerializedTask) => void;
   onToggleSubtasksMenu?: (taskId: string) => void;
   /** When true, a non-interactive grip is shown for drag overlay visuals only. */
   presentation?: boolean;
@@ -1593,6 +1437,20 @@ function TaskPreview({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {onOpenDetail && !presentation ? (
+              <button
+                aria-label="Edit task details"
+                className="blueprint-action rounded-md p-1"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenDetail(task);
+                }}
+                onMouseDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            ) : null}
             {onToggleSubtasksMenu && !presentation ? (
               <button
                 aria-expanded={subtasksMenuOpen}
@@ -1631,22 +1489,20 @@ function TaskPreview({
 }
 
 function SortableTaskCard({
-  onDelete,
+  onOpenDetail,
   onRename,
   onTaskUpdated,
   onToggleSubtasksPanel,
   panelRef,
   subtasksPanelTaskId,
-  onSave,
   task,
 }: {
-  onDelete: (taskId: string) => Promise<void>;
+  onOpenDetail: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
   onTaskUpdated: TaskUpdatedHandler;
   onToggleSubtasksPanel: (taskId: string) => void;
   panelRef: RefObject<HTMLDivElement | null>;
   subtasksPanelTaskId: string | null;
-  onSave: PanelTaskSaveHandler;
   task: SerializedTask;
 }) {
   const subtasksMenuOpen = subtasksPanelTaskId === task.id;
@@ -1701,14 +1557,13 @@ function SortableTaskCard({
               <SubtasksCardPanel
                 key={task.id}
                 onClose={() => onToggleSubtasksPanel(task.id)}
-                onDelete={onDelete}
-                onSave={onSave}
                 onTaskUpdated={onTaskUpdated}
                 panelRef={panelRef}
                 task={task}
               />
             ) : null
           }
+          onOpenDetail={onOpenDetail}
           onRename={onRename}
           onToggleSubtasksMenu={onToggleSubtasksPanel}
           subtasksMenuOpen={subtasksMenuOpen}
@@ -1720,22 +1575,20 @@ function SortableTaskCard({
 }
 
 function SortableListTaskRow({
-  onDelete,
+  onOpenDetail,
   onRename,
   onTaskUpdated,
   onToggleSubtasksPanel,
   panelRef,
   subtasksPanelTaskId,
-  onSave,
   task,
 }: {
-  onDelete: (taskId: string) => Promise<void>;
+  onOpenDetail: (task: SerializedTask) => void;
   onRename: (task: SerializedTask, title: string) => Promise<void>;
   onTaskUpdated: TaskUpdatedHandler;
   onToggleSubtasksPanel: (taskId: string) => void;
   panelRef: RefObject<HTMLDivElement | null>;
   subtasksPanelTaskId: string | null;
-  onSave: PanelTaskSaveHandler;
   task: SerializedTask;
 }) {
   const subtasksMenuOpen = subtasksPanelTaskId === task.id;
@@ -1783,6 +1636,18 @@ function SortableListTaskRow({
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <button
+              aria-label="Edit task details"
+              className="blueprint-action rounded-md p-1"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenDetail(task);
+              }}
+              onMouseDown={(event) => event.stopPropagation()}
+              type="button"
+            >
+              <Pencil className="h-5 w-5" />
+            </button>
+            <button
               aria-expanded={subtasksMenuOpen}
               aria-label={subtasksMenuOpen ? "Close subtasks menu" : "Open subtasks menu"}
               className="blueprint-action rounded-md p-1"
@@ -1816,8 +1681,6 @@ function SortableListTaskRow({
           <SubtasksCardPanel
             key={task.id}
             onClose={() => onToggleSubtasksPanel(task.id)}
-            onDelete={onDelete}
-            onSave={onSave}
             onTaskUpdated={onTaskUpdated}
             panelRef={panelRef}
             task={task}
@@ -2058,10 +1921,9 @@ function QuickAddTaskInput({
 
 function ListViewStatusBody({
   onCreateTask,
-  onDeleteTask,
+  onOpenDetail,
   onQuickAddOpenChange,
   onRenameTask,
-  onSaveTask,
   onTaskUpdated,
   onToggleSubtasksPanel,
   panelRef,
@@ -2071,11 +1933,10 @@ function ListViewStatusBody({
   tasks,
 }: {
   onCreateTask: (title: string, status: TaskStatus) => Promise<void>;
-  onDeleteTask: (taskId: string) => Promise<void>;
+  onOpenDetail: (task: SerializedTask) => void;
   onQuickAddOpenChange: (open: boolean) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
   onToggleSubtasksPanel: (taskId: string) => void;
-  onSaveTask: PanelTaskSaveHandler;
   onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
   quickAddOpen: boolean;
@@ -2100,9 +1961,8 @@ function ListViewStatusBody({
         {tasks.map((task) => (
           <SortableListTaskRow
             key={task.id}
-            onDelete={onDeleteTask}
+            onOpenDetail={onOpenDetail}
             onRename={onRenameTask}
-            onSave={onSaveTask}
             onTaskUpdated={onTaskUpdated}
             onToggleSubtasksPanel={onToggleSubtasksPanel}
             panelRef={panelRef}
@@ -2128,11 +1988,10 @@ function ListViewStatusBody({
 
 function BoardColumn({
   onCreateTask,
-  onDeleteTask,
+  onOpenDetail,
   onQuickAddOpenChange,
   onRenameTask,
   onToggleSubtasksPanel,
-  onSaveTask,
   onTaskUpdated,
   panelRef,
   quickAddOpen,
@@ -2141,11 +2000,10 @@ function BoardColumn({
   tasks,
 }: {
   onCreateTask: (title: string, status: TaskStatus) => Promise<void>;
-  onDeleteTask: (taskId: string) => Promise<void>;
+  onOpenDetail: (task: SerializedTask) => void;
   onQuickAddOpenChange: (open: boolean) => void;
   onRenameTask: (task: SerializedTask, title: string) => Promise<void>;
   onToggleSubtasksPanel: (taskId: string) => void;
-  onSaveTask: PanelTaskSaveHandler;
   onTaskUpdated: TaskUpdatedHandler;
   panelRef: RefObject<HTMLDivElement | null>;
   quickAddOpen: boolean;
@@ -2183,9 +2041,8 @@ function BoardColumn({
           {tasks.map((task) => (
             <SortableTaskCard
               key={task.id}
-              onDelete={onDeleteTask}
+              onOpenDetail={onOpenDetail}
               onRename={onRenameTask}
-              onSave={onSaveTask}
               onTaskUpdated={onTaskUpdated}
               onToggleSubtasksPanel={onToggleSubtasksPanel}
               panelRef={panelRef}
@@ -2213,6 +2070,207 @@ function BoardColumn({
   );
 }
 
+function TaskDetailModal({
+  task,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  task: SerializedTask | null;
+  onClose: () => void;
+  onSave: (values: TaskInput, taskId: string) => Promise<void>;
+  onDelete: (taskId: string) => Promise<void>;
+}) {
+  const [priority, setPriority] = useState<ItemPriority>(task?.priority ?? "NONE");
+  const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : "");
+  const [description, setDescription] = useState(task?.description ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const descriptionFocusedRef = useRef(false);
+  const taskId = task?.id ?? null;
+
+  useEffect(() => {
+    if (!task) {
+      descriptionFocusedRef.current = false;
+      return;
+    }
+
+    descriptionFocusedRef.current = false;
+    const nextPriority = task.priority;
+    const nextDueDate = task.dueDate ? task.dueDate.slice(0, 10) : "";
+    const nextDescription = task.description ?? "";
+    let mounted = true;
+    queueMicrotask(() => {
+      if (!mounted) {
+        return;
+      }
+
+      setPriority(nextPriority);
+      setDueDate(nextDueDate);
+      setDescription(nextDescription);
+      setError(null);
+    });
+
+    return () => {
+      mounted = false;
+    };
+    // Re-seed only when the open task changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId]);
+
+  useEffect(() => {
+    if (!task) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [task, onClose]);
+
+  if (!task) {
+    return null;
+  }
+
+  const saveField = async (overrides: Partial<TaskInput>) => {
+    setError(null);
+    setSaving(true);
+    try {
+      await onSave({ ...taskToInput(task), ...overrides }, task.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) {
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      await onDelete(task.id);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete task.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        aria-label={`Details for ${task.title}`}
+        aria-modal="true"
+        className="blueprint-surface blueprint-surface-strong w-full max-w-lg space-y-4 rounded-xl p-5 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="break-words text-lg font-semibold text-text-primary">{task.title}</h2>
+          <button
+            aria-label="Close details"
+            className="blueprint-action shrink-0 rounded-md p-1 text-text-muted"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="space-y-1 text-xs font-semibold text-text-muted">
+            <span>Priority</span>
+            <select
+              aria-label="Task priority"
+              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={saving}
+              onChange={(event) => {
+                const next = event.target.value as ItemPriority;
+                setPriority(next);
+                void saveField({ priority: next });
+              }}
+              value={priority}
+            >
+              {itemPriorities.map((option) => (
+                <option key={option} value={option}>
+                  {priorityLabels[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-1 text-xs font-semibold text-text-muted">
+            <span>Due date</span>
+            <input
+              aria-label="Due date"
+              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={saving}
+              onChange={(event) => {
+                const next = event.target.value;
+                setDueDate(next);
+                void saveField({ dueDate: next === "" ? null : next });
+              }}
+              type="date"
+              value={dueDate}
+            />
+          </label>
+        </div>
+
+        <label className="space-y-1 text-xs font-semibold text-text-muted">
+          <span>Description</span>
+          <textarea
+            aria-label="Description"
+            className="blueprint-control min-h-[6rem] w-full rounded-md px-2 py-1.5 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+            disabled={saving}
+            onBlur={() => {
+              descriptionFocusedRef.current = false;
+              const next = description.trim() === "" ? null : description;
+              const current = task.description ?? null;
+              if (next !== current) {
+                void saveField({ description: next });
+              }
+            }}
+            onChange={(event) => setDescription(event.target.value)}
+            onFocus={() => {
+              descriptionFocusedRef.current = true;
+            }}
+            placeholder="Add detail…"
+            value={description}
+          />
+        </label>
+
+        {error ? (
+          <p className="text-xs font-semibold text-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex justify-end border-t border-line-soft pt-3">
+          <button
+            aria-label="Delete task"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-text-muted transition hover:text-danger focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving}
+            onClick={() => void handleDelete()}
+            type="button"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete task
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BoardWorkspace({
   autoOpenNewTask = false,
   board,
@@ -2224,6 +2282,7 @@ export function BoardWorkspace({
   const [viewMode, setViewMode] = useState<ViewMode>(VIEW_MODE_DEFAULT);
   const [archiveMode, setArchiveMode] = useState<ArchiveMode>(ARCHIVE_MODE_DEFAULT);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [activeQuickAddStatus, setActiveQuickAddStatus] = useState<TaskStatus | null>(
     autoOpenNewTask ? defaultNewTaskStatus : null,
   );
@@ -2549,6 +2608,7 @@ export function BoardWorkspace({
   };
 
   const activeTask = activeTaskId ? tasks.find((task) => task.id === activeTaskId) : null;
+  const detailTask = detailTaskId ? (tasks.find((task) => task.id === detailTaskId) ?? null) : null;
 
   const toggleSubtasksPanel = (taskId: string) => {
     setSubtasksPanelTaskId((current) => (current === taskId ? null : taskId));
@@ -2596,10 +2656,9 @@ export function BoardWorkspace({
             <div className={cn(kanbanLaneItemClassName, "lg:h-full")} key={status}>
               <BoardColumn
                 onCreateTask={handleQuickCreateTask}
-                onDeleteTask={handleDeleteTask}
+                onOpenDetail={(task) => setDetailTaskId(task.id)}
                 onQuickAddOpenChange={(open) => setActiveQuickAddStatus(open ? status : null)}
                 onRenameTask={handleRenameTask}
-                onSaveTask={handleSaveTask}
                 onTaskUpdated={handleTaskUpdatedFromServer}
                 onToggleSubtasksPanel={toggleSubtasksPanel}
                 panelRef={subtasksPanelRef}
@@ -2627,10 +2686,9 @@ export function BoardWorkspace({
               </div>
               <ListViewStatusBody
                 onCreateTask={handleQuickCreateTask}
-                onDeleteTask={handleDeleteTask}
+                onOpenDetail={(task) => setDetailTaskId(task.id)}
                 onQuickAddOpenChange={(open) => setActiveQuickAddStatus(open ? status : null)}
                 onRenameTask={handleRenameTask}
-                onSaveTask={handleSaveTask}
                 onTaskUpdated={handleTaskUpdatedFromServer}
                 onToggleSubtasksPanel={toggleSubtasksPanel}
                 panelRef={subtasksPanelRef}
@@ -2729,6 +2787,12 @@ export function BoardWorkspace({
         ) : null}
       </div>
 
+      <TaskDetailModal
+        onClose={() => setDetailTaskId(null)}
+        onDelete={handleDeleteTask}
+        onSave={handleSaveTask}
+        task={detailTask}
+      />
     </div>
   );
 }
