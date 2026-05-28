@@ -81,7 +81,7 @@ export async function setSessionCookie(token: string, rememberMe = false) {
     httpOnly: true,
     maxAge: config.maxAge,
     path: "/",
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
 }
@@ -94,7 +94,7 @@ export async function clearSessionCookie() {
     httpOnly: true,
     maxAge: 0,
     path: "/",
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
 }
