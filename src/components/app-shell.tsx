@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { UserRole } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ChevronDown,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -16,7 +17,6 @@ import { useEffect, useState, useTransition, type CSSProperties } from "react";
 
 import { BoardIcon } from "@/components/board-icon";
 import { BoardManagement } from "@/components/board-management";
-import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintPillToggle } from "@/components/blueprint/pill-toggle";
 import { useBlueprintTheme } from "@/components/providers/theme-provider";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
@@ -129,6 +129,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [sidebarTransitionsEnabled, setSidebarTransitionsEnabled] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const isAdmin = user.role === "ADMIN";
   const navItems: SidebarNavItem[] = [
@@ -281,31 +282,6 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           </button>
         </div>
 
-        {isAdmin ? (
-          <nav aria-label="Admin panel" className="space-y-2 pt-4">
-            <div className="flex h-5 items-center gap-2 px-2.5 text-text-primary">
-              <ShieldCheck className="h-4 w-4 shrink-0" />
-              {showFullSidebarContent ? (
-                <p className="blueprint-eyebrow leading-none">Admin Panel</p>
-              ) : null}
-            </div>
-            <Link
-              aria-label="Invitations"
-              className={cn(
-                navLinkClassName,
-                pathname.startsWith("/admin")
-                  ? "blueprint-fill-flat border-brand text-white"
-                  : "border-accent/50 bg-accent-soft text-text-primary hover:bg-accent-soft/80",
-              )}
-              href="/admin/invitations"
-              onClick={() => setMobileOpen(false)}
-            >
-              <BoardIcon className="h-5 w-5 shrink-0" iconKey="invitations" />
-              {showFullSidebarContent ? <span className="truncate">Invitations</span> : null}
-            </Link>
-          </nav>
-        ) : null}
-
         <nav aria-label="Workspace" className="space-y-1 pt-3">
           {navItems.map((item) => {
             const isActive = isActiveNavItem(pathname, item);
@@ -347,64 +323,107 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         ) : null}
       </div>
 
-      <div className="mt-auto space-y-4 border-t border-line-soft pt-5">
-        {showFullSidebarContent ? (
-          <div className="space-y-2">
-            <p className="blueprint-eyebrow">Theme</p>
-            <BlueprintPillToggle
-              onChange={handleThemeChange}
-              options={themeOptions}
-              value={themePreference}
-            />
-          </div>
-        ) : null}
-
-        <div
+      <div className="relative mt-auto border-t border-line-soft pt-5">
+        <button
+          aria-label="Account menu"
+          aria-expanded={accountMenuOpen}
+          aria-haspopup="menu"
           className={cn(
-            "flex items-center gap-3",
-            showFullSidebarContent
-              ? "blueprint-panel-muted rounded-lg px-3 py-2.5"
-              : "justify-center",
+            "flex w-full items-center gap-3 rounded-lg border border-transparent text-left transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2",
+            showFullSidebarContent ? "blueprint-panel-muted px-3 py-2.5" : "justify-center py-1",
           )}
+          onClick={() => setAccountMenuOpen((value) => !value)}
+          type="button"
         >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-sm font-bold text-text-primary">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-sm font-bold text-text-primary">
             {user.avatarLabel ?? initialsFromName(user.name)}
-          </div>
+          </span>
           {showFullSidebarContent ? (
             <>
-              <div className="min-w-0 flex-1 text-sm">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <p className="truncate font-semibold text-text-primary">{user.name}</p>
+              <span className="min-w-0 flex-1 text-sm">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="truncate font-semibold text-text-primary">{user.name}</span>
                   {isAdmin ? (
                     <span className="rounded-md border border-accent/40 bg-accent-soft px-1.5 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-text-primary">
                       Admin
                     </span>
                   ) : null}
-                </div>
-                <p className="truncate text-xs text-text-muted">{user.email}</p>
-              </div>
-              <Link
-                aria-label="Open profile settings"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-control text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-                href="/profile"
-                onClick={() => setMobileOpen(false)}
-              >
-                <Settings className="h-4 w-4" />
-              </Link>
+                </span>
+                <span className="block truncate text-xs text-text-muted">{user.email}</span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-text-muted transition",
+                  accountMenuOpen && "rotate-180",
+                )}
+              />
             </>
           ) : null}
-        </div>
+        </button>
 
-        {showFullSidebarContent ? (
-          <BlueprintButton
-            className="w-full justify-center"
-            disabled={isPending}
-            onClick={handleLogout}
-            variant="ghost"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </BlueprintButton>
+        {accountMenuOpen ? (
+          <>
+            <button
+              aria-hidden
+              className="fixed inset-0 z-10"
+              onClick={() => setAccountMenuOpen(false)}
+              tabIndex={-1}
+              type="button"
+            />
+            <div
+              className="blueprint-surface absolute bottom-[calc(100%+0.5rem)] left-0 z-20 w-60 overflow-hidden p-1.5"
+              role="menu"
+            >
+              <div className="space-y-2 px-2 pb-2 pt-1.5">
+                <p className="blueprint-eyebrow">Theme</p>
+                <BlueprintPillToggle
+                  onChange={handleThemeChange}
+                  options={themeOptions}
+                  value={themePreference}
+                />
+              </div>
+              <div className="my-1 border-t border-line-soft" />
+              <Link
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                href="/profile"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setMobileOpen(false);
+                }}
+                role="menuitem"
+              >
+                <Settings className="h-4 w-4 shrink-0" />
+                <span className="truncate">Profile</span>
+              </Link>
+              {isAdmin ? (
+                <Link
+                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                  href="/admin/invitations"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setMobileOpen(false);
+                  }}
+                  role="menuitem"
+                >
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Invitations</span>
+                </Link>
+              ) : null}
+              <button
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2 disabled:opacity-60"
+                disabled={isPending}
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  handleLogout();
+                }}
+                role="menuitem"
+                type="button"
+              >
+                <LogOut className="h-4 w-4 shrink-0" />
+                <span className="truncate">Sign out</span>
+              </button>
+            </div>
+          </>
         ) : null}
       </div>
     </aside>

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { UserRole } from "@prisma/client";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -48,20 +49,18 @@ const user = {
   avatarLabel: null,
   email: "alex@example.test",
   name: "Alex Blueprint",
-  role: "USER" as const,
+  role: "USER" as UserRole,
   themePreference: "day" as const,
 };
 
-function renderShell() {
+const adminUser = { ...user, role: "ADMIN" as UserRole };
+
+function renderShell(shellUser = user) {
   return render(
-    <AppShell boards={boards} user={user}>
+    <AppShell boards={boards} user={shellUser}>
       <div>Shell content</div>
     </AppShell>,
   );
-}
-
-function getSidebar() {
-  return screen.getByLabelText("Primary navigation");
 }
 
 function expectWordmarkHidden() {
@@ -153,5 +152,47 @@ describe("AppShell collapsible sidebar", () => {
 
     expectWordmarkVisible();
     expect(screen.getByRole("button", { name: "Close navigation overlay" })).toBeDefined();
+  });
+});
+
+describe("AppShell account menu", () => {
+  test("keeps account actions hidden until the avatar trigger is clicked", () => {
+    renderShell();
+
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByText("Sign out")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.getByRole("menu")).toBeDefined();
+    expect(screen.getByText("Profile")).toBeDefined();
+    expect(screen.getByText("Sign out")).toBeDefined();
+  });
+
+  test("does not surface Invitations for a non-admin", () => {
+    renderShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.queryByText("Invitations")).toBeNull();
+  });
+
+  test("surfaces an Invitations link for an admin", () => {
+    renderShell(adminUser);
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    const invitations = screen.getByRole("menuitem", { name: "Invitations" });
+    expect(invitations).toBeDefined();
+    expect(invitations.getAttribute("href")).toBe("/admin/invitations");
+  });
+
+  test("closes the menu when a menu item is selected", () => {
+    renderShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Profile" }));
+
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });
