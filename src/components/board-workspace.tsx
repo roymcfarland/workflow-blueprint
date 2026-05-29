@@ -374,9 +374,6 @@ function TaskMeta({ task }: { task: SerializedTask }) {
           {formatShortDate(task.dueDate)}
         </span>
       ) : null}
-      <span className="inline-flex rounded-md border border-line-soft bg-surface-control px-2 py-1">
-        {formatSubtaskSummary(task)}
-      </span>
     </div>
   );
 }
@@ -1420,6 +1417,13 @@ function TaskPreview({
   /** Rendered inside the card surface, below the header — used for the inline subtask panel. */
   expandedContent?: React.ReactNode;
 }) {
+  const completedSubtasks = completedSubtaskCount(task);
+  const totalSubtasks = task.subtasks.length;
+  const hasSubtasks = totalSubtasks > 0;
+  const subtaskCompletionPercent = hasSubtasks
+    ? (completedSubtasks / totalSubtasks) * 100
+    : 0;
+
   return (
     <div className="blueprint-note w-full overflow-hidden text-left text-text-primary">
       <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
@@ -1482,6 +1486,26 @@ function TaskPreview({
         </div>
 
         <TaskMeta task={task} />
+        {hasSubtasks ? (
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-text-muted">
+              {completedSubtasks}/{totalSubtasks}
+            </p>
+            <div
+              aria-label={`Subtasks ${completedSubtasks} of ${totalSubtasks} complete`}
+              aria-valuemax={totalSubtasks}
+              aria-valuemin={0}
+              aria-valuenow={completedSubtasks}
+              className="h-1.5 overflow-hidden rounded-full bg-surface-control"
+              role="progressbar"
+            >
+              <div
+                className="h-full rounded-full bg-brand"
+                style={{ width: `${subtaskCompletionPercent}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
       {expandedContent}
     </div>
