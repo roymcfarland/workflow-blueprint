@@ -49,6 +49,7 @@ import {
   type RefObject,
 } from "react";
 
+import { BoardTitleActions } from "@/components/board-title-actions";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
@@ -2760,6 +2761,11 @@ export function BoardWorkspace({
       <div className="flex flex-col gap-4 lg:shrink-0 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0 space-y-3">
           <PageTitle
+            actions={
+              <BoardTitleActions
+                board={{ iconKey: board.iconKey, name: board.name, slug: board.slug }}
+              />
+            }
             description={board.description ?? undefined}
             eyebrow="Board"
             title={board.name}
