@@ -116,6 +116,7 @@ function getNavItemStyle(item: SidebarNavItem, isActive: boolean): BoardAccentSt
           backgroundColor: item.accentColor,
           borderColor: item.accentColor,
           boxShadow: `0 10px 22px ${item.accentColor}33`,
+          color: "#ffffff",
         }
       : {}),
   };
