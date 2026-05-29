@@ -318,7 +318,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
 
         {showFullSidebarContent ? (
           <div className="pt-3">
-            <BoardManagement boards={boards} />
+            <BoardManagement />
           </div>
         ) : null}
       </div>
