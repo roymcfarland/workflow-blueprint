@@ -88,6 +88,14 @@ export const adminInvitationSchema = z.object({
   email: z.email("Enter a valid email address.").trim().toLowerCase(),
 });
 
+export const adminApiTokenSchema = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(1, "Label is required.")
+    .max(80, "Labels should stay under 80 characters."),
+});
+
 export const taskInputSchema = z
   .object({
     title: z
@@ -299,6 +307,7 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type InvitePreviewInput = z.infer<typeof invitePreviewSchema>;
 export type AdminInvitationInput = z.infer<typeof adminInvitationSchema>;
+export type AdminApiTokenInput = z.infer<typeof adminApiTokenSchema>;
 export type TaskInput = z.infer<typeof taskInputSchema>;
 export type TaskReorderInput = z.infer<typeof taskReorderSchema>;
 export type SubtaskCreateInput = z.infer<typeof subtaskCreateSchema>;

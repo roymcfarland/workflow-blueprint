@@ -49,6 +49,7 @@ model User {
   resetTokens         PasswordResetToken[]
   sentInvitations     Invitation[]        @relation("InvitationInviter")
   acceptedInvitations Invitation[]        @relation("InvitationAcceptedUser")
+  apiTokens           ApiToken[]          @relation("ApiTokenCreator")
 }
 
 model Board {
@@ -130,6 +131,22 @@ model Invitation {
 
   @@index([email])
   @@index([invitedById])
+}
+
+model ApiToken {
+  id          String    @id
+  label       String
+  tokenHash   String    @unique
+  prefix      String
+  createdById String
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   User      @relation("ApiTokenCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([createdById])
+  @@index([revokedAt])
 }
 
 model RateLimitBucket {

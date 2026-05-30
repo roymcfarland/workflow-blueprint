@@ -12,6 +12,7 @@ export async function resetDatabase() {
   await prisma.$transaction([
     prisma.rateLimitBucket.deleteMany(),
     prisma.adminAuditLog.deleteMany(),
+    prisma.apiToken.deleteMany(),
     prisma.invitation.deleteMany(),
     prisma.passwordResetToken.deleteMany(),
     prisma.subtask.deleteMany(),

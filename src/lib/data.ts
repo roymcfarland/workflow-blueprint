@@ -61,6 +61,23 @@ const invitationListSelect = {
 
 type DbInvitationListItem = Prisma.InvitationGetPayload<{ select: typeof invitationListSelect }>;
 
+const apiTokenListSelect = {
+  id: true,
+  label: true,
+  prefix: true,
+  lastUsedAt: true,
+  revokedAt: true,
+  createdAt: true,
+  createdBy: {
+    select: {
+      email: true,
+      name: true,
+    },
+  },
+} satisfies Prisma.ApiTokenSelect;
+
+type DbApiTokenListItem = Prisma.ApiTokenGetPayload<{ select: typeof apiTokenListSelect }>;
+
 export type BoardNavItem = {
   slug: string;
   name: string;
@@ -137,6 +154,8 @@ export type DashboardSnapshot = {
 
 export type InvitationStatus = "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
 
+export type ApiTokenStatus = "ACTIVE" | "REVOKED";
+
 export type SerializedInvitation = {
   id: string;
   email: string;
@@ -153,6 +172,20 @@ export type SerializedInvitation = {
     email: string;
     name: string;
   } | null;
+};
+
+export type SerializedApiToken = {
+  id: string;
+  label: string;
+  prefix: string;
+  status: ApiTokenStatus;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  createdBy: {
+    email: string;
+    name: string;
+  };
 };
 
 class InvitationAcceptanceConflictError extends Error {
@@ -235,6 +268,19 @@ function serializeInvitation(invitation: DbInvitationListItem): SerializedInvita
     createdAt: invitation.createdAt.toISOString(),
     invitedBy: invitation.invitedBy,
     acceptedBy: invitation.acceptedBy,
+  };
+}
+
+function serializeApiToken(token: DbApiTokenListItem): SerializedApiToken {
+  return {
+    id: token.id,
+    label: token.label,
+    prefix: token.prefix,
+    status: token.revokedAt ? "REVOKED" : "ACTIVE",
+    lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
+    revokedAt: token.revokedAt?.toISOString() ?? null,
+    createdAt: token.createdAt.toISOString(),
+    createdBy: token.createdBy,
   };
 }
 
@@ -1344,6 +1390,66 @@ export async function revokeInvitation(invitationId: string) {
     return tx.invitation.findUnique({
       where: { id: invitationId },
       select: { id: true, email: true },
+    });
+  });
+}
+
+export async function createApiToken({
+  createdById,
+  label,
+}: {
+  createdById: string;
+  label: string;
+}) {
+  const rawToken = `wbk_${generateRawToken()}`;
+
+  const token = await prisma.apiToken.create({
+    data: {
+      id: randomUUID(),
+      label: label.trim(),
+      tokenHash: hashToken(rawToken),
+      prefix: rawToken.slice(0, 12),
+      createdById,
+    },
+    select: apiTokenListSelect,
+  });
+
+  return {
+    apiToken: serializeApiToken(token),
+    token: rawToken,
+  };
+}
+
+export async function listApiTokens(): Promise<SerializedApiToken[]> {
+  const tokens = await prisma.apiToken.findMany({
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: apiTokenListSelect,
+  });
+
+  return tokens.map(serializeApiToken);
+}
+
+export async function revokeApiToken(tokenId: string) {
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.apiToken.updateMany({
+      where: {
+        id: tokenId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return tx.apiToken.findUnique({
+      where: { id: tokenId },
+      select: { id: true, label: true },
     });
   });
 }
