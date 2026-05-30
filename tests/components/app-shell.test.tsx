@@ -177,6 +177,14 @@ describe("AppShell account menu", () => {
     expect(screen.queryByText("Invitations")).toBeNull();
   });
 
+  test("does not surface API tokens for a non-admin", () => {
+    renderShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    expect(screen.queryByText("API tokens")).toBeNull();
+  });
+
   test("surfaces an Invitations link for an admin", () => {
     renderShell(adminUser);
 
@@ -185,6 +193,16 @@ describe("AppShell account menu", () => {
     const invitations = screen.getByRole("menuitem", { name: "Invitations" });
     expect(invitations).toBeDefined();
     expect(invitations.getAttribute("href")).toBe("/admin/invitations");
+  });
+
+  test("surfaces an API tokens link for an admin", () => {
+    renderShell(adminUser);
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    const apiTokens = screen.getByRole("menuitem", { name: "API tokens" });
+    expect(apiTokens).toBeDefined();
+    expect(apiTokens.getAttribute("href")).toBe("/admin/api-tokens");
   });
 
   test("closes the menu when a menu item is selected", () => {

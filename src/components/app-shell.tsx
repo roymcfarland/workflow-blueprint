@@ -5,6 +5,7 @@ import type { UserRole } from "@prisma/client";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronDown,
+  KeyRound,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -408,6 +409,20 @@ export function AppShell({ boards, children, user }: AppShellProps) {
                 >
                   <ShieldCheck className="h-4 w-4 shrink-0" />
                   <span className="truncate">Invitations</span>
+                </Link>
+              ) : null}
+              {isAdmin ? (
+                <Link
+                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-text-primary transition hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                  href="/admin/api-tokens"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setMobileOpen(false);
+                  }}
+                  role="menuitem"
+                >
+                  <KeyRound className="h-4 w-4 shrink-0" />
+                  <span className="truncate">API tokens</span>
                 </Link>
               ) : null}
               <button
