@@ -6,6 +6,8 @@ import { GET as getBoards } from "@/app/api/external/v1/boards/route";
 import { GET as getDailySummary } from "@/app/api/external/v1/daily-summary/route";
 import { GET as getDashboard } from "@/app/api/external/v1/dashboard/route";
 import { rateLimitKey } from "@/lib/api";
+import { createApiToken, revokeApiToken } from "@/lib/data";
+import { prisma } from "@/lib/db";
 import { demoUser } from "@/lib/domain";
 import {
   externalApiJson,
@@ -263,6 +265,65 @@ describe("external v1 route contracts", () => {
 
     expect(response.status).toBe(403);
     expect(body).toEqual({ ok: false, error: "Invalid API key." });
+  });
+
+  describe("DB-issued API token auth", () => {
+    test("GET /api/external/v1/dashboard accepts an active DB token", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Briefing consumer",
+      });
+
+      const response = await getDashboard(
+        externalGetRequest("/api/external/v1/dashboard", token),
+      );
+      const log = structuredLog();
+
+      await expectJsonContract(response, externalDashboardResponseSchema);
+      expect(log.userId).toBe(demoUser.id);
+    });
+
+    test("GET /api/external/v1/dashboard touches lastUsedAt for DB tokens", async () => {
+      const { apiToken, token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Usage tracked consumer",
+      });
+
+      const response = await getDashboard(
+        externalGetRequest("/api/external/v1/dashboard", token),
+      );
+      const row = await prisma.apiToken.findUniqueOrThrow({
+        where: { id: apiToken.id },
+        select: { lastUsedAt: true },
+      });
+
+      await expectJsonContract(response, externalDashboardResponseSchema);
+      expect(row.lastUsedAt).toBeInstanceOf(Date);
+    });
+
+    test("GET /api/external/v1/dashboard rejects revoked DB tokens", async () => {
+      const { apiToken, token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Revoked consumer",
+      });
+      await revokeApiToken(apiToken.id);
+
+      const response = await getDashboard(
+        externalGetRequest("/api/external/v1/dashboard", token),
+      );
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid API key.",
+        ok: false,
+      });
+    });
+
+    test("GET /api/external/v1/dashboard still accepts the env API key", async () => {
+      const response = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
+
+      await expectJsonContract(response, externalDashboardResponseSchema);
+    });
   });
 
   test("GET /api/external/v1/dashboard returns a request ID matching the structured log", async () => {

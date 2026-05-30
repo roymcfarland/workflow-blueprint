@@ -6,7 +6,11 @@ import { NextResponse } from "next/server";
 import type { ZodType } from "zod";
 
 import { rateLimitKey } from "@/lib/api";
-import { userExists } from "@/lib/data";
+import {
+  findActiveApiTokenByRawToken,
+  touchApiTokenLastUsed,
+  userExists,
+} from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { demoUser, type ItemPriority } from "@/lib/domain";
 import {
@@ -653,15 +657,22 @@ async function resolveExternalApiAccess(
   }
 
   if (!tokenMatchesAny(bearer.token, expectedKeys)) {
-    return {
-      ok: false,
-      response: externalApiError(
-        "Invalid API key.",
-        403,
-        headersWithRateLimit(undefined, rateLimitHeaders),
-        requestId,
-      ),
-    };
+    // Env key didn't match, so fall back to DB-issued, revocable API tokens.
+    const dbToken = await findActiveApiTokenByRawToken(bearer.token);
+
+    if (!dbToken) {
+      return {
+        ok: false,
+        response: externalApiError(
+          "Invalid API key.",
+          403,
+          headersWithRateLimit(undefined, rateLimitHeaders),
+          requestId,
+        ),
+      };
+    }
+
+    await touchApiTokenLastUsed(dbToken.id);
   }
 
   return {
