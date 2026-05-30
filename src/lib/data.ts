@@ -1431,6 +1431,27 @@ export async function listApiTokens(): Promise<SerializedApiToken[]> {
   return tokens.map(serializeApiToken);
 }
 
+export async function findActiveApiTokenByRawToken(rawToken: string) {
+  if (!rawToken) {
+    return null;
+  }
+
+  return prisma.apiToken.findFirst({
+    where: {
+      revokedAt: null,
+      tokenHash: hashToken(rawToken),
+    },
+    select: { id: true },
+  });
+}
+
+export async function touchApiTokenLastUsed(tokenId: string) {
+  await prisma.apiToken.update({
+    where: { id: tokenId },
+    data: { lastUsedAt: new Date() },
+  });
+}
+
 export async function revokeApiToken(tokenId: string) {
   return prisma.$transaction(async (tx) => {
     const result = await tx.apiToken.updateMany({
