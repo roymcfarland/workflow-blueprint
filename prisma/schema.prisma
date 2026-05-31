@@ -84,6 +84,8 @@ model Task {
   updatedAt   DateTime      @updatedAt
   board       Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
   subtasks    Subtask[]
+
+  @@index([boardId, status, sortOrder])
 }
 
 model Subtask {
@@ -95,6 +97,8 @@ model Subtask {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   task       Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, sortOrder])
 }
 
 model BoardNote {
