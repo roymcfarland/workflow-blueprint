@@ -28,6 +28,10 @@ import type {
   UpdateBoardInput,
 } from "@/lib/validators";
 
+/** Generous abuse caps to prevent runaway data creation (not product limits - adjust freely). */
+export const MAX_BOARDS_PER_USER = 100;
+export const MAX_TASKS_PER_BOARD = 1000;
+
 const taskInclude = {
   subtasks: {
     orderBy: {
@@ -564,6 +568,12 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
         throw new Error("Board not found.");
       }
 
+      const taskCount = await tx.task.count({ where: { boardId: board.id } });
+
+      if (taskCount >= MAX_TASKS_PER_BOARD) {
+        throw new Error(`This board has reached the maximum of ${MAX_TASKS_PER_BOARD} tasks.`);
+      }
+
       const { completedAt, archivedAt } = statusDates(input.status);
       const sortOrder = await nextSortOrderForStatus(
         tx,
@@ -1067,6 +1077,12 @@ export async function createBoardForUser(userId: string, input: CreateBoardInput
 
   if (existing) {
     throw new Error("A board with that name already exists.");
+  }
+
+  const boardCount = await prisma.board.count({ where: { userId } });
+
+  if (boardCount >= MAX_BOARDS_PER_USER) {
+    throw new Error(`You've reached the maximum of ${MAX_BOARDS_PER_USER} boards.`);
   }
 
   const maxSort = await prisma.board.findFirst({
