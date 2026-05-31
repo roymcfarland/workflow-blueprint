@@ -30,6 +30,10 @@ Standard commands are in `README.md` → **Scripts** section. Key ones:
 
 A `.env.local` file must exist with at least `DATABASE_URL` and `AUTH_SECRET`. See `.env.example` for the full list. Resend keys are optional in development.
 
+### Database migrations
+
+Development uses a **local Postgres**; set `DATABASE_URL`/`DIRECT_URL` in `.env.local` to a local instance. `npm run db:migrate` (`prisma migrate dev`) is **local-only** and is **guarded**: it refuses to run against a non-local host. Production migrations apply automatically via `prisma migrate deploy` inside `vercel-build` on deploy; never point dev tooling at the production database.
+
 ### Gotchas
 
 - **Invite-only sign-up**: New user registration requires a valid invitation token. For testing, sign in with the seeded demo account (`alex@workflowblueprint.app`) using the password set in `DEMO_USER_PASSWORD`.
