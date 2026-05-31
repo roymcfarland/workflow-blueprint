@@ -77,3 +77,27 @@ export function hydrateDatabaseUrlEnv(options: DatabaseUrlOptions = {}) {
     process.env.DATABASE_URL = databaseUrl;
   }
 }
+
+/** True for localhost / loopback / unix-socket (no host) connection strings. */
+export function isLocalDatabaseHost(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    const host = hostname.toLowerCase();
+    return (
+      host === "" ||
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host === "[::1]"
+    );
+  } catch {
+    // Socket-style URLs (postgresql:///db?host=/tmp) have no parseable host -> treat as local.
+    return !/@[^/]*[a-z0-9.-]+\.[a-z]/i.test(url);
+  }
+}
+
+/** True when argv invokes a destructive DEV migration command (migrate dev/reset, db push). */
+export function isDestructiveDevMigrationArgs(argv: readonly string[]): boolean {
+  const joined = argv.slice(2).join(" ");
+  return /\bmigrate\s+(dev|reset)\b/.test(joined) || /\bdb\s+push\b/.test(joined);
+}
