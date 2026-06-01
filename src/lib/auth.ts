@@ -115,7 +115,7 @@ async function readSessionPayload(): Promise<SessionPayload | null> {
   }
 
   try {
-    const { payload } = await jwtVerify(token, getAuthSecret());
+    const { payload } = await jwtVerify(token, getAuthSecret(), { algorithms: ["HS256"] });
 
     if (typeof payload.sub !== "string") {
       return null;

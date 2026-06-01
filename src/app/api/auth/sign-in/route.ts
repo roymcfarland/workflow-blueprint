@@ -1,4 +1,4 @@
-import { compare } from "bcryptjs";
+import { compare, hashSync } from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
@@ -10,6 +10,10 @@ import {
 } from "@/lib/api";
 import { findUserByEmail } from "@/lib/data";
 import { signInSchema } from "@/lib/validators";
+
+// Constant hash used only to equalize bcrypt timing on the unknown-email path,
+// so response time doesn't reveal whether an account exists.
+const TIMING_EQUALIZER_HASH = hashSync("timing-equalizer", 12);
 
 export async function POST(request: Request) {
   const originResponse = assertSameOriginRequest(request);
@@ -37,6 +41,7 @@ export async function POST(request: Request) {
   const user = await findUserByEmail(payload.data.email);
 
   if (!user) {
+    await compare(payload.data.password, TIMING_EQUALIZER_HASH);
     return NextResponse.json(
       { message: "That email and password combination was not recognized." },
       { status: 401 },
