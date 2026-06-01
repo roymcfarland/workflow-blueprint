@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 
-import { parseJsonPayload, requireApiUser } from "@/lib/api";
+import { checkRateLimit, parseJsonPayload, rateLimitKey, requireApiUser } from "@/lib/api";
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
 import { updateUserProfile } from "@/lib/data";
 import { prisma } from "@/lib/db";
@@ -17,6 +17,16 @@ export async function PATCH(request: Request) {
 
   if (!currentUser.ok) {
     return currentUser.response;
+  }
+
+  const rateLimitResponse = await checkRateLimit({
+    key: rateLimitKey(request, "profile-update", currentUser.data.id),
+    limit: 30,
+    windowMs: 60_000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const payload = await parseJsonPayload(request, profileSchema, "Unable to save profile.");

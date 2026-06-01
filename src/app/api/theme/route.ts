@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { parseJsonPayload, requireApiUser } from "@/lib/api";
+import { checkRateLimit, parseJsonPayload, rateLimitKey, requireApiUser } from "@/lib/api";
 import { updateUserTheme } from "@/lib/data";
 import { themePreferenceSchema } from "@/lib/validators";
 
@@ -9,6 +9,16 @@ export async function PATCH(request: Request) {
 
   if (!user.ok) {
     return user.response;
+  }
+
+  const rateLimitResponse = await checkRateLimit({
+    key: rateLimitKey(request, "theme-update", user.data.id),
+    limit: 60,
+    windowMs: 60_000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const payload = await parseJsonPayload(
