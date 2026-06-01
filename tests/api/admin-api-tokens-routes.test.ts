@@ -66,6 +66,7 @@ function requestWithoutBody(path: string, method = "GET") {
 
   return new Request(new URL(path, origin), {
     headers: {
+      "content-type": "application/json",
       origin,
     },
     method,

@@ -41,23 +41,24 @@ export function assertSameOriginRequest(request: Request) {
   }
 
   const expectedOrigin = siteConfig.url;
+
   const originHeader = originFromHeader(request.headers.get("origin"));
 
   if (originHeader) {
-    if (originHeader !== expectedOrigin) {
-      return apiError("Cross-origin requests are not allowed.", 403);
-    }
-
-    return null;
+    return originHeader === expectedOrigin
+      ? null
+      : apiError("Cross-origin requests are not allowed.", 403);
   }
 
   const refererOrigin = originFromHeader(request.headers.get("referer"));
 
-  if (refererOrigin && refererOrigin !== expectedOrigin) {
-    return apiError("Cross-origin requests are not allowed.", 403);
+  if (refererOrigin) {
+    return refererOrigin === expectedOrigin
+      ? null
+      : apiError("Cross-origin requests are not allowed.", 403);
   }
 
-  return null;
+  return apiError("Cross-origin requests are not allowed.", 403);
 }
 
 export async function parseJsonPayload<T>(
@@ -65,6 +66,15 @@ export async function parseJsonPayload<T>(
   schema: ZodType<T>,
   fallbackMessage: string,
 ): Promise<ApiResult<T>> {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return {
+      ok: false,
+      response: apiError("Request body must be sent as application/json.", 415),
+    };
+  }
+
   let body: unknown;
 
   try {
