@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { parseJsonPayload, requireApiUser } from "@/lib/api";
+import { checkRateLimit, parseJsonPayload, rateLimitKey, requireApiUser } from "@/lib/api";
 import { updateBoardNote } from "@/lib/data";
 import { noteSchema } from "@/lib/validators";
 
@@ -13,6 +13,16 @@ export async function PATCH(
 
   if (!user.ok) {
     return user.response;
+  }
+
+  const rateLimitResponse = await checkRateLimit({
+    key: rateLimitKey(request, "board-note", user.data.id),
+    limit: 60,
+    windowMs: 60_000,
+  });
+
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const { slug } = await params;
