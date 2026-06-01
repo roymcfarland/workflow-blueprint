@@ -5,6 +5,7 @@ import {
   POST as createApiTokenRoute,
 } from "@/app/api/admin/api-tokens/route";
 import { POST as revokeApiTokenRoute } from "@/app/api/admin/api-tokens/[id]/revoke/route";
+import { createApiToken as createApiTokenData } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { createTestUser, resetDatabase } from "../helpers/database";
 import { jsonRequest } from "../helpers/requests";
@@ -44,6 +45,15 @@ const authState = vi.hoisted(() => ({
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: vi.fn(async () => authState.user),
 }));
+
+vi.mock("@/lib/data", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/data")>();
+
+  return {
+    ...actual,
+    createApiToken: vi.fn(actual.createApiToken),
+  };
+});
 
 function apiTokenParams(id: string) {
   return {
@@ -86,7 +96,7 @@ function authenticate(user: TestUser) {
   };
 }
 
-async function createApiToken(label = "News briefing") {
+async function createApiTokenViaRoute(label = "News briefing") {
   const response = await createApiTokenRoute(
     jsonRequest("/api/admin/api-tokens", { label }),
   );
@@ -100,13 +110,14 @@ describe("admin API token route handlers", () => {
   beforeEach(async () => {
     await resetDatabase();
     authState.user = null;
+    vi.mocked(createApiTokenData).mockClear();
   });
 
   test("POST /api/admin/api-tokens creates an API token for admins", async () => {
     const admin = await createAdmin();
     authenticate(admin);
 
-    const body = await createApiToken("External briefing");
+    const body = await createApiTokenViaRoute("External briefing");
     const row = await prisma.apiToken.findUnique({
       where: { id: body.apiToken.id },
     });
@@ -144,7 +155,7 @@ describe("admin API token route handlers", () => {
     const admin = await createAdmin();
     authenticate(admin);
 
-    const created = await createApiToken("Reporting partner");
+    const created = await createApiTokenViaRoute("Reporting partner");
     const response = await listApiTokensRoute(
       requestWithoutBody("/api/admin/api-tokens"),
     );
@@ -166,7 +177,7 @@ describe("admin API token route handlers", () => {
     const admin = await createAdmin();
     authenticate(admin);
 
-    const created = await createApiToken("Revocable consumer");
+    const created = await createApiTokenViaRoute("Revocable consumer");
     const revokedResponse = await revokeApiTokenRoute(
       requestWithoutBody(
         `/api/admin/api-tokens/${created.apiToken.id}/revoke`,
@@ -206,5 +217,48 @@ describe("admin API token route handlers", () => {
     });
     expect(missingResponse.status).toBe(404);
     expect(forbiddenResponse.status).toBe(403);
+  });
+
+  test("POST /api/admin/api-tokens/[id]/revoke rate-limits admin revokes", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+
+    let rateLimitedResponse: Response | null = null;
+
+    for (let attempt = 0; attempt <= 30; attempt += 1) {
+      const response = await revokeApiTokenRoute(
+        requestWithoutBody("/api/admin/api-tokens/missing-token-id/revoke", "POST"),
+        apiTokenParams("missing-token-id"),
+      );
+
+      if (response.status === 429) {
+        rateLimitedResponse = response;
+        break;
+      }
+    }
+
+    expect(rateLimitedResponse?.status).toBe(429);
+    await expect(rateLimitedResponse?.json()).resolves.toEqual({
+      message: "Too many attempts. Please try again shortly.",
+    });
+  });
+
+  test("POST /api/admin/api-tokens returns a clean 500 when token creation fails", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    vi.mocked(createApiTokenData).mockRejectedValueOnce(new Error("boom"));
+
+    const response = await createApiTokenRoute(
+      jsonRequest("/api/admin/api-tokens", { label: "Broken token" }),
+    );
+
+    consoleError.mockRestore();
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      message: "Unable to create API token.",
+    });
   });
 });

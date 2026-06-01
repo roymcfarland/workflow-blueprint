@@ -48,55 +48,65 @@ export async function POST(request: Request) {
     return rateLimitResponse;
   }
 
-  if (await userExistsByEmail(payload.data.email)) {
-    return NextResponse.json(
-      { message: "That email address already has an account." },
-      { status: 409 },
-    );
-  }
-
-  const { invitation, token } = await createInvitation({
-    email: payload.data.email,
-    invitedById: currentUser.data.id,
-  });
-
-  await recordAdminAudit({
-    actor: currentUser.data.email,
-    action: "invitation.create",
-    target: invitation.email,
-    metadata: {
-      invitationId: invitation.id,
-      expiresAt: invitation.expiresAt,
-    },
-  });
-
-  const inviteUrl = buildAppUrl(`/sign-up?invite=${encodeURIComponent(token)}`);
-  const isProduction = process.env.NODE_ENV === "production";
-  let message = "Invitation sent.";
-
   try {
-    const delivery = await sendInviteEmail({
-      inviteUrl,
-      to: invitation.email,
+    if (await userExistsByEmail(payload.data.email)) {
+      return NextResponse.json(
+        { message: "That email address already has an account." },
+        { status: 409 },
+      );
+    }
+
+    const { invitation, token } = await createInvitation({
+      email: payload.data.email,
+      invitedById: currentUser.data.id,
     });
 
-    if (delivery.status === "skipped") {
-      message = "Email is not configured locally. Use the preview invitation link below.";
+    await recordAdminAudit({
+      actor: currentUser.data.email,
+      action: "invitation.create",
+      target: invitation.email,
+      metadata: {
+        invitationId: invitation.id,
+        expiresAt: invitation.expiresAt,
+      },
+    });
+
+    const inviteUrl = buildAppUrl(`/sign-up?invite=${encodeURIComponent(token)}`);
+    const isProduction = process.env.NODE_ENV === "production";
+    let message = "Invitation sent.";
+
+    try {
+      const delivery = await sendInviteEmail({
+        inviteUrl,
+        to: invitation.email,
+      });
+
+      if (delivery.status === "skipped") {
+        message = "Email is not configured locally. Use the preview invitation link below.";
+      }
+    } catch (error) {
+      console.error("Unable to send invitation email.", error);
+
+      if (isProduction) {
+        const productionEmailFailureStatus = 500;
+
+        return NextResponse.json(
+          { message: "Unable to send invitation." },
+          { status: productionEmailFailureStatus },
+        );
+      }
+
+      message = "Email delivery failed locally. Use the preview invitation link below.";
     }
+
+    return NextResponse.json({
+      invitation,
+      message: isProduction ? "Invitation sent." : message,
+      ok: true,
+      previewInviteUrl: isProduction ? undefined : inviteUrl,
+    });
   } catch (error) {
-    console.error("Unable to send invitation email.", error);
-
-    if (isProduction) {
-      return NextResponse.json({ message: "Unable to send invitation." }, { status: 500 });
-    }
-
-    message = "Email delivery failed locally. Use the preview invitation link below.";
+    console.error("Unable to create invitation.", error);
+    return NextResponse.json({ message: "Unable to create invitation." }, { status: 500 });
   }
-
-  return NextResponse.json({
-    invitation,
-    message: isProduction ? "Invitation sent." : message,
-    ok: true,
-    previewInviteUrl: isProduction ? undefined : inviteUrl,
-  });
 }

@@ -45,20 +45,25 @@ export async function POST(request: Request) {
     return rateLimitResponse;
   }
 
-  const { apiToken, token } = await createApiToken({
-    createdById: currentUser.data.id,
-    label: payload.data.label,
-  });
+  try {
+    const { apiToken, token } = await createApiToken({
+      createdById: currentUser.data.id,
+      label: payload.data.label,
+    });
 
-  await recordAdminAudit({
-    actor: currentUser.data.email,
-    action: "api-token.create",
-    target: apiToken.label,
-    metadata: {
-      apiTokenId: apiToken.id,
-      prefix: apiToken.prefix,
-    },
-  });
+    await recordAdminAudit({
+      actor: currentUser.data.email,
+      action: "api-token.create",
+      target: apiToken.label,
+      metadata: {
+        apiTokenId: apiToken.id,
+        prefix: apiToken.prefix,
+      },
+    });
 
-  return NextResponse.json({ apiToken, ok: true, token });
+    return NextResponse.json({ apiToken, ok: true, token });
+  } catch (error) {
+    console.error("Unable to create API token.", error);
+    return NextResponse.json({ message: "Unable to create API token." }, { status: 500 });
+  }
 }
