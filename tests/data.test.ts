@@ -12,6 +12,7 @@ import {
   listApiTokens,
   MAX_BOARDS_PER_USER,
   MAX_TASKS_PER_BOARD,
+  reorderTasksForUser,
   revokeApiToken,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
@@ -47,6 +48,30 @@ function taskRows(boardId: string, count: number) {
     status: PrismaTaskStatus.ON_DECK,
     title: `Task ${index}`,
   }));
+}
+
+function createDataTask({
+  boardId,
+  id = randomUUID(),
+  sortOrder = 0,
+  status = PrismaTaskStatus.ON_DECK,
+  title = "Task",
+}: {
+  boardId: string;
+  id?: string;
+  sortOrder?: number;
+  status?: PrismaTaskStatus;
+  title?: string;
+}) {
+  return prisma.task.create({
+    data: {
+      boardId,
+      id,
+      sortOrder,
+      status,
+      title,
+    },
+  });
 }
 
 describe("src/lib/data.ts", () => {
@@ -159,6 +184,109 @@ describe("src/lib/data.ts", () => {
       status: "ON_DECK",
       title: "Last allowed task",
     });
+  });
+
+  test("reorders tasks within a board", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const firstTaskId = randomUUID();
+    const secondTaskId = randomUUID();
+    const thirdTaskId = randomUUID();
+
+    await createDataTask({ boardId: board.id, id: firstTaskId, title: "First task" });
+    await createDataTask({
+      boardId: board.id,
+      id: secondTaskId,
+      sortOrder: 1,
+      title: "Second task",
+    });
+    await createDataTask({
+      boardId: board.id,
+      id: thirdTaskId,
+      sortOrder: 2,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Third task",
+    });
+
+    await reorderTasksForUser(user.id, {
+      items: [
+        { sortOrder: 0, status: "DONE", taskId: thirdTaskId },
+        { sortOrder: 1, status: "IN_PROGRESS", taskId: firstTaskId },
+        { sortOrder: 2, status: "ON_DECK", taskId: secondTaskId },
+      ],
+    });
+
+    const tasks = await prisma.task.findMany({
+      select: {
+        id: true,
+        sortOrder: true,
+        status: true,
+      },
+      where: {
+        id: {
+          in: [firstTaskId, secondTaskId, thirdTaskId],
+        },
+      },
+    });
+
+    expect(new Map(tasks.map((task) => [task.id, task]))).toEqual(
+      new Map([
+        [firstTaskId, { id: firstTaskId, sortOrder: 1, status: PrismaTaskStatus.IN_PROGRESS }],
+        [secondTaskId, { id: secondTaskId, sortOrder: 2, status: PrismaTaskStatus.ON_DECK }],
+        [thirdTaskId, { id: thirdTaskId, sortOrder: 0, status: PrismaTaskStatus.DONE }],
+      ]),
+    );
+  });
+
+  test("rejects reordering another user's task", async () => {
+    const owner = await createTestUser({ email: "owner@example.test" });
+    const otherUser = await createTestUser({ email: "other@example.test" });
+    const ownerBoard = await createTestBoard(owner.id);
+    const otherBoard = await createTestBoard(otherUser.id);
+    const ownerTaskId = randomUUID();
+    const otherTaskId = randomUUID();
+
+    await createDataTask({ boardId: ownerBoard.id, id: ownerTaskId, title: "Owner task" });
+    await createDataTask({ boardId: otherBoard.id, id: otherTaskId, title: "Other user's task" });
+
+    await expect(
+      reorderTasksForUser(owner.id, {
+        items: [{ sortOrder: 9, status: "DONE", taskId: otherTaskId }],
+      }),
+    ).rejects.toThrow("One or more tasks could not be found.");
+
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: {
+          sortOrder: true,
+          status: true,
+        },
+        where: { id: otherTaskId },
+      }),
+    ).resolves.toEqual({
+      sortOrder: 0,
+      status: PrismaTaskStatus.ON_DECK,
+    });
+  });
+
+  test("rejects reordering tasks spanning two boards", async () => {
+    const user = await createTestUser();
+    const [firstBoard, secondBoard] = boardRows(user.id, 2);
+    const firstTaskId = randomUUID();
+    const secondTaskId = randomUUID();
+
+    await prisma.board.createMany({ data: [firstBoard, secondBoard] });
+    await createDataTask({ boardId: firstBoard.id, id: firstTaskId, title: "First board task" });
+    await createDataTask({ boardId: secondBoard.id, id: secondTaskId, title: "Second board task" });
+
+    await expect(
+      reorderTasksForUser(user.id, {
+        items: [
+          { sortOrder: 0, status: "IN_PROGRESS", taskId: firstTaskId },
+          { sortOrder: 1, status: "DONE", taskId: secondTaskId },
+        ],
+      }),
+    ).rejects.toThrow("Tasks must belong to a single board.");
   });
 
   test("creates API tokens with hash-only persistence", async () => {

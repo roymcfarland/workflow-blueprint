@@ -931,31 +931,32 @@ export async function reorderSubtasksForUser(
 
 export async function reorderTasksForUser(userId: string, input: TaskReorderInput) {
   const submittedTaskIds = [...new Set(input.items.map((item) => item.taskId))];
-  const tasks = await prisma.task.findMany({
-    where: {
-      id: {
-        in: submittedTaskIds,
-      },
-      board: {
-        userId,
-      },
-    },
-  });
-
-  if (tasks.length !== submittedTaskIds.length) {
-    throw new Error("One or more tasks could not be found.");
-  }
-
-  const boardIds = new Set(tasks.map((task) => task.boardId));
-
-  if (boardIds.size !== 1) {
-    throw new Error("Tasks must belong to a single board.");
-  }
-
-  const tasksById = new Map(tasks.map((task) => [task.id, task]));
 
   await prisma.$transaction(
     async (tx) => {
+      const tasks = await tx.task.findMany({
+        where: {
+          id: {
+            in: submittedTaskIds,
+          },
+          board: {
+            userId,
+          },
+        },
+      });
+
+      if (tasks.length !== submittedTaskIds.length) {
+        throw new Error("One or more tasks could not be found.");
+      }
+
+      const boardIds = new Set(tasks.map((task) => task.boardId));
+
+      if (boardIds.size !== 1) {
+        throw new Error("Tasks must belong to a single board.");
+      }
+
+      const tasksById = new Map(tasks.map((task) => [task.id, task]));
+
       for (const item of input.items) {
         const task = tasksById.get(item.taskId);
 
