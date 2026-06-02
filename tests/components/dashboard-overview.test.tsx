@@ -93,15 +93,6 @@ function apiResponse(body: unknown, status = 200) {
   });
 }
 
-function requestJsonBody(init: unknown) {
-  if (!init || typeof init !== "object" || !("body" in init)) {
-    return null;
-  }
-
-  const body = (init as RequestInit).body;
-  return typeof body === "string" ? JSON.parse(body) : null;
-}
-
 describe("DashboardOverview in-progress panel", () => {
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -136,22 +127,5 @@ describe("DashboardOverview in-progress panel", () => {
     expect(url).toBe("/api/tasks/task-launch/done");
     expect(init.method).toBe("POST");
     await waitFor(() => expect(screen.queryByText("Draft launch checklist")).toBeNull());
-  });
-
-  test("persists reordered in-progress task ids", async () => {
-    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
-
-    render(<DashboardOverview data={dashboardSnapshot()} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Move Draft launch checklist down" }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/dashboard/in-progress/reorder");
-    expect(init.method).toBe("POST");
-    expect(requestJsonBody(init)).toEqual({
-      taskIds: ["task-retro", "task-launch"],
-    });
   });
 });

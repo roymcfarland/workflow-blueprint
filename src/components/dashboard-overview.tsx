@@ -4,11 +4,28 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  ArrowDown,
-  ArrowUp,
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Check,
   CheckCheck,
   ClipboardList,
+  GripVertical,
   Plus,
   Sparkles,
 } from "lucide-react";
@@ -19,6 +36,7 @@ import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
 import type { DashboardSnapshot, DashboardTaskSummary } from "@/lib/data";
 import { getBoardAccentColor } from "@/lib/domain";
+import { cn } from "@/lib/utils";
 
 const chartCenter = 160;
 const chartRadius = 108;
@@ -117,6 +135,11 @@ function InProgressPanel({ tasks }: { tasks: DashboardTaskSummary[] }) {
   const [items, setItems] = useState(tasks);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   async function persistOrder(next: DashboardTaskSummary[]) {
     const previous = items;
@@ -142,15 +165,19 @@ function InProgressPanel({ tasks }: { tasks: DashboardTaskSummary[] }) {
     }
   }
 
-  function move(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= items.length) {
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
       return;
     }
 
-    const next = [...items];
-    [next[index], next[target]] = [next[target], next[index]];
-    void persistOrder(next);
+    const oldIndex = items.findIndex((task) => task.id === active.id);
+    const newIndex = items.findIndex((task) => task.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+
+    void persistOrder(arrayMove(items, oldIndex, newIndex));
   }
 
   async function markDone(taskId: string) {
@@ -193,64 +220,99 @@ function InProgressPanel({ tasks }: { tasks: DashboardTaskSummary[] }) {
             Nothing in progress right now.
           </p>
         ) : (
-          <div className="space-y-2">
-            {items.map((task, index) => (
-              <div
-                className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5"
-                key={task.id}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <BoardIcon
-                    className="h-4 w-4 shrink-0"
-                    iconKey={task.boardIconKey}
-                    style={{ color: getBoardAccentColor(task.boardSlug) }}
+          <DndContext
+            collisionDetection={closestCenter}
+            id="dashboard-in-progress"
+            onDragEnd={handleDragEnd}
+            sensors={sensors}
+          >
+            <SortableContext
+              items={items.map((task) => task.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {items.map((task) => (
+                  <SortableInProgressRow
+                    key={task.id}
+                    onDone={markDone}
+                    pending={pending}
+                    task={task}
                   />
-                  <div className="min-w-0">
-                    <Link
-                      className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-                      href={`/boards/${task.boardSlug}`}
-                    >
-                      {task.title}
-                    </Link>
-                    <p className="truncate text-xs text-text-muted">{task.boardName}</p>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    aria-label={`Move ${task.title} up`}
-                    className="blueprint-action rounded-md p-1 disabled:opacity-30"
-                    disabled={pending || index === 0}
-                    onClick={() => move(index, -1)}
-                    type="button"
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </button>
-                  <button
-                    aria-label={`Move ${task.title} down`}
-                    className="blueprint-action rounded-md p-1 disabled:opacity-30"
-                    disabled={pending || index === items.length - 1}
-                    onClick={() => move(index, 1)}
-                    type="button"
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </button>
-                  <button
-                    aria-label={`Mark ${task.title} done`}
-                    className="blueprint-action rounded-md p-1 disabled:opacity-30"
-                    disabled={pending}
-                    onClick={() => void markDone(task.id)}
-                    style={{ color: "var(--status-done)" }}
-                    type="button"
-                  >
-                    <Check className="h-4 w-4" />
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </BlueprintCard>
+  );
+}
+
+function SortableInProgressRow({
+  task,
+  pending,
+  onDone,
+}: {
+  task: DashboardTaskSummary;
+  pending: boolean;
+  onDone: (taskId: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5",
+        isDragging && "opacity-60",
+      )}
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          aria-label={`Reorder ${task.title}`}
+          className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <BoardIcon
+          className="h-4 w-4 shrink-0"
+          iconKey={task.boardIconKey}
+          style={{ color: getBoardAccentColor(task.boardSlug) }}
+        />
+        <div className="min-w-0">
+          <Link
+            className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+            href={`/boards/${task.boardSlug}`}
+          >
+            {task.title}
+          </Link>
+          <p className="truncate text-xs text-text-muted">{task.boardName}</p>
+        </div>
+      </div>
+      <button
+        aria-label={`Mark ${task.title} done`}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong transition disabled:opacity-30"
+        disabled={pending}
+        onClick={() => onDone(task.id)}
+        style={{ color: "var(--status-done)" }}
+        type="button"
+      >
+        <Check className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 
@@ -288,10 +350,10 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
           </div>
         </BlueprintCard>
       ) : (
-        <>
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
           {/* Snapshot: donut + completion in a single panel. */}
           <BlueprintCard className="p-5 lg:p-6" surface="flat">
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
@@ -376,7 +438,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
                 </div>
               </div>
 
-              <div className="space-y-4 border-t border-line-soft pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+              <div className="space-y-4 border-t border-line-soft pt-5">
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
                     Completion rate
@@ -431,7 +493,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
           </BlueprintCard>
 
           <InProgressPanel key={inProgressPanelKey} tasks={data.inProgressTasks} />
-        </>
+        </div>
       )}
     </div>
   );
