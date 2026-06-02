@@ -148,5 +148,9 @@ describe("BoardWorkspace quick-add", () => {
       priority: "NONE",
       subtasks: [],
     });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Add task to Up Next" })).toBeTruthy(),
+    );
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
   });
 });
