@@ -1556,7 +1556,7 @@ function SortableTaskCard({
       {isDragging ? null : (
         <div
           aria-hidden
-          className="pointer-events-none absolute -inset-1 -z-10 rounded-2xl opacity-30 blur-xl"
+          className="pointer-events-none absolute -inset-1 -z-10 rounded-2xl opacity-25 blur-xl"
           style={getStatusAccentStyle(task.status)}
         />
       )}
@@ -1647,7 +1647,7 @@ function SortableListTaskRow({
       {isDragging ? null : (
         <div
           aria-hidden
-          className="pointer-events-none absolute -inset-1 -z-10 rounded-2xl opacity-30 blur-xl"
+          className="pointer-events-none absolute -inset-1 -z-10 rounded-2xl opacity-25 blur-xl"
           style={getStatusAccentStyle(task.status)}
         />
       )}
@@ -1918,8 +1918,7 @@ function QuickAddTaskInput({
     setError(null);
     try {
       await onCreate(value, status);
-      setTitle("");
-      inputRef.current?.focus();
+      onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create task.");
     } finally {
