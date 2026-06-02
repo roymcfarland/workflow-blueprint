@@ -77,6 +77,7 @@ model Task {
   status      TaskStatus
   priority    ItemPriority  @default(NONE)
   sortOrder   Int
+  dashboardSortOrder Int?
   dueDate     DateTime?
   archivedAt  DateTime?
   completedAt DateTime?
