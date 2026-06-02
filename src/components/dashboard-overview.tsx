@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  ArrowRight,
-  CalendarClock,
+  ArrowDown,
+  ArrowUp,
+  Check,
   CheckCheck,
   ClipboardList,
   Plus,
@@ -16,8 +18,7 @@ import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
 import type { DashboardSnapshot, DashboardTaskSummary } from "@/lib/data";
-import { getBoardAccentColor, statusLabels } from "@/lib/domain";
-import { cn, formatShortDate } from "@/lib/utils";
+import { getBoardAccentColor } from "@/lib/domain";
 
 const chartCenter = 160;
 const chartRadius = 108;
@@ -46,11 +47,21 @@ function getChartSegments(segments: DashboardSnapshot["boardBreakdown"], totalTa
   });
 }
 
-function isOverdue(dueDate: string | null) {
-  if (!dueDate) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(dueDate) < today;
+function getTaskListKey(tasks: DashboardTaskSummary[]) {
+  return tasks
+    .map((task) =>
+      [
+        task.id,
+        task.title,
+        task.status,
+        task.priority,
+        task.dueDate ?? "",
+        task.boardSlug,
+        task.boardName,
+        task.boardIconKey,
+      ].join(":"),
+    )
+    .join("|");
 }
 
 function NewTaskMenu({ boards }: { boards: DashboardSnapshot["boardBreakdown"] }) {
@@ -101,38 +112,145 @@ function NewTaskMenu({ boards }: { boards: DashboardSnapshot["boardBreakdown"] }
   );
 }
 
-function TaskRow({ task, tone = "default" }: { task: DashboardTaskSummary; tone?: "default" | "overdue" }) {
+function InProgressPanel({ tasks }: { tasks: DashboardTaskSummary[] }) {
+  const router = useRouter();
+  const [items, setItems] = useState(tasks);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function persistOrder(next: DashboardTaskSummary[]) {
+    const previous = items;
+    setItems(next);
+    setPending(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/dashboard/in-progress/reorder", {
+        body: JSON.stringify({ taskIds: next.map((task) => task.id) }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to save the new order.");
+      }
+    } catch (err) {
+      setItems(previous);
+      setError(err instanceof Error ? err.message : "Unable to save the new order.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function move(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= items.length) {
+      return;
+    }
+
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    void persistOrder(next);
+  }
+
+  async function markDone(taskId: string) {
+    const previous = items;
+    setItems((current) => current.filter((task) => task.id !== taskId));
+    setPending(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/done`, {
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to mark the task done.");
+      }
+
+      router.refresh();
+    } catch (err) {
+      setItems(previous);
+      setError(err instanceof Error ? err.message : "Unable to mark the task done.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
-    <Link
-      className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5 transition hover:border-line-strong hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-      href={`/boards/${task.boardSlug}`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <BoardIcon
-          className="h-4 w-4 shrink-0"
-          iconKey={task.boardIconKey}
-          style={{ color: getBoardAccentColor(task.boardSlug) }}
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-text-primary">{task.title}</p>
-          <p className="truncate text-xs text-text-muted">
-            {task.boardName} · {statusLabels[task.status]}
-          </p>
+    <BlueprintCard className="p-5 lg:p-6" surface="flat">
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">In progress</h2>
+          <ClipboardList className="h-5 w-5 text-text-muted" />
         </div>
+
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
+
+        {items.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-line-soft px-4 py-6 text-center text-sm text-text-muted">
+            Nothing in progress right now.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((task, index) => (
+              <div
+                className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5"
+                key={task.id}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <BoardIcon
+                    className="h-4 w-4 shrink-0"
+                    iconKey={task.boardIconKey}
+                    style={{ color: getBoardAccentColor(task.boardSlug) }}
+                  />
+                  <div className="min-w-0">
+                    <Link
+                      className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                      href={`/boards/${task.boardSlug}`}
+                    >
+                      {task.title}
+                    </Link>
+                    <p className="truncate text-xs text-text-muted">{task.boardName}</p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    aria-label={`Move ${task.title} up`}
+                    className="blueprint-action rounded-md p-1 disabled:opacity-30"
+                    disabled={pending || index === 0}
+                    onClick={() => move(index, -1)}
+                    type="button"
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    aria-label={`Move ${task.title} down`}
+                    className="blueprint-action rounded-md p-1 disabled:opacity-30"
+                    disabled={pending || index === items.length - 1}
+                    onClick={() => move(index, 1)}
+                    type="button"
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </button>
+                  <button
+                    aria-label={`Mark ${task.title} done`}
+                    className="blueprint-action rounded-md p-1 disabled:opacity-30"
+                    disabled={pending}
+                    onClick={() => void markDone(task.id)}
+                    style={{ color: "var(--status-done)" }}
+                    type="button"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      {task.dueDate ? (
-        <span
-          className={cn(
-            "shrink-0 rounded-md border px-2 py-1 text-xs font-semibold",
-            tone === "overdue"
-              ? "border-danger/40 bg-danger-soft text-danger"
-              : "border-line-soft bg-surface-base text-text-muted",
-          )}
-        >
-          {formatShortDate(task.dueDate)}
-        </span>
-      ) : null}
-    </Link>
+    </BlueprintCard>
   );
 }
 
@@ -141,6 +259,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
   const chartSegments = getChartSegments(data.boardBreakdown, totalTasks);
   const isEmpty = data.totalTaskCount === 0;
   const completionTooltip = "Done ÷ (Up Next + In Progress + Done)";
+  const inProgressPanelKey = getTaskListKey(data.inProgressTasks);
 
   return (
     <div className="fade-up space-y-6">
@@ -311,87 +430,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
             </div>
           </BlueprintCard>
 
-          {/* Today / Up next */}
-          <BlueprintCard className="p-5 lg:p-6" surface="flat">
-            <div className="space-y-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
-                  Today &amp; up next
-                </h2>
-                <CalendarClock className="h-5 w-5 text-text-muted" />
-              </div>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                <div className="space-y-3">
-                  <p className="blueprint-eyebrow text-danger">Overdue</p>
-                  {data.overdueTasks.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-line-soft px-4 py-6 text-center text-sm text-text-muted">
-                      Nothing overdue. Nice.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {data.overdueTasks.map((task) => (
-                        <TaskRow
-                          key={task.id}
-                          task={task}
-                          tone={isOverdue(task.dueDate) ? "overdue" : "default"}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  <p className="blueprint-eyebrow">Due in the next 7 days</p>
-                  {data.upcomingTasks.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-line-soft px-4 py-6 text-center text-sm text-text-muted">
-                      A clean week ahead.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {data.upcomingTasks.map((task) => (
-                        <TaskRow key={task.id} task={task} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </BlueprintCard>
-
-          {/* Compact board picker — no longer the third copy of totals. */}
-          <BlueprintCard className="p-5 lg:p-6" surface="flat">
-            <div className="flex items-center justify-between gap-3 pb-4">
-              <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">Boards</h2>
-              <ArrowRight className="h-5 w-5 text-text-muted" />
-            </div>
-            <div className="auto-fit-grid gap-3 [--auto-fit-min:18rem]">
-              {data.boardBreakdown.map((board) => (
-                <Link
-                  className="group flex items-center gap-3 rounded-lg border border-line-strong bg-surface-control p-3 transition hover:bg-surface-control-hover hover:shadow-[0_10px_20px_rgba(31,79,207,0.08)] focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-                  href={`/boards/${board.slug}`}
-                  key={board.slug}
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-base">
-                    <BoardIcon
-                      className="h-5 w-5"
-                      iconKey={board.iconKey}
-                      style={{ color: getBoardAccentColor(board.slug) }}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary">
-                      {board.name}
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      {board.totalTasks} {board.totalTasks === 1 ? "task" : "tasks"}
-                    </p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-text-muted transition group-hover:text-brand" />
-                </Link>
-              ))}
-            </div>
-          </BlueprintCard>
+          <InProgressPanel key={inProgressPanelKey} tasks={data.inProgressTasks} />
         </>
       )}
     </div>
