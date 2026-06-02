@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 
-import { adminApiTokenSchema, taskReorderSchema } from "@/lib/validators";
+import {
+  adminApiTokenSchema,
+  dashboardReorderSchema,
+  taskReorderSchema,
+} from "@/lib/validators";
 
 describe("src/lib/validators.ts", () => {
   test("validates admin API token labels", () => {
@@ -38,6 +42,27 @@ describe("src/lib/validators.ts", () => {
       expect.objectContaining({
         message: "Task reorder payload contains duplicate tasks.",
         path: ["items", 1, "taskId"],
+      }),
+    ]);
+  });
+
+  test("validates dashboard reorder payloads", () => {
+    expect(dashboardReorderSchema.safeParse({ taskIds: ["task_1", "task_2"] }).success).toBe(
+      true,
+    );
+    expect(dashboardReorderSchema.safeParse({ taskIds: [] }).success).toBe(false);
+  });
+
+  test("rejects duplicate task ids in dashboard reorder payloads", () => {
+    const result = dashboardReorderSchema.safeParse({
+      taskIds: ["task_1", "task_2", "task_1"],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        message: "Reorder payload contains duplicate task ids.",
+        path: ["taskIds", 2],
       }),
     ]);
   });

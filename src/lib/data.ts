@@ -152,6 +152,7 @@ export type DashboardSnapshot = {
   inProgressCount: number;
   closedLastSevenDays: number;
   totalTaskCount: number;
+  inProgressTasks: DashboardTaskSummary[];
   overdueTasks: DashboardTaskSummary[];
   upcomingTasks: DashboardTaskSummary[];
 };
@@ -497,6 +498,28 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     .slice(0, 6)
     .map(summarize);
 
+  const inProgressTasks = allTasks
+    .filter((task) => task.status === "IN_PROGRESS")
+    .sort((a, b) => {
+      const ao = a.dashboardSortOrder;
+      const bo = b.dashboardSortOrder;
+
+      if (ao === null && bo === null) {
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      }
+      if (ao === null) {
+        return 1;
+      }
+      if (bo === null) {
+        return -1;
+      }
+      if (ao !== bo) {
+        return ao - bo;
+      }
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    })
+    .map(summarize);
+
   return {
     boardBreakdown: boards.map((board) => ({
       slug: board.slug,
@@ -512,9 +535,90 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     inProgressCount,
     closedLastSevenDays,
     totalTaskCount,
+    inProgressTasks,
     overdueTasks,
     upcomingTasks,
   };
+}
+
+export async function reorderDashboardInProgressForUser(userId: string, taskIds: string[]) {
+  const uniqueIds = [...new Set(taskIds)];
+
+  await prisma.$transaction(
+    async (tx) => {
+      const tasks = await tx.task.findMany({
+        where: {
+          id: {
+            in: uniqueIds,
+          },
+          status: PrismaTaskStatus.IN_PROGRESS,
+          board: {
+            userId,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (tasks.length !== uniqueIds.length) {
+        throw new Error("One or more tasks could not be found.");
+      }
+
+      for (let index = 0; index < taskIds.length; index += 1) {
+        await tx.task.update({
+          where: {
+            id: taskIds[index],
+            board: {
+              userId,
+            },
+          },
+          data: {
+            dashboardSortOrder: index,
+          },
+        });
+      }
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function markTaskDoneForUser(userId: string, taskId: string) {
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.findFirst({
+        where: {
+          id: taskId,
+          board: {
+            userId,
+          },
+        },
+      });
+
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
+      const sortOrder =
+        task.status === PrismaTaskStatus.DONE
+          ? task.sortOrder
+          : await nextSortOrderForStatus(tx, task.boardId, PrismaTaskStatus.DONE);
+      const { completedAt, archivedAt } = statusDates("DONE", task);
+
+      return tx.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          status: PrismaTaskStatus.DONE,
+          sortOrder,
+          completedAt,
+          archivedAt,
+        },
+      });
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 export async function getBoardSnapshot(userId: string, slug: string): Promise<BoardSnapshot | null> {
