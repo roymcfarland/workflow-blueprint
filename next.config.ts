@@ -1,34 +1,8 @@
 import type { NextConfig } from "next";
 
-const isDevelopment = process.env.NODE_ENV === "development";
-const isProductionDeployment = process.env.VERCEL_ENV === "production";
+import { buildContentSecurityPolicy } from "./src/lib/csp";
+
 type HeaderConfig = Awaited<ReturnType<NonNullable<NextConfig["headers"]>>>[number]["headers"];
-
-// Baseline CSP applied to every response. The proxy at src/proxy.ts overrides
-// this with a nonce-based CSP for HTML page responses. API routes and static
-// assets keep this strict default since they never need to execute scripts.
-const baselineCspDirectives = [
-  "default-src 'self'",
-  `script-src 'self'${isDevelopment ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self'",
-  "img-src 'self' blob: data:",
-  "font-src 'self'",
-  "connect-src 'self'",
-  "media-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "frame-src 'none'",
-  "manifest-src 'self'",
-  "worker-src 'self' blob:",
-];
-
-if (isProductionDeployment) {
-  baselineCspDirectives.push("upgrade-insecure-requests");
-}
-
-const baselineContentSecurityPolicy = baselineCspDirectives.join("; ");
 
 const permissionsPolicy = [
   "accelerometer=()",
@@ -48,7 +22,7 @@ const permissionsPolicy = [
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
-    value: baselineContentSecurityPolicy,
+    value: buildContentSecurityPolicy(),
   },
   {
     key: "Cross-Origin-Opener-Policy",

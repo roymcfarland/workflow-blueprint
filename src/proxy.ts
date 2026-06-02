@@ -1,39 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const isDevelopment = process.env.NODE_ENV === "development";
-const isProductionDeployment = process.env.VERCEL_ENV === "production";
-
-function buildCspHeader(nonce: string) {
-  const directives = [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
-    // Next.js + React inject inline styles for fonts and runtime; allow them
-    // via nonce in production. In development the dev runtime emits styles
-    // without the nonce, so fall back to 'unsafe-inline' in dev only.
-    `style-src 'self' ${isDevelopment ? "'unsafe-inline'" : `'nonce-${nonce}' 'unsafe-inline'`}`,
-    "img-src 'self' blob: data:",
-    "font-src 'self'",
-    "connect-src 'self'",
-    "media-src 'self'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-    "frame-src 'none'",
-    "manifest-src 'self'",
-    "worker-src 'self' blob:",
-  ];
-
-  if (isProductionDeployment) {
-    directives.push("upgrade-insecure-requests");
-  }
-
-  return directives.join("; ");
-}
+import { buildContentSecurityPolicy } from "@/lib/csp";
 
 export function proxy(request: NextRequest) {
   const nonce = crypto.randomUUID().replace(/-/g, "");
-  const cspHeader = buildCspHeader(nonce);
+  const cspHeader = buildContentSecurityPolicy({ nonce });
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
