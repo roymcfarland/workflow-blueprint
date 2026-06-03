@@ -40,6 +40,7 @@ function taskSummary(overrides: Partial<DashboardTaskSummary>): DashboardTaskSum
     id: "task-launch",
     priority: "NONE",
     status: "IN_PROGRESS",
+    subtasks: [],
     title: "Draft launch checklist",
     ...overrides,
   };
