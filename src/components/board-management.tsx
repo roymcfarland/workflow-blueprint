@@ -52,7 +52,7 @@ function CreateBoardForm({ onClose, onCreated }: CreateBoardFormProps) {
         placeholder="Board name"
         value={name}
       />
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto pr-1">
         {availableBoardIcons.map((icon) => (
           <button
             className={cn(
