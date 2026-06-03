@@ -158,14 +158,6 @@ function completedSubtaskCount(task: SerializedTask) {
   return task.subtasks.filter((subtask) => subtask.isComplete).length;
 }
 
-function formatSubtaskSummary(task: SerializedTask) {
-  if (task.subtasks.length === 0) {
-    return "No subtasks";
-  }
-
-  return `${completedSubtaskCount(task)}/${task.subtasks.length} subtasks`;
-}
-
 function isDueSoon(task: SerializedTask) {
   if (!task.dueDate || !activeBoardStatuses.includes(task.status)) {
     return false;
@@ -601,14 +593,22 @@ function PanelSubtaskEditorRow({
 }) {
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition } =
     useSortable({ id: row.key });
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [row.title]);
 
   return (
     <div
       aria-busy={isSaving || undefined}
       ref={setNodeRef}
       className={cn(
-        "group flex items-center gap-2 rounded-md border border-line-soft bg-surface-base px-2 py-1.5 transition",
-        row.isComplete && "border-success/30 bg-success-soft",
+        "group flex items-start gap-2 px-1 py-1 transition",
+        row.isComplete && "opacity-80",
       )}
       style={{
         transform: CSS.Transform.toString(transform),
@@ -617,7 +617,7 @@ function PanelSubtaskEditorRow({
     >
       <button
         aria-label="Reorder subtask"
-        className="shrink-0 text-text-muted"
+        className="mt-1 shrink-0 text-text-muted"
         disabled={disabled}
         ref={setActivatorNodeRef}
         type="button"
@@ -629,17 +629,17 @@ function PanelSubtaskEditorRow({
       <input
         checked={row.isComplete}
         className={cn(
-          "h-4 w-4 shrink-0 rounded border-line-strong",
+          "mt-1 h-4 w-4 shrink-0 rounded border-line-strong",
           row.isComplete ? "accent-success" : "accent-brand",
         )}
         disabled={disabled}
         onChange={onToggleComplete}
         type="checkbox"
       />
-      <input
+      <textarea
         aria-label="Subtask title"
         className={cn(
-          "min-w-0 flex-1 cursor-text rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-semibold text-text-primary outline-none transition hover:bg-surface-control/60 focus:border-line-soft focus:bg-surface-control focus-visible:outline-2 focus-visible:outline-brand",
+          "min-w-0 flex-1 cursor-text resize-none overflow-hidden rounded-md border border-transparent bg-transparent px-2 py-1 text-sm font-semibold text-text-primary outline-none transition hover:bg-surface-control/60 focus:border-line-soft focus:bg-surface-control focus-visible:outline-2 focus-visible:outline-brand",
           row.isComplete && "text-text-muted line-through",
         )}
         disabled={disabled}
@@ -658,11 +658,13 @@ function PanelSubtaskEditorRow({
           }
         }}
         placeholder="Untitled"
+        ref={titleRef}
+        rows={1}
         value={row.title}
       />
       <button
         aria-label="Remove subtask"
-        className="shrink-0 text-text-muted transition hover:text-danger"
+        className="mt-1 shrink-0 text-text-muted transition hover:text-danger"
         disabled={disabled}
         onClick={onRemove}
         type="button"
@@ -674,7 +676,6 @@ function PanelSubtaskEditorRow({
 }
 
 function SubtasksCardPanel({
-  onClose,
   onTaskUpdated,
   panelRef,
   task,
@@ -1280,10 +1281,6 @@ function SubtasksCardPanel({
   };
 
   const subtaskDndId = `card-subtasks-${task.id}`;
-  const completedCount = completedSubtaskCount(task);
-  const subtaskCount = task.subtasks.length;
-  const subtaskCompletionPercent = subtaskCount > 0 ? (completedCount / subtaskCount) * 100 : 0;
-  const subtaskSummary = formatSubtaskSummary(task);
 
   return (
     <div
@@ -1292,50 +1289,9 @@ function SubtasksCardPanel({
       role="region"
       aria-label={`Subtasks for ${task.title}`}
     >
-      <div className="mb-3 space-y-3 border-b border-line-soft pb-3">
-        <div className="flex items-center justify-end gap-2">
-          {isSaving ? <span className="text-xs text-text-muted">Saving…</span> : null}
-          <button
-            aria-label="Close subtasks"
-            className="blueprint-action rounded-md p-1 text-text-muted"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <p
-              aria-label={`${subtaskSummary}, ${completedCount} done`}
-              className="text-sm font-extrabold text-text-primary"
-            >
-              {completedCount}/{subtaskCount} done
-            </p>
-            {subtaskCount > 0 ? (
-              <p className="text-xs font-semibold text-text-muted">
-                {Math.round(subtaskCompletionPercent)}%
-              </p>
-            ) : null}
-          </div>
-          {subtaskCount > 0 ? (
-            <div
-              aria-label={`${subtaskSummary} progress`}
-              aria-valuemax={subtaskCount}
-              aria-valuemin={0}
-              aria-valuenow={completedCount}
-              className="h-1.5 overflow-hidden rounded-full bg-surface-control"
-              role="progressbar"
-            >
-              <div
-                className="h-full rounded-full bg-brand"
-                style={{ width: `${subtaskCompletionPercent}%` }}
-              />
-            </div>
-          ) : null}
-        </div>
-      </div>
+      {isSaving ? (
+        <p className="mb-2 text-right text-xs text-text-muted">Saving…</p>
+      ) : null}
 
       <DndContext
         id={subtaskDndId}
@@ -1368,11 +1324,11 @@ function SubtasksCardPanel({
         </SortableContext>
       </DndContext>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-line-soft pt-2">
-        <Plus className="h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-line-soft px-3 py-2 text-text-muted transition focus-within:border-line-strong focus-within:text-text-primary">
+        <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
         <input
           aria-label="Add subtask"
-          className="min-w-0 flex-1 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-sm font-semibold text-text-primary outline-none focus-visible:outline-2 focus-visible:outline-brand"
+          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-semibold text-text-primary outline-none placeholder:text-text-muted"
           maxLength={180}
           onBlur={(e) => handleSubtaskAdd(e.currentTarget.value, false)}
           onChange={(e) => setAddTitle(e.target.value)}
