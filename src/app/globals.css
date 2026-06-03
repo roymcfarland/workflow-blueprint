@@ -53,7 +53,7 @@
   --status-archived: #9aa6bd;
   --status-done: #1a9f72;
   --status-ice-box: #6f86b5;
-  --status-in-progress: #d89020;
+  --status-in-progress: #df7d22;
   --status-on-deck: #4a78d6;
   --radius-card: 0.9rem;
   --radius-note: 0.75rem;
@@ -108,7 +108,7 @@
   --status-archived: #8a94a4;
   --status-done: #62cfa4;
   --status-ice-box: #7e96c2;
-  --status-in-progress: #e6b96a;
+  --status-in-progress: #eaa766;
   --status-on-deck: #6e92e2;
   --focus-ring-offset: var(--background);
 }
