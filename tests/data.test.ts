@@ -357,6 +357,66 @@ describe("src/lib/data.ts", () => {
     ]);
   });
 
+  test("includes ordered subtasks on dashboard in-progress task summaries", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const taskWithSubtasksId = randomUUID();
+    const taskWithoutSubtasksId = randomUUID();
+    const firstSubtaskId = randomUUID();
+    const secondSubtaskId = randomUUID();
+
+    await createDataTask({
+      boardId: board.id,
+      id: taskWithSubtasksId,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Task with subtasks",
+    });
+    await createDataTask({
+      boardId: board.id,
+      id: taskWithoutSubtasksId,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Task without subtasks",
+    });
+    await prisma.subtask.createMany({
+      data: [
+        {
+          id: secondSubtaskId,
+          isComplete: false,
+          sortOrder: 1,
+          taskId: taskWithSubtasksId,
+          title: "Wire toggle",
+        },
+        {
+          id: firstSubtaskId,
+          isComplete: true,
+          sortOrder: 0,
+          taskId: taskWithSubtasksId,
+          title: "Load subtasks",
+        },
+      ],
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(
+      snapshot.inProgressTasks.find((task) => task.id === taskWithSubtasksId)?.subtasks,
+    ).toEqual([
+      {
+        id: firstSubtaskId,
+        isComplete: true,
+        title: "Load subtasks",
+      },
+      {
+        id: secondSubtaskId,
+        isComplete: false,
+        title: "Wire toggle",
+      },
+    ]);
+    expect(
+      snapshot.inProgressTasks.find((task) => task.id === taskWithoutSubtasksId)?.subtasks,
+    ).toEqual([]);
+  });
+
   test("reorders dashboard in-progress tasks without changing board sort order", async () => {
     const user = await createTestUser();
     const [firstBoard, secondBoard] = boardRows(user.id, 2);

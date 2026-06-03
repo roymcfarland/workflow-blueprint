@@ -127,6 +127,12 @@ export type BoardSnapshot = {
   tasks: SerializedTask[];
 };
 
+export type DashboardSubtaskSummary = {
+  id: string;
+  title: string;
+  isComplete: boolean;
+};
+
 export type DashboardTaskSummary = {
   id: string;
   title: string;
@@ -136,6 +142,7 @@ export type DashboardTaskSummary = {
   boardSlug: string;
   boardName: string;
   boardIconKey: string;
+  subtasks: DashboardSubtaskSummary[];
 };
 
 export type DashboardSnapshot = {
@@ -434,7 +441,9 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       sortOrder: "asc",
     },
     include: {
-      tasks: true,
+      tasks: {
+        include: taskInclude,
+      },
     },
   });
 
@@ -472,6 +481,11 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       boardSlug: task.boardSlug,
       boardName: task.boardName,
       boardIconKey: task.boardIconKey,
+      subtasks: task.subtasks.map((subtask) => ({
+        id: subtask.id,
+        title: subtask.title,
+        isComplete: subtask.isComplete,
+      })),
     };
   }
 
