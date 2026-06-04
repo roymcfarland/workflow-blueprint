@@ -46,17 +46,18 @@ function taskSummary(overrides: Partial<DashboardTaskSummary>): DashboardTaskSum
   };
 }
 
-function dashboardSnapshot(): DashboardSnapshot {
-  const inProgressTasks = [
-    taskSummary({ id: "task-launch", title: "Draft launch checklist" }),
-    taskSummary({
-      boardIconKey: "kanban",
-      boardName: "Customer Research",
-      boardSlug: "customer-research",
-      id: "task-retro",
-      title: "Interview beta customer",
-    }),
-  ];
+function dashboardSnapshot(overrides: Partial<DashboardSnapshot> = {}): DashboardSnapshot {
+  const inProgressTasks =
+    overrides.inProgressTasks ?? [
+      taskSummary({ id: "task-launch", title: "Draft launch checklist" }),
+      taskSummary({
+        boardIconKey: "kanban",
+        boardName: "Customer Research",
+        boardSlug: "customer-research",
+        id: "task-retro",
+        title: "Interview beta customer",
+      }),
+    ];
 
   return {
     activeTaskCount: 3,
@@ -84,6 +85,7 @@ function dashboardSnapshot(): DashboardSnapshot {
     overdueTasks: [],
     totalTaskCount: 3,
     upcomingTasks: [],
+    ...overrides,
   };
 }
 
@@ -128,5 +130,108 @@ describe("DashboardOverview in-progress panel", () => {
     expect(url).toBe("/api/tasks/task-launch/done");
     expect(init.method).toBe("POST");
     await waitFor(() => expect(screen.queryByText("Draft launch checklist")).toBeNull());
+  });
+
+  test("expands and hides subtasks from the in-progress row caret", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          inProgressTasks: [
+            taskSummary({
+              subtasks: [
+                { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+                { id: "subtask-review", isComplete: true, title: "Review launch notes" },
+              ],
+            }),
+            taskSummary({
+              id: "task-retro",
+              title: "Interview beta customer",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    const showButton = screen.getByRole("button", {
+      name: "Show subtasks for Draft launch checklist",
+    });
+
+    fireEvent.click(showButton);
+
+    expect(screen.getByText("Draft intro copy")).toBeDefined();
+    expect(screen.getByText("Review launch notes")).toBeDefined();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide subtasks for Draft launch checklist" }),
+    );
+
+    expect(screen.queryByText("Draft intro copy")).toBeNull();
+    expect(screen.queryByText("Review launch notes")).toBeNull();
+  });
+
+  test("toggles a subtask checkbox optimistically and patches the subtask", async () => {
+    let resolveFetch!: (response: Response) => void;
+    fetchMock.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          inProgressTasks: [
+            taskSummary({
+              subtasks: [
+                { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show subtasks for Draft launch checklist" }),
+    );
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Draft intro copy",
+    }) as HTMLInputElement;
+
+    expect(checkbox.checked).toBe(false);
+
+    fireEvent.click(checkbox);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(checkbox.checked).toBe(true));
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-brief");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ isComplete: true });
+
+    resolveFetch(apiResponse({ ok: true }));
+
+    await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalledTimes(1));
+  });
+
+  test("does not render a subtask caret for tasks without subtasks", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          inProgressTasks: [
+            taskSummary({
+              subtasks: [],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Show subtasks for Draft launch checklist" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark Draft launch checklist done" })).toBeDefined();
   });
 });
