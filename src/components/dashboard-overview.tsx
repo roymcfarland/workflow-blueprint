@@ -24,6 +24,8 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Check,
   CheckCheck,
+  ChevronDown,
+  ChevronRight,
   ClipboardList,
   GripVertical,
   Plus,
@@ -77,6 +79,7 @@ function getTaskListKey(tasks: DashboardTaskSummary[]) {
         task.boardSlug,
         task.boardName,
         task.boardIconKey,
+        task.subtasks.map((subtask) => `${subtask.id}:${subtask.isComplete}`).join(","),
       ].join(":"),
     )
     .join("|");
@@ -257,6 +260,7 @@ function SortableInProgressRow({
   pending: boolean;
   onDone: (taskId: string) => void;
 }) {
+  const router = useRouter();
   const {
     attributes,
     listeners,
@@ -266,52 +270,143 @@ function SortableInProgressRow({
     transition,
     isDragging,
   } = useSortable({ id: task.id });
+  const [expanded, setExpanded] = useState(false);
+  const [subtasks, setSubtasks] = useState(task.subtasks);
+  const [subtaskPending, setSubtaskPending] = useState(false);
+  const [subtaskError, setSubtaskError] = useState<string | null>(null);
+
+  const hasSubtasks = subtasks.length > 0;
+  const completedCount = subtasks.filter((subtask) => subtask.isComplete).length;
+
+  async function toggleSubtask(subtaskId: string, isComplete: boolean) {
+    const previous = subtasks;
+    setSubtasks((current) =>
+      current.map((subtask) =>
+        subtask.id === subtaskId ? { ...subtask, isComplete } : subtask,
+      ),
+    );
+    setSubtaskPending(true);
+    setSubtaskError(null);
+
+    try {
+      const response = await fetch(`/api/subtasks/${subtaskId}`, {
+        body: JSON.stringify({ isComplete }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to update the subtask.");
+      }
+
+      router.refresh();
+    } catch (err) {
+      setSubtasks(previous);
+      setSubtaskError(err instanceof Error ? err.message : "Unable to update the subtask.");
+    } finally {
+      setSubtaskPending(false);
+    }
+  }
 
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5",
+        "rounded-lg border border-line-soft bg-surface-control",
         isDragging && "opacity-60",
       )}
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          aria-label={`Reorder ${task.title}`}
-          className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
-          ref={setActivatorNodeRef}
-          type="button"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <BoardIcon
-          className="h-4 w-4 shrink-0"
-          iconKey={task.boardIconKey}
-          style={{ color: getBoardAccentColor(task.boardSlug) }}
-        />
-        <div className="min-w-0">
-          <Link
-            className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-            href={`/boards/${task.boardSlug}`}
+      <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          {hasSubtasks ? (
+            <button
+              aria-expanded={expanded}
+              aria-label={
+                expanded
+                  ? `Hide subtasks for ${task.title}`
+                  : `Show subtasks for ${task.title}`
+              }
+              className="shrink-0 text-text-muted transition hover:text-text-primary"
+              onClick={() => setExpanded((value) => !value)}
+              type="button"
+            >
+              {expanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </button>
+          ) : (
+            <span aria-hidden className="inline-block h-4 w-4 shrink-0" />
+          )}
+          <button
+            aria-label={`Reorder ${task.title}`}
+            className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
+            ref={setActivatorNodeRef}
+            type="button"
+            {...attributes}
+            {...listeners}
           >
-            {task.title}
-          </Link>
-          <p className="truncate text-xs text-text-muted">{task.boardName}</p>
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <BoardIcon
+            className="h-4 w-4 shrink-0"
+            iconKey={task.boardIconKey}
+            style={{ color: getBoardAccentColor(task.boardSlug) }}
+          />
+          <div className="min-w-0">
+            <Link
+              className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              href={`/boards/${task.boardSlug}`}
+            >
+              {task.title}
+            </Link>
+            <p className="truncate text-xs text-text-muted">
+              {task.boardName}
+              {hasSubtasks ? ` · ${completedCount}/${subtasks.length}` : ""}
+            </p>
+          </div>
         </div>
+        <button
+          aria-label={`Mark ${task.title} done`}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong transition disabled:opacity-30"
+          disabled={pending}
+          onClick={() => onDone(task.id)}
+          style={{ color: "var(--status-done)" }}
+          type="button"
+        >
+          <Check className="h-4 w-4" />
+        </button>
       </div>
-      <button
-        aria-label={`Mark ${task.title} done`}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong transition disabled:opacity-30"
-        disabled={pending}
-        onClick={() => onDone(task.id)}
-        style={{ color: "var(--status-done)" }}
-        type="button"
-      >
-        <Check className="h-4 w-4" />
-      </button>
+
+      {expanded && hasSubtasks ? (
+        <div className="space-y-1.5 border-t border-line-soft py-2 pl-9 pr-3">
+          {subtaskError ? <p className="text-xs text-danger">{subtaskError}</p> : null}
+          {subtasks.map((subtask) => (
+            <label className="flex items-center gap-2 text-sm" key={subtask.id}>
+              <input
+                checked={subtask.isComplete}
+                className={cn(
+                  "h-4 w-4 shrink-0 rounded border-line-strong",
+                  subtask.isComplete ? "accent-success" : "accent-brand",
+                )}
+                disabled={subtaskPending}
+                onChange={(event) => toggleSubtask(subtask.id, event.target.checked)}
+                type="checkbox"
+              />
+              <span
+                className={cn(
+                  "min-w-0 flex-1 text-text-primary",
+                  subtask.isComplete && "text-text-muted line-through",
+                )}
+              >
+                {subtask.title}
+              </span>
+            </label>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
