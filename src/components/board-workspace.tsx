@@ -26,9 +26,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   CalendarDays,
-  Check,
   ChevronDown,
   ChevronRight,
+  CircleCheck,
   GripVertical,
   NotebookPen,
   PanelRightClose,
@@ -627,21 +627,6 @@ function PanelSubtaskEditorRow({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <button
-        aria-label={row.isComplete ? "Mark subtask incomplete" : "Mark subtask complete"}
-        aria-pressed={row.isComplete}
-        className={cn(
-          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition",
-          row.isComplete
-            ? "border-success bg-success text-white"
-            : "border-line-strong text-transparent hover:border-success hover:text-success/40",
-        )}
-        disabled={disabled}
-        onClick={onToggleComplete}
-        type="button"
-      >
-        <Check className="h-3 w-3" strokeWidth={3} />
-      </button>
       <textarea
         aria-label="Subtask title"
         className={cn(
@@ -668,6 +653,21 @@ function PanelSubtaskEditorRow({
         rows={1}
         value={row.title}
       />
+      <button
+        aria-label={row.isComplete ? "Mark subtask incomplete" : "Mark subtask complete"}
+        aria-pressed={row.isComplete}
+        className={cn(
+          "shrink-0 transition",
+          row.isComplete
+            ? "text-success"
+            : "text-text-muted hover:text-success",
+        )}
+        disabled={disabled}
+        onClick={onToggleComplete}
+        type="button"
+      >
+        <CircleCheck className="h-5 w-5" strokeWidth={2} />
+      </button>
       <button
         aria-label="Remove subtask"
         className="shrink-0 text-text-muted transition hover:text-danger"
