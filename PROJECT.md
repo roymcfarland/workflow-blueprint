@@ -56,7 +56,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 
 ### Active phase
 
-_No PRs are currently in flight. The next slice will be added here before work begins, per the sequencing rule above._
+| PR | Title | Branch | Status |
+|---|---|---|---|
+| **`#70`** | Round toggle button for panel subtasks | `feat/subtask-toggle-button` | In review — awaiting Verifier. Replaces the native subtask checkbox in the board panel with an accessible `aria-pressed` toggle button, tightens the panel layout, and bumps the `--status-in-progress` accent (`#df7d22 → #f97316`). The accent bump is declared as a justified out-of-scope change in the PR body per Q6. |
+
+> The "Shipped" ledger above is reconciled only through PR 24 (`#31`); GitHub has since merged through `#69`. The internal "PR N" sequence is not maintained past PR 24, so Active-phase work is tracked by GitHub PR number until a roadmap-reconciliation pass (cf. PR 13 / `#20`) brings the ledger current.
 
 ### Standing Builder guardrails (post-PR-1)
 

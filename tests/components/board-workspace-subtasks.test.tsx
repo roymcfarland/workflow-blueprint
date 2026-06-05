@@ -176,9 +176,11 @@ describe("BoardWorkspace subtask panel granular API", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
 
     expect(screen.getByDisplayValue("Draft outline")).toBeDefined();
-    expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+    expect(
+      screen.getByRole("button", { name: "Mark subtask complete" }).getAttribute("aria-pressed"),
+    ).toBe("false");
 
-    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Mark subtask complete" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
@@ -189,7 +191,9 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
 
     await waitFor(() => {
-      expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
+      expect(
+        screen.getByRole("button", { name: "Mark subtask incomplete" }).getAttribute("aria-pressed"),
+      ).toBe("true");
     });
 
     const addInput = screen.getByRole("textbox", { name: "Add subtask" }) as HTMLInputElement;
@@ -208,7 +212,9 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(requestJsonBody(addInit)).toEqual({ priority: "NONE", title: "Review copy" });
 
     await waitFor(() => expect(screen.getByDisplayValue("Review copy")).toBeDefined());
-    expect((screen.getAllByRole("checkbox")[0] as HTMLInputElement).checked).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Mark subtask incomplete" }).getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
   test("debounces inline title edits through the granular endpoint", async () => {
@@ -291,8 +297,8 @@ describe("BoardWorkspace subtask panel granular API", () => {
     fireEvent.change(firstTitle, { target: { value: "Half-written title" } });
     fireEvent.blur(firstTitle);
 
-    const secondCheckbox = screen.getAllByRole("checkbox")[1] as HTMLInputElement;
-    fireEvent.click(secondCheckbox);
+    const secondToggle = screen.getAllByRole("button", { name: "Mark subtask complete" })[1];
+    fireEvent.click(secondToggle);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [renameUrl, renameInit] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -311,7 +317,9 @@ describe("BoardWorkspace subtask panel granular API", () => {
     });
 
     expect(screen.getByDisplayValue("Half-written title")).toBeDefined();
-    expect((screen.getAllByRole("checkbox")[1] as HTMLInputElement).checked).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Mark subtask incomplete" }).getAttribute("aria-pressed"),
+    ).toBe("true");
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
   });
 
