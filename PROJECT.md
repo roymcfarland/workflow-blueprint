@@ -53,14 +53,50 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **PR 22** | Inline quick-add task creation | `#29` | Replaced the drawer-based create flow with an inline quick-add composer (title + Enter) in each column/section; the header, empty-state, and `?new=1` deep link open it. The drawer was left for editing only. |
 | **PR 23** | Inline task-field editing on the card | `#30` | Status, priority, due date, description, and delete are edited inline on the expanded card via the existing whole-task PATCH; threaded an `onDelete` handler down to the panel. |
 | **PR 24** | Removed the TaskDrawer | `#31` | Deleted the slide-out `TaskDrawer`, `SortableSubtaskRow`, the per-card details button, the `onOpen`/`onOpenTask` prop chain, the drawer state, the `closeDrawer` save option, and now-unused imports. Task creation and editing are now fully inline on the card. |
+| **`#32`** | Roadmap reconciliation (#20–#31) | `#32` | Documentation-only: brought the Shipped ledger current through `#31`. |
+| **`#33`** | Sidebar hover-jump fix | `#33` | Stopped the desktop sidebar shifting on hover-expand. |
+| **`#34`** | Sidebar collapse toggle | `#34` | Replaced the hover-with-intent sidebar with a Trello-style click collapse toggle. |
+| **`#35`** | Kanban drag feel | `#35` | Trello-style drag feel: card lift + drop placeholder. |
+| **`#36`** | Fixed-viewport board frame | `#36` | Trello-style fixed-viewport board frame; columns scroll internally. |
+| **`#37`** | Subtask text-only UI | `#37` | Subtasks dropped the priority control; titles became click-to-edit (UI only). |
+| **`#38`** | Drop Subtask.priority column | `#38` | Removed the `Subtask.priority` column; the external API serves a constant. |
+| **`#39`** | Remove card status selector | `#39` | Removed the redundant status selector from the card. |
+| **`#40`** | Card-detail modal | `#40` | Added a card-detail modal (priority / due date / description / delete). |
+| **`#41`** | Card status glow | `#41` | Faint status-color glow behind each card. |
+| **`#42`** | Persist login (SameSite) | `#42` | `SameSite=Lax` session cookie so login persists across navigations. |
+| **`#43`** | Account/avatar menu | `#43` | Folded admin nav + account actions into an avatar menu. |
+| **`#44`** | Card subtask progress | `#44` | Surfaced subtask progress on closed cards; dropped the empty pill. |
+| **`#45`** | Board title actions | `#45` | Moved board edit/delete onto the page title with a confirm modal. |
+| **`#46`** | Active board white text | `#46` | Forced white text on the active board sidebar link. |
+| **`#47`** | API tokens — data layer | `#47` | API tokens slice 1: schema + data layer + validation. |
+| **`#48`** | API tokens — auth + routes | `#48` | API tokens slice 2: external-API auth integration + admin routes. |
+| **`#49`** | API tokens — admin UI | `#49` | API tokens slice 3: admin UI page + account-menu entry. |
+| **`#50`** | Security deps (next 16.2.6) | `#50` | Bumped Next to 16.2.6 and cleared moderate transitive advisories. |
+| **`#51`** | Guard non-local dev migrations | `#51` | Guarded dev migration commands against non-local databases. |
+| **`#52`** | Task/Subtask FK indexes | `#52` | Added covering indexes for Task and Subtask foreign keys. |
+| **`#53`** | Input caps (boards/tasks) | `#53` | Capped boards-per-user and tasks-per-board. |
+| **`#54`** | Admin route hardening | `#54` | Hardened admin mutation routes (rate limits + error handling). |
+| **`#55`** | User-write rate limits | `#55` | Rate-limited profile, theme, and board-note write routes. |
+| **`#56`** | Vitest 3 → 4 | `#56` | Upgraded Vitest 3 → 4, clearing a critical advisory. |
+| **`#57`** | npm audit CI gate | `#57` | Added an `npm audit` CI gate + a `postcss` override to clear an advisory. |
+| **`#58`** | Auth hardening (JWT/timing) | `#58` | Pinned the JWT algorithm and hardened sign-in timing. |
+| **`#59`** | CSRF fail-closed | `#59` | CSRF fail-closed + require `application/json` on mutation routes. |
+| **`#60`** | Atomic task reorder | `#60` | Made `reorderTasksForUser` atomic (read inside its transaction). |
+| **`#61`** | Card halo + quick-add reset | `#61` | Muted the card halo and collapsed quick-add after save. |
+| **`#62`** | CSP style-src fix | `#62` | Fixed CSP `style-src` handling for inline styles. |
+| **`#63`** | In-progress view backend | `#63` | Backend for the cross-board in-progress dashboard view. |
+| **`#64`** | In-progress list UI | `#64` | Reorderable In-progress list; removed the Boards section. |
+| **`#65`** | Side-by-side drag | `#65` | Side-by-side dashboard cards + drag-to-reorder In progress. |
+| **`#66`** | Subtask panel polish | `#66` | Tightened the subtask panel and introduced warm-orange In progress. |
+| **`#67`** | Expand board icon picker | `#67` | Expanded the board icon picker. |
+| **`#68`** | Subtasks in snapshot | `#68` | Included subtasks in the in-progress snapshot payload. |
+| **`#69`** | Caret-expand subtasks | `#69` | Caret-expand + toggle subtasks on in-progress dashboard rows. |
+| **`#70`** | Round subtask toggle button | `#70` | Replaced the native subtask checkbox with an accessible `aria-pressed` toggle button, tightened the panel, removed the panel top border, and bumped the `--status-in-progress` accent (`#df7d22 → #f97316` / `#eaa766 → #fb923c`); accent bump declared out-of-scope per Q6. |
+| **`#71`** | Roadmap reconciliation (#32–#70) | `#71` | Documentation-only: appended Shipped rows for #32–#70, reset the Active phase, retired the internal "PR N" counter past PR 24, and added the self-updating-ledger guardrail. |
 
 ### Active phase
 
-| PR | Title | Branch | Status |
-|---|---|---|---|
-| **`#70`** | Round toggle button for panel subtasks | `feat/subtask-toggle-button` | In review — awaiting Verifier. Replaces the native subtask checkbox in the board panel with an accessible `aria-pressed` toggle button, tightens the panel layout, and bumps the `--status-in-progress` accent (`#df7d22 → #f97316`). The accent bump is declared as a justified out-of-scope change in the PR body per Q6. |
-
-> The "Shipped" ledger above is reconciled only through PR 24 (`#31`); GitHub has since merged through `#69`. The internal "PR N" sequence is not maintained past PR 24, so Active-phase work is tracked by GitHub PR number until a roadmap-reconciliation pass (cf. PR 13 / `#20`) brings the ledger current.
+_No PRs are currently in flight. The next slice will be added here before work begins, per the sequencing rule above._
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -71,6 +107,8 @@ The Q1 test-coverage rule has been enforceable since PR 1 (`#7`) merged. It appl
 - Documentation-only PRs (no changes outside `*.md` files) are exempt from the test-coverage rule but must still pass `npm run lint` if linting covers Markdown.
 - **PR size is judged by review surface, not raw line count.** Test-harness, lockfile, and dependency-bootstrap PRs (e.g., `#7`, `#14`) are intentionally larger because they are gated by reviewer attention rather than by feature scope; small-PR discipline applies to feature and contract changes, not to one-time scaffolding.
 - **Merged feature branches are deleted, remote and local.** Once a PR merges, its feature branch must not linger. The repository has GitHub's "Automatically delete head branches" setting enabled, so the remote branch is removed automatically on merge; the local branch is pruned by the standard pre-flight block at the start of the next slice (`git branch --merged main … | git branch -d`). No long-lived merged branches should accumulate in either location.
+- **Every PR updates the Shipped ledger in its own diff.** A feature/fix PR must add its own row to the Shipped table (and clear itself from the Active phase) in the same PR that ships the change, so the ledger is never more than zero PRs behind. A drifted ledger is corrected by a dedicated documentation-only reconciliation slice (cf. `#20`, `#32`, and this PR), not allowed to compound.
+- **Ledger entries are keyed by GitHub PR number from `#32` onward.** The internal "PR N" sequence was retired at PR 24 (`#31`); newer rows use the GitHub PR number as their identifier.
 
 ---
 
