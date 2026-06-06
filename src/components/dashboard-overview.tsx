@@ -26,10 +26,12 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
+  CircleCheck,
   ClipboardList,
   GripVertical,
   Plus,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 
 import { BoardIcon } from "@/components/board-icon";
@@ -277,6 +279,11 @@ function SortableInProgressRow({
 
   const hasSubtasks = subtasks.length > 0;
   const completedCount = subtasks.filter((subtask) => subtask.isComplete).length;
+  const subtaskSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   async function toggleSubtask(subtaskId: string, isComplete: boolean) {
     const previous = subtasks;
@@ -306,6 +313,61 @@ function SortableInProgressRow({
     } finally {
       setSubtaskPending(false);
     }
+  }
+
+  async function deleteSubtask(subtaskId: string) {
+    const previous = subtasks;
+    setSubtasks((current) => current.filter((s) => s.id !== subtaskId));
+    setSubtaskPending(true);
+    setSubtaskError(null);
+    try {
+      const response = await fetch(`/api/subtasks/${subtaskId}`, { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error("Unable to delete the subtask.");
+      }
+      router.refresh();
+    } catch (err) {
+      setSubtasks(previous);
+      setSubtaskError(err instanceof Error ? err.message : "Unable to delete the subtask.");
+    } finally {
+      setSubtaskPending(false);
+    }
+  }
+
+  async function reorderSubtasks(next: typeof subtasks) {
+    const previous = subtasks;
+    setSubtasks(next);
+    setSubtaskPending(true);
+    setSubtaskError(null);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/subtasks/reorder`, {
+        body: JSON.stringify({ subtaskIds: next.map((s) => s.id) }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to reorder subtasks.");
+      }
+      router.refresh();
+    } catch (err) {
+      setSubtasks(previous);
+      setSubtaskError(err instanceof Error ? err.message : "Unable to reorder subtasks.");
+    } finally {
+      setSubtaskPending(false);
+    }
+  }
+
+  function handleSubtaskDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+    const oldIndex = subtasks.findIndex((s) => s.id === active.id);
+    const newIndex = subtasks.findIndex((s) => s.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+    void reorderSubtasks(arrayMove(subtasks, oldIndex, newIndex));
   }
 
   return (
@@ -383,30 +445,103 @@ function SortableInProgressRow({
       {expanded && hasSubtasks ? (
         <div className="space-y-1.5 border-t border-line-soft py-2 pl-9 pr-3">
           {subtaskError ? <p className="text-xs text-danger">{subtaskError}</p> : null}
-          {subtasks.map((subtask) => (
-            <label className="flex items-center gap-2 text-sm" key={subtask.id}>
-              <input
-                checked={subtask.isComplete}
-                className={cn(
-                  "h-4 w-4 shrink-0 rounded border-line-strong",
-                  subtask.isComplete ? "accent-success" : "accent-brand",
-                )}
-                disabled={subtaskPending}
-                onChange={(event) => toggleSubtask(subtask.id, event.target.checked)}
-                type="checkbox"
-              />
-              <span
-                className={cn(
-                  "min-w-0 flex-1 text-text-primary",
-                  subtask.isComplete && "text-text-muted line-through",
-                )}
-              >
-                {subtask.title}
-              </span>
-            </label>
-          ))}
+          <DndContext
+            collisionDetection={closestCenter}
+            id={`dashboard-subtasks-${task.id}`}
+            onDragEnd={handleSubtaskDragEnd}
+            sensors={subtaskSensors}
+          >
+            <SortableContext
+              items={subtasks.map((s) => s.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-1">
+                {subtasks.map((subtask) => (
+                  <SortableDashboardSubtaskRow
+                    key={subtask.id}
+                    disabled={subtaskPending}
+                    onDelete={deleteSubtask}
+                    onToggle={toggleSubtask}
+                    subtask={subtask}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function SortableDashboardSubtaskRow({
+  subtask,
+  disabled,
+  onToggle,
+  onDelete,
+}: {
+  subtask: DashboardTaskSummary["subtasks"][number];
+  disabled: boolean;
+  onToggle: (subtaskId: string, isComplete: boolean) => void;
+  onDelete: (subtaskId: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: subtask.id });
+
+  return (
+    <div
+      className={cn("flex items-center gap-2 text-sm", isDragging && "opacity-60")}
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <button
+        aria-label="Reorder subtask"
+        className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
+        disabled={disabled}
+        ref={setActivatorNodeRef}
+        type="button"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <span
+        className={cn(
+          "min-w-0 flex-1 text-text-primary",
+          subtask.isComplete && "text-text-muted line-through",
+        )}
+      >
+        {subtask.title}
+      </span>
+      <button
+        aria-label={subtask.isComplete ? "Mark subtask incomplete" : "Mark subtask complete"}
+        aria-pressed={subtask.isComplete}
+        className={cn(
+          "shrink-0 transition",
+          subtask.isComplete ? "text-success" : "text-text-muted hover:text-success",
+        )}
+        disabled={disabled}
+        onClick={() => onToggle(subtask.id, !subtask.isComplete)}
+        type="button"
+      >
+        <CircleCheck className="h-5 w-5" strokeWidth={2} />
+      </button>
+      <button
+        aria-label="Remove subtask"
+        className="shrink-0 text-text-muted transition hover:text-danger"
+        disabled={disabled}
+        onClick={() => onDelete(subtask.id)}
+        type="button"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }
