@@ -509,7 +509,7 @@ function NotesPanel({
       </div>
       <div className="min-h-0 flex-1 p-4">
         <BlueprintTextarea
-          className="h-full min-h-[16rem] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:outline-none"
+          className="h-full min-h-[16rem] resize-none rounded-lg border border-line-soft bg-surface-control/60 px-3 py-2 shadow-[0_2px_16px_rgba(0,0,0,0.10)] focus-visible:outline-2 focus-visible:outline-brand"
           onChange={(event) => onChange(event.target.value)}
           placeholder="Drop links, decisions, and follow-ups here. Saved automatically."
           value={noteDraft}
@@ -1291,7 +1291,7 @@ function SubtasksCardPanel({
   return (
     <div
       ref={panelRef}
-      className="max-h-[min(24rem,70vh)] overflow-y-auto px-4 pb-3 pt-0"
+      className="-mt-2 max-h-[min(24rem,70vh)] overflow-y-auto px-4 pb-3 pt-0"
       role="region"
       aria-label={`Subtasks for ${task.title}`}
     >
@@ -1459,11 +1459,11 @@ function TaskPreview({
               aria-valuemax={totalSubtasks}
               aria-valuemin={0}
               aria-valuenow={completedSubtasks}
-              className="h-1.5 overflow-hidden rounded-full bg-surface-control"
+              className="h-1.5 overflow-hidden rounded-full bg-line-soft"
               role="progressbar"
             >
               <div
-                className="h-full rounded-full bg-brand"
+                className="h-full rounded-full blueprint-fill"
                 style={{ width: `${subtaskCompletionPercent}%` }}
               />
             </div>
