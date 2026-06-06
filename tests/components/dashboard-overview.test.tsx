@@ -169,7 +169,7 @@ describe("DashboardOverview in-progress panel", () => {
     expect(screen.queryByText("Review launch notes")).toBeNull();
   });
 
-  test("toggles a subtask checkbox optimistically and patches the subtask", async () => {
+  test("toggles a subtask via the toggle button optimistically and patches the subtask", async () => {
     let resolveFetch!: (response: Response) => void;
     fetchMock.mockReturnValueOnce(
       new Promise<Response>((resolve) => {
@@ -195,16 +195,19 @@ describe("DashboardOverview in-progress panel", () => {
       screen.getByRole("button", { name: "Show subtasks for Draft launch checklist" }),
     );
 
-    const checkbox = screen.getByRole("checkbox", {
-      name: "Draft intro copy",
-    }) as HTMLInputElement;
+    const toggle = screen.getByRole("button", { name: "Mark subtask complete" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
 
-    expect(checkbox.checked).toBe(false);
-
-    fireEvent.click(checkbox);
+    fireEvent.click(toggle);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(checkbox.checked).toBe(true));
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: "Mark subtask incomplete" })
+          .getAttribute("aria-pressed"),
+      ).toBe("true"),
+    );
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/subtasks/subtask-brief");
@@ -214,6 +217,37 @@ describe("DashboardOverview in-progress panel", () => {
     resolveFetch(apiResponse({ ok: true }));
 
     await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalledTimes(1));
+  });
+
+  test("deletes a subtask via the trash button", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          inProgressTasks: [
+            taskSummary({
+              subtasks: [
+                { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show subtasks for Draft launch checklist" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove subtask" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-brief");
+    expect(init.method).toBe("DELETE");
+
+    await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalled());
   });
 
   test("does not render a subtask caret for tasks without subtasks", () => {
