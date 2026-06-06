@@ -94,6 +94,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **`#70`** | Round subtask toggle button | `#70` | Replaced the native subtask checkbox with an accessible `aria-pressed` toggle button, tightened the panel, removed the panel top border, and bumped the `--status-in-progress` accent (`#df7d22 → #f97316` / `#eaa766 → #fb923c`); accent bump declared out-of-scope per Q6. |
 | **`#71`** | Roadmap reconciliation (#32–#70) | `#71` | Documentation-only: appended Shipped rows for #32–#70, reset the Active phase, retired the internal "PR N" counter past PR 24, and added the self-updating-ledger guardrail. |
 | **`#72`** | Subtask complete-toggle moved to the right + CircleCheck icon | `#72` | Moved the subtask completion toggle from the left of the row to between the title and the delete button, and swapped the bordered-circle `Check` for the `CircleCheck` glyph (color-coded: success when complete, muted otherwise). Visual-only; no API/contract change. |
+| **`#73`** | Visual polish: richer orange, notes padding + glow, tighter subtask gap, striped progress bar | `#73` | Deepened the `--status-in-progress` accent; added padding + a soft glow/surface to the notes textarea; pulled the subtask panel up to tighten the gap below the parent task; made the subtask progress track visible (`bg-line-soft`) and styled the completed portion with the `.blueprint-fill` hatched-blue hero style. Visual-only; no API/contract/test changes. |
 
 ### Active phase
 
