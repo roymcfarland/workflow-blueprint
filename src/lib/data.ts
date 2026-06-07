@@ -155,6 +155,7 @@ export type DashboardSnapshot = {
     slug: string;
     name: string;
     iconKey: string;
+    accentColor?: string | null;
     totalTasks: number;
     percentage: number;
   }>;
@@ -608,6 +609,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       slug: board.slug,
       name: board.name,
       iconKey: board.iconKey,
+      accentColor: board.accentColor,
       totalTasks: board.tasks.length,
       percentage: totalTaskCount === 0 ? 0 : Math.round((board.tasks.length / totalTaskCount) * 100),
     })),
