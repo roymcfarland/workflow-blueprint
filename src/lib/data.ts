@@ -126,6 +126,7 @@ export type BoardSnapshot = {
   slug: string;
   name: string;
   description: string | null;
+  accentColor?: string | null;
   iconKey: string;
   noteContent: string;
   tasks: SerializedTask[];
@@ -761,6 +762,7 @@ export async function getBoardSnapshot(userId: string, slug: string): Promise<Bo
     slug: board.slug,
     name: board.name,
     description: board.description,
+    accentColor: board.accentColor,
     iconKey: board.iconKey,
     noteContent: board.note?.content ?? "",
     tasks: board.tasks.map(serializeTask),

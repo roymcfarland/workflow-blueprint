@@ -2766,7 +2766,12 @@ export function BoardWorkspace({
           <PageTitle
             actions={
               <BoardTitleActions
-                board={{ iconKey: board.iconKey, name: board.name, slug: board.slug }}
+                board={{
+                  accentColor: board.accentColor,
+                  iconKey: board.iconKey,
+                  name: board.name,
+                  slug: board.slug,
+                }}
               />
             }
             description={board.description ?? undefined}
