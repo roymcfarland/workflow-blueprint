@@ -297,8 +297,8 @@ export function AppShell({ boards, children, user }: AppShellProps) {
                   navLinkClassName,
                   isActive &&
                     item.kind === "dashboard" &&
-                    "blueprint-fill-flat border-brand text-white",
-                  isActive && item.kind === "board" && "text-white",
+                    "blueprint-fill border-brand text-white",
+                  isActive && item.kind === "board" && "blueprint-hatch text-white",
                   !isActive && "border-transparent text-text-primary hover:bg-surface-control-hover",
                 )}
                 href={item.href}
