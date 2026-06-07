@@ -5,7 +5,7 @@ import {
   TaskStatus as PrismaTaskStatus,
   ThemePreference as PrismaThemePreference,
 } from "@prisma/client";
-import { addDays, subDays } from "date-fns";
+import { addDays, addMonths, addWeeks, addYears, subDays } from "date-fns";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
@@ -335,6 +335,68 @@ async function nextSortOrderForStatus(
   return (current?.sortOrder ?? -1) + 1;
 }
 
+function advanceDueDate(base: Date, recurrence: PrismaRecurrencePattern): Date {
+  switch (recurrence) {
+    case PrismaRecurrencePattern.DAILY:
+      return addDays(base, 1);
+    case PrismaRecurrencePattern.WEEKLY:
+      return addWeeks(base, 1);
+    case PrismaRecurrencePattern.MONTHLY:
+      return addMonths(base, 1);
+    case PrismaRecurrencePattern.SEMI_ANNUALLY:
+      return addMonths(base, 6);
+    case PrismaRecurrencePattern.ANNUALLY:
+      return addYears(base, 1);
+    default:
+      return base;
+  }
+}
+
+async function spawnNextRecurrence(
+  tx: DbClient,
+  source: {
+    boardId: string;
+    title: string;
+    description: string | null;
+    priority: PrismaItemPriority;
+    status: PrismaTaskStatus;
+    recurrence: PrismaRecurrencePattern;
+    dueDate: Date | null;
+    subtaskTitles: string[];
+  },
+  completedAt: Date,
+): Promise<void> {
+  if (source.recurrence === PrismaRecurrencePattern.NONE) {
+    return;
+  }
+
+  const sortOrder = await nextSortOrderForStatus(tx, source.boardId, source.status);
+
+  await tx.task.create({
+    data: {
+      id: randomUUID(),
+      boardId: source.boardId,
+      title: source.title,
+      description: source.description,
+      status: source.status,
+      priority: source.priority,
+      recurrence: source.recurrence,
+      sortOrder,
+      dueDate: advanceDueDate(source.dueDate ?? completedAt, source.recurrence),
+      completedAt: null,
+      archivedAt: null,
+      subtasks: {
+        create: source.subtaskTitles.map((title, index) => ({
+          id: randomUUID(),
+          title,
+          isComplete: false,
+          sortOrder: index,
+        })),
+      },
+    },
+  });
+}
+
 function statusDates(status: TaskStatus, existing?: { completedAt: Date | null; archivedAt: Date | null }) {
   const now = new Date();
 
@@ -611,19 +673,27 @@ export async function markTaskDoneForUser(userId: string, taskId: string) {
             userId,
           },
         },
+        include: {
+          subtasks: {
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
+        },
       });
 
       if (!task) {
         throw new Error("Task not found.");
       }
 
+      const wasDone = task.status === PrismaTaskStatus.DONE;
       const sortOrder =
-        task.status === PrismaTaskStatus.DONE
+        wasDone
           ? task.sortOrder
           : await nextSortOrderForStatus(tx, task.boardId, PrismaTaskStatus.DONE);
       const { completedAt, archivedAt } = statusDates("DONE", task);
 
-      return tx.task.update({
+      const updatedTask = await tx.task.update({
         where: {
           id: taskId,
         },
@@ -634,6 +704,25 @@ export async function markTaskDoneForUser(userId: string, taskId: string) {
           archivedAt,
         },
       });
+
+      if (!wasDone && task.recurrence !== PrismaRecurrencePattern.NONE) {
+        await spawnNextRecurrence(
+          tx,
+          {
+            boardId: task.boardId,
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            status: task.status,
+            recurrence: task.recurrence,
+            dueDate: task.dueDate,
+            subtaskTitles: task.subtasks.map((subtask) => subtask.title),
+          },
+          completedAt ?? new Date(),
+        );
+      }
+
+      return updatedTask;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
@@ -752,6 +841,7 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
       }
 
       const nextStatus = input.status as PrismaTaskStatus;
+      const wasDone = task.status === PrismaTaskStatus.DONE;
       const sortOrder =
         task.status === nextStatus
           ? task.sortOrder
@@ -811,6 +901,27 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
         },
         include: taskInclude,
       });
+
+      if (
+        !wasDone &&
+        nextStatus === PrismaTaskStatus.DONE &&
+        (input.recurrence as PrismaRecurrencePattern) !== PrismaRecurrencePattern.NONE
+      ) {
+        await spawnNextRecurrence(
+          tx,
+          {
+            boardId: task.boardId,
+            title: input.title,
+            description: input.description,
+            priority: input.priority as PrismaItemPriority,
+            status: task.status,
+            recurrence: input.recurrence as PrismaRecurrencePattern,
+            dueDate: parseDueDate(input.dueDate),
+            subtaskTitles: input.subtasks.map((subtask) => subtask.title),
+          },
+          completedAt ?? new Date(),
+        );
+      }
 
       return serializeTask(updatedTask);
     },
