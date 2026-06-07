@@ -1,7 +1,8 @@
 import {
   Prisma,
-  TaskStatus as PrismaTaskStatus,
   ItemPriority as PrismaItemPriority,
+  RecurrencePattern as PrismaRecurrencePattern,
+  TaskStatus as PrismaTaskStatus,
   ThemePreference as PrismaThemePreference,
 } from "@prisma/client";
 import { addDays, subDays } from "date-fns";
@@ -14,6 +15,7 @@ import {
   themePreferenceDbMap,
   themePreferenceUiMap,
   type ItemPriority,
+  type RecurrencePattern,
   type TaskStatus,
   type ThemePreference,
 } from "@/lib/domain";
@@ -114,6 +116,7 @@ export type SerializedTask = {
   dueDate: string | null;
   completedAt: string | null;
   archivedAt: string | null;
+  recurrence: RecurrencePattern;
   subtasks: SerializedSubtask[];
 };
 
@@ -218,6 +221,7 @@ function serializeTask(task: DbTask): SerializedTask {
     dueDate: task.dueDate?.toISOString() ?? null,
     completedAt: task.completedAt?.toISOString() ?? null,
     archivedAt: task.archivedAt?.toISOString() ?? null,
+    recurrence: task.recurrence as RecurrencePattern,
     subtasks: task.subtasks.map((subtask) => ({
       id: subtask.id,
       title: subtask.title,
@@ -707,6 +711,7 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
           description: input.description,
           status: input.status as PrismaTaskStatus,
           priority: input.priority as PrismaItemPriority,
+          recurrence: input.recurrence as PrismaRecurrencePattern,
           sortOrder,
           dueDate: parseDueDate(input.dueDate),
           completedAt,
@@ -769,6 +774,7 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
           status: nextStatus,
           sortOrder,
           priority: input.priority as PrismaItemPriority,
+          recurrence: input.recurrence as PrismaRecurrencePattern,
           dueDate: parseDueDate(input.dueDate),
           completedAt,
           archivedAt,

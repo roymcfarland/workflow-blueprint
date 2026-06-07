@@ -17,6 +17,7 @@ import {
   reorderDashboardInProgressForUser,
   reorderTasksForUser,
   revokeApiToken,
+  updateTaskForUser,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { starterBoard } from "@/lib/domain";
@@ -102,6 +103,7 @@ describe("src/lib/data.ts", () => {
       description: "",
       dueDate: "2026-05-05",
       priority: "HIGH",
+      recurrence: "NONE",
       status: "IN_PROGRESS",
       subtasks: [
         {
@@ -116,6 +118,7 @@ describe("src/lib/data.ts", () => {
       description: "",
       dueDate: "2026-05-05T00:00:00.000Z",
       priority: "HIGH",
+      recurrence: "NONE",
       sortOrder: 0,
       status: "IN_PROGRESS",
       subtasks: [
@@ -130,6 +133,62 @@ describe("src/lib/data.ts", () => {
     });
     await expect(prisma.task.count()).resolves.toBe(1);
     await expect(prisma.subtask.count()).resolves.toBe(1);
+  });
+
+  test("persists and serializes non-default task recurrence", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "MONTHLY",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Review budget",
+    });
+
+    expect(task.recurrence).toBe("MONTHLY");
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { recurrence: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({ recurrence: "MONTHLY" });
+  });
+
+  test("updates task recurrence", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Refresh roadmap",
+    });
+
+    const updatedTask = await updateTaskForUser(user.id, task.id, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "WEEKLY",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Refresh roadmap",
+    });
+
+    expect(updatedTask.recurrence).toBe("WEEKLY");
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { recurrence: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({ recurrence: "WEEKLY" });
   });
 
   test("rejects creating a board once the user reaches the board cap", async () => {
@@ -172,6 +231,7 @@ describe("src/lib/data.ts", () => {
         description: null,
         dueDate: null,
         priority: "NONE",
+        recurrence: "NONE",
         status: "ON_DECK",
         subtasks: [],
         title: "Task over cap",
@@ -189,6 +249,7 @@ describe("src/lib/data.ts", () => {
         description: null,
         dueDate: null,
         priority: "NONE",
+        recurrence: "NONE",
         status: "ON_DECK",
         subtasks: [],
         title: "Last allowed task",

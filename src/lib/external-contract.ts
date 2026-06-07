@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { boardStatuses, itemPriorities } from "@/lib/domain";
+import { boardStatuses, itemPriorities, recurrencePatterns } from "@/lib/domain";
 
 const isoDateTimeSchema = z.iso.datetime();
 
@@ -30,6 +30,7 @@ const externalTaskSchema = z.object({
   dueDate: isoDateTimeSchema.nullable(),
   completedAt: isoDateTimeSchema.nullable(),
   archivedAt: isoDateTimeSchema.nullable(),
+  recurrence: z.enum(recurrencePatterns),
   subtasks: z.array(externalSubtaskSchema),
 });
 

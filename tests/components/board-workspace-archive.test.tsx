@@ -60,6 +60,7 @@ function task(overrides: Partial<SerializedTask>): SerializedTask {
     dueDate: null,
     id: "task-active",
     priority: "NONE",
+    recurrence: "NONE",
     sortOrder: 0,
     status: "ON_DECK",
     subtasks: [],

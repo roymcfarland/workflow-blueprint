@@ -20,6 +20,26 @@ export const priorityLabels: Record<ItemPriority, string> = {
   URGENT: "Urgent",
 };
 
+export const recurrencePatterns = [
+  "NONE",
+  "DAILY",
+  "WEEKLY",
+  "MONTHLY",
+  "SEMI_ANNUALLY",
+  "ANNUALLY",
+] as const;
+
+export type RecurrencePattern = (typeof recurrencePatterns)[number];
+
+export const recurrenceLabels: Record<RecurrencePattern, string> = {
+  NONE: "Does not repeat",
+  DAILY: "Daily",
+  WEEKLY: "Weekly",
+  MONTHLY: "Monthly",
+  SEMI_ANNUALLY: "Every 6 months",
+  ANNUALLY: "Annually",
+};
+
 export const statusLabels: Record<TaskStatus, string> = {
   ICE_BOX: "Backlog",
   ON_DECK: "Up Next",

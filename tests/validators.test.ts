@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   adminApiTokenSchema,
   dashboardReorderSchema,
+  taskInputSchema,
   taskReorderSchema,
 } from "@/lib/validators";
 
@@ -19,6 +20,37 @@ describe("src/lib/validators.ts", () => {
     expect(result.data.label).toBe("External Consumer");
     expect(adminApiTokenSchema.safeParse({ label: "   " }).success).toBe(false);
     expect(adminApiTokenSchema.safeParse({ label: "a".repeat(81) }).success).toBe(false);
+  });
+
+  test("defaults task recurrence to none", () => {
+    const result = taskInputSchema.safeParse({
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Follow up",
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error("Expected valid task payload.");
+    }
+    expect(result.data.recurrence).toBe("NONE");
+  });
+
+  test("validates task recurrence values", () => {
+    const taskPayload = {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Check cadence",
+    };
+
+    expect(taskInputSchema.safeParse({ ...taskPayload, recurrence: "WEEKLY" }).success).toBe(true);
+    expect(taskInputSchema.safeParse({ ...taskPayload, recurrence: "HOURLY" }).success).toBe(false);
   });
 
   test("rejects duplicate task ids in reorder payloads", () => {
