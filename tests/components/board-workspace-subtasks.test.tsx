@@ -344,4 +344,25 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(init.method).toBe("PATCH");
     expect(requestJsonBody(init)?.priority).toBe("URGENT");
   });
+
+  test("editing recurrence in the detail modal patches the task", async () => {
+    const initialTask = task();
+    const updatedTask = task({ recurrence: "WEEKLY" });
+
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Task recurrence" }), {
+      target: { value: "WEEKLY" },
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active");
+    expect(init.method).toBe("PATCH");
+    expect(requestJsonBody(init)?.recurrence).toBe("WEEKLY");
+  });
 });

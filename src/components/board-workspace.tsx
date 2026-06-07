@@ -35,6 +35,7 @@ import {
   PanelRightOpen,
   Pencil,
   Plus,
+  Repeat,
   Sparkles,
   Trash2,
   X,
@@ -60,8 +61,11 @@ import {
   boardStatuses,
   itemPriorities,
   priorityLabels,
+  recurrenceLabels,
+  recurrencePatterns,
   statusLabels,
   type ItemPriority,
+  type RecurrencePattern,
   type TaskStatus,
 } from "@/lib/domain";
 import {
@@ -367,6 +371,12 @@ function TaskMeta({ task }: { task: SerializedTask }) {
         >
           <CalendarDays className="h-3.5 w-3.5" />
           {formatShortDate(task.dueDate)}
+        </span>
+      ) : null}
+      {task.recurrence !== "NONE" ? (
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-line-soft bg-surface-control px-2 py-1">
+          <Repeat className="h-3.5 w-3.5" />
+          {recurrenceLabels[task.recurrence]}
         </span>
       ) : null}
     </div>
@@ -2083,6 +2093,7 @@ function TaskDetailModal({
   onDelete: (taskId: string) => Promise<void>;
 }) {
   const [priority, setPriority] = useState<ItemPriority>(task?.priority ?? "NONE");
+  const [recurrence, setRecurrence] = useState<RecurrencePattern>(task?.recurrence ?? "NONE");
   const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [saving, setSaving] = useState(false);
@@ -2108,6 +2119,7 @@ function TaskDetailModal({
 
       setPriority(nextPriority);
       setDueDate(nextDueDate);
+      setRecurrence(task.recurrence);
       setDescription(nextDescription);
       setError(null);
     });
@@ -2223,6 +2235,27 @@ function TaskDetailModal({
               type="date"
               value={dueDate}
             />
+          </label>
+
+          <label className="space-y-1 text-xs font-semibold text-text-muted">
+            <span>Repeat</span>
+            <select
+              aria-label="Task recurrence"
+              className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={saving}
+              onChange={(event) => {
+                const next = event.target.value as RecurrencePattern;
+                setRecurrence(next);
+                void saveField({ recurrence: next });
+              }}
+              value={recurrence}
+            >
+              {recurrencePatterns.map((option) => (
+                <option key={option} value={option}>
+                  {recurrenceLabels[option]}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 
