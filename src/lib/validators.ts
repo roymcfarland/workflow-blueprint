@@ -1,6 +1,7 @@
 import {
-  boardStatuses,
+  boardAccentPalette,
   boardIconKeys,
+  boardStatuses,
   itemPriorities,
   recurrencePatterns,
   themePreferences,
@@ -299,6 +300,7 @@ export const createBoardSchema = z.object({
     .min(1, "Board name is required.")
     .max(60, "Board names should stay under 60 characters."),
   iconKey: z.enum(boardIconKeys as unknown as [string, ...string[]]).default("briefcase"),
+  accentColor: z.enum(boardAccentPalette as unknown as [string, ...string[]]).optional(),
   description: z
     .string()
     .trim()
@@ -316,6 +318,7 @@ export const updateBoardSchema = z.object({
     .max(60, "Board names should stay under 60 characters.")
     .optional(),
   iconKey: z.enum(boardIconKeys as unknown as [string, ...string[]]).optional(),
+  accentColor: z.enum(boardAccentPalette as unknown as [string, ...string[]]).optional(),
   description: z
     .string()
     .trim()

@@ -12,12 +12,14 @@ import {
   createBoardForUser,
   createTaskForBoard,
   getDashboardSnapshot,
+  getShellSnapshot,
   listApiTokens,
   markTaskDoneForUser,
   MAX_BOARDS_PER_USER,
   MAX_TASKS_PER_BOARD,
   reorderDashboardInProgressForUser,
   reorderTasksForUser,
+  updateBoardForUser,
   revokeApiToken,
   updateTaskForUser,
 } from "@/lib/data";
@@ -243,6 +245,43 @@ describe("src/lib/data.ts", () => {
       iconKey: starterBoard.iconKey,
       name: "Last allowed board",
       slug: "last-allowed-board",
+    });
+  });
+
+  test("persists board accent colors through create, update, and shell snapshot", async () => {
+    const user = await createTestUser();
+
+    const board = await createBoardForUser(user.id, {
+      accentColor: "#4f78e6",
+      description: null,
+      iconKey: starterBoard.iconKey,
+      name: "Accent Lab",
+    });
+
+    expect(board).toMatchObject({
+      accentColor: "#4f78e6",
+      slug: "accent-lab",
+    });
+    await expect(
+      prisma.board.findUniqueOrThrow({
+        select: { accentColor: true },
+        where: { userId_slug: { userId: user.id, slug: board.slug } },
+      }),
+    ).resolves.toEqual({ accentColor: "#4f78e6" });
+
+    const { updated } = await updateBoardForUser(user.id, board.slug, {
+      accentColor: "#2f9f85",
+      description: null,
+    });
+
+    expect(updated.accentColor).toBe("#2f9f85");
+    await expect(getShellSnapshot(user.id)).resolves.toMatchObject({
+      boards: [
+        {
+          accentColor: "#2f9f85",
+          slug: board.slug,
+        },
+      ],
     });
   });
 

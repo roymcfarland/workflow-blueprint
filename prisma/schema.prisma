@@ -68,6 +68,7 @@ model Board {
   slug        String
   description String?
   iconKey     String
+  accentColor String?
   sortOrder   Int
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt

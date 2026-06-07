@@ -2,9 +2,11 @@ import { describe, expect, test } from "vitest";
 
 import {
   adminApiTokenSchema,
+  createBoardSchema,
   dashboardReorderSchema,
   taskInputSchema,
   taskReorderSchema,
+  updateBoardSchema,
 } from "@/lib/validators";
 
 describe("src/lib/validators.ts", () => {
@@ -83,6 +85,22 @@ describe("src/lib/validators.ts", () => {
       true,
     );
     expect(dashboardReorderSchema.safeParse({ taskIds: [] }).success).toBe(false);
+  });
+
+  test("validates board accent colors against the preset palette", () => {
+    const createPayload = {
+      accentColor: "#4f78e6",
+      description: null,
+      iconKey: "briefcase",
+      name: "Launch Board",
+    };
+
+    expect(createBoardSchema.safeParse(createPayload).success).toBe(true);
+    expect(updateBoardSchema.safeParse({ accentColor: "#4f78e6" }).success).toBe(true);
+    expect(createBoardSchema.safeParse({ ...createPayload, accentColor: "#123456" }).success).toBe(
+      false,
+    );
+    expect(updateBoardSchema.safeParse({ accentColor: "red" }).success).toBe(false);
   });
 
   test("rejects duplicate task ids in dashboard reorder payloads", () => {

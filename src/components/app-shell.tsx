@@ -137,7 +137,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const navItems: SidebarNavItem[] = [
     { href: "/dashboard", iconKey: "dashboard", kind: "dashboard", label: "Dashboard" },
     ...boards.map((board) => ({
-      accentColor: getBoardAccentColor(board.slug),
+      accentColor: board.accentColor ?? getBoardAccentColor(board.slug),
       href: `/boards/${board.slug}`,
       iconKey: board.iconKey,
       kind: "board" as const,

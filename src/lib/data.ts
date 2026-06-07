@@ -88,6 +88,7 @@ export type BoardNavItem = {
   slug: string;
   name: string;
   iconKey: string;
+  accentColor?: string | null;
 };
 
 export type BoardSummary = {
@@ -455,6 +456,7 @@ export async function getShellSnapshot(userId: string) {
         slug: true,
         name: true,
         iconKey: true,
+        accentColor: true,
       },
     }),
   ]);
@@ -1335,12 +1337,14 @@ export async function createBoardForUser(userId: string, input: CreateBoardInput
       slug,
       description: input.description ?? null,
       iconKey: input.iconKey,
+      accentColor: input.accentColor ?? null,
       sortOrder: (maxSort?.sortOrder ?? -1) + 1,
     },
     select: {
       slug: true,
       name: true,
       iconKey: true,
+      accentColor: true,
     },
   });
 
@@ -1372,12 +1376,14 @@ export async function updateBoardForUser(userId: string, currentSlug: string, in
     data: {
       ...(input.name !== undefined ? { name: input.name, slug: newSlug } : {}),
       ...(input.iconKey !== undefined ? { iconKey: input.iconKey } : {}),
+      ...(input.accentColor !== undefined ? { accentColor: input.accentColor } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
     },
     select: {
       slug: true,
       name: true,
       iconKey: true,
+      accentColor: true,
     },
   });
 
