@@ -315,6 +315,7 @@ function taskToInput(task: SerializedTask, title = task.title): TaskInput {
     status: task.status,
     dueDate: task.dueDate ? task.dueDate.slice(0, 10) : null,
     priority: task.priority,
+    recurrence: task.recurrence,
     subtasks: task.subtasks.map((subtask) => ({
       id: subtask.id,
       title: subtask.title,
@@ -2493,7 +2494,15 @@ export function BoardWorkspace({
 
   async function handleQuickCreateTask(title: string, status: TaskStatus) {
     await handleSaveTask(
-      { title, description: null, status, dueDate: null, priority: "NONE", subtasks: [] },
+      {
+        title,
+        description: null,
+        status,
+        dueDate: null,
+        priority: "NONE",
+        recurrence: "NONE",
+        subtasks: [],
+      },
       undefined,
     );
   }

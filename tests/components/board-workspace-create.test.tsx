@@ -74,6 +74,7 @@ function createdTask(): SerializedTask {
     dueDate: null,
     id: "task-new",
     priority: "NONE",
+    recurrence: "NONE",
     sortOrder: 0,
     status: "ON_DECK",
     subtasks: [],
@@ -146,6 +147,7 @@ describe("BoardWorkspace quick-add", () => {
       status: "ON_DECK",
       dueDate: null,
       priority: "NONE",
+      recurrence: "NONE",
       subtasks: [],
     });
     await waitFor(() =>

@@ -1,4 +1,10 @@
-import { boardStatuses, boardIconKeys, itemPriorities, themePreferences } from "@/lib/domain";
+import {
+  boardStatuses,
+  boardIconKeys,
+  itemPriorities,
+  recurrencePatterns,
+  themePreferences,
+} from "@/lib/domain";
 import { z } from "zod";
 
 function isValidDateOnly(value: string) {
@@ -123,6 +129,7 @@ export const taskInputSchema = z
       message: "Enter a valid due date.",
     })),
     priority: z.enum(itemPriorities).default("NONE"),
+    recurrence: z.enum(recurrencePatterns).default("NONE"),
     subtasks: z.array(subtaskSchema).max(50, "Tasks can include up to 50 subtasks.").default([]),
   })
   .superRefine((value, context) => {

@@ -29,6 +29,15 @@ enum ItemPriority {
   URGENT
 }
 
+enum RecurrencePattern {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  SEMI_ANNUALLY
+  ANNUALLY
+}
+
 enum UserRole {
   USER
   ADMIN
@@ -76,6 +85,7 @@ model Task {
   description String?
   status      TaskStatus
   priority    ItemPriority  @default(NONE)
+  recurrence  RecurrencePattern @default(NONE)
   sortOrder   Int
   dashboardSortOrder Int?
   dueDate     DateTime?
