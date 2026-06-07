@@ -1,7 +1,9 @@
 import {
   ItemPriority as PrismaItemPriority,
+  RecurrencePattern as PrismaRecurrencePattern,
   TaskStatus as PrismaTaskStatus,
 } from "@prisma/client";
+import { addMonths } from "date-fns";
 import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, test, beforeEach } from "vitest";
 
@@ -52,6 +54,29 @@ function taskRows(boardId: string, count: number) {
     status: PrismaTaskStatus.ON_DECK,
     title: `Task ${index}`,
   }));
+}
+
+const taskSubtasksInclude = {
+  subtasks: {
+    orderBy: {
+      sortOrder: "asc" as const,
+    },
+  },
+};
+
+function boardTasksWithSubtasks(boardId: string) {
+  return prisma.task.findMany({
+    where: { boardId },
+    include: taskSubtasksInclude,
+    orderBy: [
+      {
+        createdAt: "asc",
+      },
+      {
+        id: "asc",
+      },
+    ],
+  });
 }
 
 function createDataTask({
@@ -624,6 +649,236 @@ describe("src/lib/data.ts", () => {
     await expect(getDashboardSnapshot(user.id)).resolves.toMatchObject({
       inProgressTasks: [],
     });
+  });
+
+  test("markTaskDoneForUser spawns the next recurring occurrence", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: "Keep cadence visible",
+      dueDate: "2026-05-05",
+      priority: "HIGH",
+      recurrence: "WEEKLY",
+      status: "IN_PROGRESS",
+      subtasks: [
+        {
+          isComplete: false,
+          title: "Draft notes",
+        },
+        {
+          isComplete: true,
+          title: "Review last week",
+        },
+      ],
+      title: "Weekly review",
+    });
+
+    const completedTask = await markTaskDoneForUser(user.id, task.id);
+
+    expect(completedTask).toMatchObject({
+      status: PrismaTaskStatus.DONE,
+      title: "Weekly review",
+    });
+
+    const tasks = await boardTasksWithSubtasks(board.id);
+    const original = tasks.find((row) => row.id === task.id);
+    const nextOccurrence = tasks.find((row) => row.id !== task.id);
+
+    expect(tasks).toHaveLength(2);
+    expect(original).toMatchObject({
+      completedAt: expect.any(Date),
+      status: PrismaTaskStatus.DONE,
+    });
+    expect(nextOccurrence).toMatchObject({
+      archivedAt: null,
+      boardId: board.id,
+      completedAt: null,
+      description: "Keep cadence visible",
+      priority: PrismaItemPriority.HIGH,
+      recurrence: PrismaRecurrencePattern.WEEKLY,
+      sortOrder: 0,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Weekly review",
+    });
+    expect(nextOccurrence?.dueDate?.toISOString()).toBe("2026-05-12T00:00:00.000Z");
+    expect(
+      nextOccurrence?.subtasks.map((subtask) => ({
+        isComplete: subtask.isComplete,
+        sortOrder: subtask.sortOrder,
+        title: subtask.title,
+      })),
+    ).toEqual([
+      {
+        isComplete: false,
+        sortOrder: 0,
+        title: "Draft notes",
+      },
+      {
+        isComplete: false,
+        sortOrder: 1,
+        title: "Review last week",
+      },
+    ]);
+    expect(
+      nextOccurrence?.subtasks.some((subtask) =>
+        task.subtasks.some((sourceSubtask) => sourceSubtask.id === subtask.id),
+      ),
+    ).toBe(false);
+  });
+
+  test("markTaskDoneForUser does not spawn a non-recurring task", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: "2026-05-05",
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "IN_PROGRESS",
+      subtasks: [],
+      title: "One-time task",
+    });
+
+    await markTaskDoneForUser(user.id, task.id);
+
+    await expect(prisma.task.count({ where: { boardId: board.id } })).resolves.toBe(1);
+  });
+
+  test("markTaskDoneForUser does not double-spawn an already-done recurring task", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: "2026-05-05",
+      priority: "NONE",
+      recurrence: "DAILY",
+      status: "IN_PROGRESS",
+      subtasks: [],
+      title: "Daily check-in",
+    });
+
+    await markTaskDoneForUser(user.id, task.id);
+    await expect(prisma.task.count({ where: { boardId: board.id } })).resolves.toBe(2);
+
+    await markTaskDoneForUser(user.id, task.id);
+
+    await expect(prisma.task.count({ where: { boardId: board.id } })).resolves.toBe(2);
+  });
+
+  test("updateTaskForUser spawns once when a recurring task transitions to done", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: "Original description",
+      dueDate: "2026-06-10",
+      priority: "LOW",
+      recurrence: "WEEKLY",
+      status: "ON_DECK",
+      subtasks: [
+        {
+          isComplete: false,
+          title: "Original step",
+        },
+      ],
+      title: "Refresh runbook",
+    });
+
+    const updatedTask = await updateTaskForUser(user.id, task.id, {
+      description: "Updated description",
+      dueDate: "2026-06-10",
+      priority: "MEDIUM",
+      recurrence: "WEEKLY",
+      status: "DONE",
+      subtasks: [
+        {
+          id: task.subtasks[0]?.id,
+          isComplete: true,
+          title: "Updated step",
+        },
+      ],
+      title: "Updated runbook",
+    });
+
+    expect(updatedTask.status).toBe("DONE");
+
+    const tasks = await boardTasksWithSubtasks(board.id);
+    const nextOccurrence = tasks.find((row) => row.id !== task.id);
+
+    expect(tasks).toHaveLength(2);
+    expect(nextOccurrence).toMatchObject({
+      archivedAt: null,
+      boardId: board.id,
+      completedAt: null,
+      description: "Updated description",
+      priority: PrismaItemPriority.MEDIUM,
+      recurrence: PrismaRecurrencePattern.WEEKLY,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Updated runbook",
+    });
+    expect(nextOccurrence?.dueDate?.toISOString()).toBe("2026-06-17T00:00:00.000Z");
+    expect(
+      nextOccurrence?.subtasks.map((subtask) => ({
+        isComplete: subtask.isComplete,
+        sortOrder: subtask.sortOrder,
+        title: subtask.title,
+      })),
+    ).toEqual([
+      {
+        isComplete: false,
+        sortOrder: 0,
+        title: "Updated step",
+      },
+    ]);
+
+    await updateTaskForUser(user.id, task.id, {
+      description: updatedTask.description,
+      dueDate: updatedTask.dueDate?.slice(0, 10) ?? null,
+      priority: updatedTask.priority,
+      recurrence: updatedTask.recurrence,
+      status: "DONE",
+      subtasks: updatedTask.subtasks.map((subtask) => ({
+        id: subtask.id,
+        isComplete: subtask.isComplete,
+        title: subtask.title,
+      })),
+      title: updatedTask.title,
+    });
+
+    await expect(prisma.task.count({ where: { boardId: board.id } })).resolves.toBe(2);
+  });
+
+  test("recurring tasks without due dates anchor the next occurrence to completion time", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "MONTHLY",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Monthly closeout",
+    });
+
+    await markTaskDoneForUser(user.id, task.id);
+
+    const tasks = await boardTasksWithSubtasks(board.id);
+    const original = tasks.find((row) => row.id === task.id);
+    const nextOccurrence = tasks.find((row) => row.id !== task.id);
+
+    expect(original?.completedAt).toBeInstanceOf(Date);
+    expect(nextOccurrence?.dueDate).toBeInstanceOf(Date);
+    if (!original?.completedAt || !nextOccurrence?.dueDate) {
+      throw new Error("Expected a completed source task and next occurrence due date.");
+    }
+    expect(
+      Math.abs(nextOccurrence.dueDate.getTime() - addMonths(original.completedAt, 1).getTime()),
+    ).toBeLessThan(1000);
   });
 
   test("rejects marking another user's task done", async () => {
