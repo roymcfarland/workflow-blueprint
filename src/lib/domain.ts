@@ -105,6 +105,21 @@ const boardAccentColors: Record<string, string> = {
 
 export const fallbackBoardAccentColor = "#5ab7b9";
 
+export const boardAccentPalette = [
+  "#4f78e6",
+  "#2f9f85",
+  "#c94f7c",
+  "#5ab7b9",
+  "#df7d22",
+  "#9b6bd6",
+  "#d4495a",
+  "#3aa0d6",
+  "#e0a93b",
+  "#64748b",
+] as const;
+
+export type BoardAccentColor = (typeof boardAccentPalette)[number];
+
 export function getBoardAccentColor(slug: string) {
   return boardAccentColors[slug] ?? fallbackBoardAccentColor;
 }
