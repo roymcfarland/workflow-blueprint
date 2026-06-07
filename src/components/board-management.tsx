@@ -7,7 +7,7 @@ import { useState, useTransition } from "react";
 import { BoardIcon } from "@/components/board-icon";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
-import { availableBoardIcons } from "@/lib/domain";
+import { availableBoardIcons, boardAccentPalette } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
 type CreateBoardFormProps = {
@@ -18,6 +18,7 @@ type CreateBoardFormProps = {
 function CreateBoardForm({ onClose, onCreated }: CreateBoardFormProps) {
   const [name, setName] = useState("");
   const [iconKey, setIconKey] = useState("briefcase");
+  const [accentColor, setAccentColor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -29,7 +30,7 @@ function CreateBoardForm({ onClose, onCreated }: CreateBoardFormProps) {
       const response = await fetch("/api/boards/manage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, iconKey }),
+        body: JSON.stringify({ name, iconKey, ...(accentColor ? { accentColor } : {}) }),
       });
 
       const data = await response.json();
@@ -68,6 +69,25 @@ function CreateBoardForm({ onClose, onCreated }: CreateBoardFormProps) {
           >
             <BoardIcon className="h-4 w-4" iconKey={icon.key} />
           </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {boardAccentPalette.map((color) => (
+          <button
+            aria-label={`Accent color ${color}`}
+            aria-pressed={accentColor === color}
+            className={cn(
+              "h-7 w-7 rounded-full border-2 transition",
+              accentColor === color
+                ? "border-text-primary"
+                : "border-transparent hover:border-line-strong",
+            )}
+            key={color}
+            onClick={() => setAccentColor(color)}
+            style={{ backgroundColor: color }}
+            title={color}
+            type="button"
+          />
         ))}
       </div>
       {error ? <p className="text-xs font-medium text-danger">{error}</p> : null}
