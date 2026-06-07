@@ -81,3 +81,50 @@ export function readNotesOpen(boardSlug: string): boolean | null {
 export function writeNotesOpen(boardSlug: string, value: boolean): void {
   writePreference(boardSlug, "notesOpen", String(value));
 }
+
+const DASHBOARD_PREF_NAMESPACE = "wb.dashboard" as const;
+const DASHBOARD_SECTION_ORDER_KEY = `${DASHBOARD_PREF_NAMESPACE}.section-order`;
+
+export type DashboardSectionId = "snapshot" | "in-progress";
+export const DASHBOARD_SECTION_ORDER_DEFAULT: DashboardSectionId[] = [
+  "snapshot",
+  "in-progress",
+];
+
+const isDashboardSectionId = (value: unknown): value is DashboardSectionId =>
+  value === "snapshot" || value === "in-progress";
+
+export function readDashboardSectionOrder(): DashboardSectionId[] | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_SECTION_ORDER_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+
+    const unique = Array.from(new Set(parsed.filter(isDashboardSectionId)));
+    return unique.length === DASHBOARD_SECTION_ORDER_DEFAULT.length ? unique : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeDashboardSectionOrder(order: DashboardSectionId[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(DASHBOARD_SECTION_ORDER_KEY, JSON.stringify(order));
+  } catch {
+    // Persistence is a progressive enhancement.
+  }
+}

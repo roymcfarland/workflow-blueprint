@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   closestCenter,
   DndContext,
@@ -16,6 +16,7 @@ import {
 import {
   SortableContext,
   arrayMove,
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
@@ -38,6 +39,12 @@ import { BoardIcon } from "@/components/board-icon";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
+import {
+  DASHBOARD_SECTION_ORDER_DEFAULT,
+  readDashboardSectionOrder,
+  writeDashboardSectionOrder,
+  type DashboardSectionId,
+} from "@/lib/board-preferences";
 import type { DashboardSnapshot, DashboardTaskSummary } from "@/lib/data";
 import { getBoardAccentColor } from "@/lib/domain";
 import { cn } from "@/lib/utils";
@@ -135,7 +142,167 @@ function NewTaskMenu({ boards }: { boards: DashboardSnapshot["boardBreakdown"] }
   );
 }
 
-function InProgressPanel({ tasks }: { tasks: DashboardTaskSummary[] }) {
+function SnapshotPanel({
+  data,
+  dragHandle,
+}: {
+  data: DashboardSnapshot;
+  dragHandle?: ReactNode;
+}) {
+  const totalTasks = data.boardBreakdown.reduce((sum, segment) => sum + segment.totalTasks, 0);
+  const chartSegments = getChartSegments(data.boardBreakdown, totalTasks);
+  const completionTooltip = "Done ÷ (Up Next + In Progress + Done)";
+
+  return (
+    <BlueprintCard className="p-5 lg:p-6" surface="flat">
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {dragHandle}
+              <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
+                Snapshot
+              </h2>
+            </div>
+            <p className="blueprint-eyebrow">% of total tasks</p>
+          </div>
+
+          <div className="grid items-center gap-5 sm:grid-cols-[auto_minmax(0,1fr)]">
+            <div className="mx-auto flex aspect-square w-44 items-center justify-center sm:w-52">
+              <svg
+                aria-label="Task breakdown by board"
+                className="h-full w-full"
+                role="img"
+                viewBox="0 0 320 320"
+              >
+                <circle
+                  cx={chartCenter}
+                  cy={chartCenter}
+                  fill="none"
+                  r={chartRadius}
+                  stroke="var(--brand-soft)"
+                  strokeWidth={chartStrokeWidth}
+                />
+                {chartSegments.map((segment) => (
+                  <circle
+                    cx={chartCenter}
+                    cy={chartCenter}
+                    fill="none"
+                    key={segment.slug}
+                    r={chartRadius}
+                    stroke={segment.color}
+                    strokeDasharray={segment.dashArray}
+                    strokeDashoffset={segment.dashOffset}
+                    strokeWidth={chartStrokeWidth}
+                    transform={`rotate(-90 ${chartCenter} ${chartCenter})`}
+                  />
+                ))}
+                <text
+                  fill="var(--text-primary)"
+                  fontSize="58"
+                  fontWeight="700"
+                  textAnchor="middle"
+                  x={chartCenter}
+                  y={chartCenter + 4}
+                >
+                  {data.totalTaskCount}
+                </text>
+                <text
+                  fill="var(--text-muted)"
+                  fontSize="16"
+                  fontWeight="700"
+                  textAnchor="middle"
+                  x={chartCenter}
+                  y={chartCenter + 32}
+                >
+                  TASKS
+                </text>
+              </svg>
+            </div>
+
+            <div className="space-y-2">
+              {data.boardBreakdown.map((segment) => (
+                <Link
+                  className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2 text-text-primary transition hover:border-line-strong hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                  href={`/boards/${segment.slug}`}
+                  key={segment.slug}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: getBoardAccentColor(segment.slug) }}
+                    />
+                    <p className="truncate text-sm font-semibold">{segment.name}</p>
+                  </div>
+                  <p className="shrink-0 text-xs font-semibold text-text-muted">
+                    {segment.percentage}% · {segment.totalTasks}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 border-t border-line-soft pt-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
+              Completion rate
+            </h2>
+            <span className="blueprint-eyebrow cursor-help" title={completionTooltip}>
+              formula
+            </span>
+          </div>
+          <p className="text-base text-text-muted">
+            Share of active work that&apos;s done. Active = Up Next + In Progress + Done.
+          </p>
+          <p className="text-5xl font-semibold leading-none text-text-primary sm:text-6xl">
+            {data.completionRate}%
+          </p>
+          <div className="space-y-2">
+            <div className="h-3 overflow-hidden rounded-full border border-line-strong bg-surface-control">
+              <div
+                className="blueprint-fill-flat h-full rounded-full"
+                style={{ width: `${data.completionRate}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs font-semibold text-text-muted">
+              <span>{data.doneCount} done</span>
+              <span>{data.activeTaskCount} active</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="rounded-lg border border-line-soft bg-surface-control p-3">
+              <div className="flex items-center gap-2 text-text-muted">
+                <ClipboardList className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold">In progress</span>
+              </div>
+              <p className="text-2xl font-semibold leading-tight text-text-primary">
+                {data.inProgressCount}
+              </p>
+            </div>
+            <div className="rounded-lg border border-line-soft bg-surface-control p-3">
+              <div className="flex items-center gap-2 text-text-muted">
+                <CheckCheck className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold">Closed (7d)</span>
+              </div>
+              <p className="text-2xl font-semibold leading-tight text-text-primary">
+                {data.closedLastSevenDays}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </BlueprintCard>
+  );
+}
+
+function InProgressPanel({
+  tasks,
+  dragHandle,
+}: {
+  tasks: DashboardTaskSummary[];
+  dragHandle?: ReactNode;
+}) {
   const router = useRouter();
   const [items, setItems] = useState(tasks);
   const [pending, setPending] = useState(false);
@@ -214,7 +381,12 @@ function InProgressPanel({ tasks }: { tasks: DashboardTaskSummary[] }) {
     <BlueprintCard className="p-5 lg:p-6" surface="flat">
       <div className="space-y-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">In progress</h2>
+          <div className="flex items-center gap-2">
+            {dragHandle}
+            <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
+              In progress
+            </h2>
+          </div>
           <ClipboardList className="h-5 w-5 text-text-muted" />
         </div>
 
@@ -546,12 +718,118 @@ function SortableDashboardSubtaskRow({
   );
 }
 
-export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
-  const totalTasks = data.boardBreakdown.reduce((sum, segment) => sum + segment.totalTasks, 0);
-  const chartSegments = getChartSegments(data.boardBreakdown, totalTasks);
-  const isEmpty = data.totalTaskCount === 0;
-  const completionTooltip = "Done ÷ (Up Next + In Progress + Done)";
+function SortableSection({
+  id,
+  label,
+  children,
+}: {
+  id: DashboardSectionId;
+  label: string;
+  children: (dragHandle: ReactNode) => ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const dragHandle = (
+    <button
+      aria-label={`Reorder ${label} section`}
+      className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
+      ref={setActivatorNodeRef}
+      type="button"
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical className="h-4 w-4" />
+    </button>
+  );
+
+  return (
+    <div
+      className={cn(isDragging && "opacity-60")}
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      {children(dragHandle)}
+    </div>
+  );
+}
+
+function DashboardSections({ data }: { data: DashboardSnapshot }) {
+  const [order, setOrder] = useState<DashboardSectionId[]>(DASHBOARD_SECTION_ORDER_DEFAULT);
   const inProgressPanelKey = getTaskListKey(data.inProgressTasks);
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  useEffect(() => {
+    const stored = readDashboardSectionOrder();
+    if (!stored) {
+      return;
+    }
+
+    queueMicrotask(() => setOrder(stored));
+  }, []);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = order.indexOf(active.id as DashboardSectionId);
+    const newIndex = order.indexOf(over.id as DashboardSectionId);
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+
+    const next = arrayMove(order, oldIndex, newIndex);
+    setOrder(next);
+    writeDashboardSectionOrder(next);
+  }
+
+  return (
+    <DndContext
+      collisionDetection={closestCenter}
+      id="dashboard-sections"
+      onDragEnd={handleDragEnd}
+      sensors={sensors}
+    >
+      <SortableContext items={order} strategy={rectSortingStrategy}>
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          {order.map((id) =>
+            id === "snapshot" ? (
+              <SortableSection id="snapshot" key="snapshot" label="Snapshot">
+                {(handle) => <SnapshotPanel data={data} dragHandle={handle} />}
+              </SortableSection>
+            ) : (
+              <SortableSection id="in-progress" key="in-progress" label="In progress">
+                {(handle) => (
+                  <InProgressPanel
+                    dragHandle={handle}
+                    key={inProgressPanelKey}
+                    tasks={data.inProgressTasks}
+                  />
+                )}
+              </SortableSection>
+            ),
+          )}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
+  const isEmpty = data.totalTaskCount === 0;
 
   return (
     <div className="fade-up space-y-6">
@@ -580,150 +858,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
           </div>
         </BlueprintCard>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          {/* Snapshot: donut + completion in a single panel. */}
-          <BlueprintCard className="p-5 lg:p-6" surface="flat">
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-baseline justify-between gap-3">
-                  <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
-                    Snapshot
-                  </h2>
-                  <p className="blueprint-eyebrow">% of total tasks</p>
-                </div>
-
-                <div className="grid items-center gap-5 sm:grid-cols-[auto_minmax(0,1fr)]">
-                  <div className="mx-auto flex aspect-square w-44 items-center justify-center sm:w-52">
-                    <svg
-                      aria-label="Task breakdown by board"
-                      className="h-full w-full"
-                      role="img"
-                      viewBox="0 0 320 320"
-                    >
-                      <circle
-                        cx={chartCenter}
-                        cy={chartCenter}
-                        fill="none"
-                        r={chartRadius}
-                        stroke="var(--brand-soft)"
-                        strokeWidth={chartStrokeWidth}
-                      />
-                      {chartSegments.map((segment) => (
-                        <circle
-                          cx={chartCenter}
-                          cy={chartCenter}
-                          fill="none"
-                          key={segment.slug}
-                          r={chartRadius}
-                          stroke={segment.color}
-                          strokeDasharray={segment.dashArray}
-                          strokeDashoffset={segment.dashOffset}
-                          strokeWidth={chartStrokeWidth}
-                          transform={`rotate(-90 ${chartCenter} ${chartCenter})`}
-                        />
-                      ))}
-                      <text
-                        fill="var(--text-primary)"
-                        fontSize="58"
-                        fontWeight="700"
-                        textAnchor="middle"
-                        x={chartCenter}
-                        y={chartCenter + 4}
-                      >
-                        {data.totalTaskCount}
-                      </text>
-                      <text
-                        fill="var(--text-muted)"
-                        fontSize="16"
-                        fontWeight="700"
-                        textAnchor="middle"
-                        x={chartCenter}
-                        y={chartCenter + 32}
-                      >
-                        TASKS
-                      </text>
-                    </svg>
-                  </div>
-
-                  <div className="space-y-2">
-                    {data.boardBreakdown.map((segment) => (
-                      <Link
-                        className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2 text-text-primary transition hover:border-line-strong hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-                        href={`/boards/${segment.slug}`}
-                        key={segment.slug}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span
-                            className="h-3 w-3 shrink-0 rounded-full"
-                            style={{ backgroundColor: getBoardAccentColor(segment.slug) }}
-                          />
-                          <p className="truncate text-sm font-semibold">{segment.name}</p>
-                        </div>
-                        <p className="shrink-0 text-xs font-semibold text-text-muted">
-                          {segment.percentage}% · {segment.totalTasks}
-                        </p>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4 border-t border-line-soft pt-5">
-                <div className="flex items-baseline justify-between gap-3">
-                  <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
-                    Completion rate
-                  </h2>
-                  <span
-                    className="blueprint-eyebrow cursor-help"
-                    title={completionTooltip}
-                  >
-                    formula
-                  </span>
-                </div>
-                <p className="text-base text-text-muted">
-                  Share of active work that&apos;s done. Active = Up Next + In Progress + Done.
-                </p>
-                <p className="text-5xl font-semibold leading-none text-text-primary sm:text-6xl">
-                  {data.completionRate}%
-                </p>
-                <div className="space-y-2">
-                  <div className="h-3 overflow-hidden rounded-full border border-line-strong bg-surface-control">
-                    <div
-                      className="blueprint-fill-flat h-full rounded-full"
-                      style={{ width: `${data.completionRate}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs font-semibold text-text-muted">
-                    <span>{data.doneCount} done</span>
-                    <span>{data.activeTaskCount} active</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <div className="rounded-lg border border-line-soft bg-surface-control p-3">
-                    <div className="flex items-center gap-2 text-text-muted">
-                      <ClipboardList className="h-3.5 w-3.5" />
-                      <span className="text-xs font-semibold">In progress</span>
-                    </div>
-                    <p className="text-2xl font-semibold leading-tight text-text-primary">
-                      {data.inProgressCount}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-line-soft bg-surface-control p-3">
-                    <div className="flex items-center gap-2 text-text-muted">
-                      <CheckCheck className="h-3.5 w-3.5" />
-                      <span className="text-xs font-semibold">Closed (7d)</span>
-                    </div>
-                    <p className="text-2xl font-semibold leading-tight text-text-primary">
-                      {data.closedLastSevenDays}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </BlueprintCard>
-
-          <InProgressPanel key={inProgressPanelKey} tasks={data.inProgressTasks} />
-        </div>
+        <DashboardSections data={data} />
       )}
     </div>
   );

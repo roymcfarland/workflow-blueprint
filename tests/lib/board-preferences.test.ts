@@ -2,12 +2,15 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
   ARCHIVE_MODE_DEFAULT,
+  DASHBOARD_SECTION_ORDER_DEFAULT,
   NOTES_OPEN_DEFAULT,
   VIEW_MODE_DEFAULT,
   readArchiveMode,
+  readDashboardSectionOrder,
   readNotesOpen,
   readViewMode,
   writeArchiveMode,
+  writeDashboardSectionOrder,
   writeNotesOpen,
   writeViewMode,
 } from "@/lib/board-preferences";
@@ -136,5 +139,27 @@ describe("board preferences", () => {
     expect(() => writeArchiveMode("alpha", "on")).not.toThrow();
     expect(() => writeViewMode("alpha", "list")).not.toThrow();
     expect(() => writeNotesOpen("alpha", true)).not.toThrow();
+  });
+
+  test("DASHBOARD_SECTION_ORDER_DEFAULT contains the dashboard sections in default order", () => {
+    expect(DASHBOARD_SECTION_ORDER_DEFAULT).toEqual(["snapshot", "in-progress"]);
+  });
+
+  test("readDashboardSectionOrder returns null when localStorage is empty", () => {
+    expect(readDashboardSectionOrder()).toBeNull();
+  });
+
+  test("readDashboardSectionOrder returns a written dashboard section order", () => {
+    writeDashboardSectionOrder(["in-progress", "snapshot"]);
+
+    expect(readDashboardSectionOrder()).toEqual(["in-progress", "snapshot"]);
+  });
+
+  test("readDashboardSectionOrder returns null for garbage dashboard section values", () => {
+    localStorage.setItem("wb.dashboard.section-order", '["bogus"]');
+    expect(readDashboardSectionOrder()).toBeNull();
+
+    localStorage.setItem("wb.dashboard.section-order", "not json");
+    expect(readDashboardSectionOrder()).toBeNull();
   });
 });
