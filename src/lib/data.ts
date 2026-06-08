@@ -10,6 +10,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import {
+  MAX_CHECKLIST_ITEMS_PER_TASK,
   MAX_LABELS_PER_TASK,
   starterBoard,
   slugify,
@@ -21,6 +22,8 @@ import {
   type ThemePreference,
 } from "@/lib/domain";
 import type {
+  ChecklistCreateInput,
+  ChecklistUpdateInput,
   CreateBoardInput,
   LabelCreateInput,
   ProfileInput,
@@ -37,6 +40,11 @@ export const MAX_BOARDS_PER_USER = 100;
 export const MAX_TASKS_PER_BOARD = 1000;
 
 const taskInclude = {
+  checklist: {
+    orderBy: {
+      sortOrder: "asc" as const,
+    },
+  },
   labels: {
     orderBy: {
       sortOrder: "asc" as const,
@@ -121,6 +129,13 @@ export type SerializedLabel = {
   sortOrder: number;
 };
 
+export type SerializedChecklistItem = {
+  id: string;
+  text: string;
+  isComplete: boolean;
+  sortOrder: number;
+};
+
 export type SerializedTask = {
   id: string;
   title: string;
@@ -134,6 +149,7 @@ export type SerializedTask = {
   recurrence: RecurrencePattern;
   subtasks: SerializedSubtask[];
   labels?: SerializedLabel[];
+  checklist?: SerializedChecklistItem[];
 };
 
 export type BoardSnapshot = {
@@ -253,6 +269,12 @@ function serializeTask(task: DbTask): SerializedTask {
       text: label.text,
       color: label.color,
       sortOrder: label.sortOrder,
+    })),
+    checklist: task.checklist.map((item) => ({
+      id: item.id,
+      text: item.text,
+      isComplete: item.isComplete,
+      sortOrder: item.sortOrder,
     })),
   };
 }
@@ -1087,6 +1109,64 @@ export async function createLabelForTask(
   );
 }
 
+export async function createChecklistItemForTask(
+  userId: string,
+  taskId: string,
+  input: ChecklistCreateInput,
+): Promise<SerializedTask> {
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.findFirst({
+        where: {
+          id: taskId,
+          board: {
+            userId,
+          },
+        },
+        include: taskInclude,
+      });
+
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
+      if (task.checklist.length >= MAX_CHECKLIST_ITEMS_PER_TASK) {
+        throw new Error("Tasks can include up to 50 checklist items.");
+      }
+
+      const sortOrder =
+        task.checklist.reduce(
+          (highestSortOrder, item) => Math.max(highestSortOrder, item.sortOrder),
+          -1,
+        ) + 1;
+
+      await tx.checklistItem.create({
+        data: {
+          id: randomUUID(),
+          taskId: task.id,
+          text: input.text,
+          isComplete: false,
+          sortOrder,
+        },
+      });
+
+      const parentTask = await tx.task.findUnique({
+        where: {
+          id: task.id,
+        },
+        include: taskInclude,
+      });
+
+      if (!parentTask) {
+        throw new Error("Task not found.");
+      }
+
+      return serializeTask(parentTask);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
 export async function updateSubtaskForUser(
   userId: string,
   subtaskId: string,
@@ -1139,6 +1219,58 @@ export async function updateSubtaskForUser(
   });
 }
 
+export async function updateChecklistItemForUser(
+  userId: string,
+  itemId: string,
+  input: ChecklistUpdateInput,
+): Promise<SerializedTask> {
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.checklistItem.findFirst({
+      where: {
+        id: itemId,
+        task: {
+          board: {
+            userId,
+          },
+        },
+      },
+      select: {
+        taskId: true,
+      },
+    });
+
+    if (!item) {
+      throw new Error("Checklist item not found.");
+    }
+
+    await tx.checklistItem.update({
+      where: {
+        id: itemId,
+      },
+      data: {
+        ...(input.text !== undefined ? { text: input.text } : {}),
+        ...(input.isComplete !== undefined ? { isComplete: input.isComplete } : {}),
+      },
+    });
+
+    const parentTask = await tx.task.findFirst({
+      where: {
+        id: item.taskId,
+        board: {
+          userId,
+        },
+      },
+      include: taskInclude,
+    });
+
+    if (!parentTask) {
+      throw new Error("Task not found.");
+    }
+
+    return serializeTask(parentTask);
+  });
+}
+
 export async function deleteSubtaskForUser(
   userId: string,
   subtaskId: string,
@@ -1171,6 +1303,53 @@ export async function deleteSubtaskForUser(
     const parentTask = await tx.task.findFirst({
       where: {
         id: subtask.taskId,
+        board: {
+          userId,
+        },
+      },
+      include: taskInclude,
+    });
+
+    if (!parentTask) {
+      throw new Error("Task not found.");
+    }
+
+    return serializeTask(parentTask);
+  });
+}
+
+export async function deleteChecklistItemForUser(
+  userId: string,
+  itemId: string,
+): Promise<SerializedTask> {
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.checklistItem.findFirst({
+      where: {
+        id: itemId,
+        task: {
+          board: {
+            userId,
+          },
+        },
+      },
+      select: {
+        taskId: true,
+      },
+    });
+
+    if (!item) {
+      throw new Error("Checklist item not found.");
+    }
+
+    await tx.checklistItem.delete({
+      where: {
+        id: itemId,
+      },
+    });
+
+    const parentTask = await tx.task.findFirst({
+      where: {
+        id: item.taskId,
         board: {
           userId,
         },

@@ -10,8 +10,10 @@ import { describe, expect, test, beforeEach } from "vitest";
 import {
   createApiToken,
   createBoardForUser,
+  createChecklistItemForTask,
   createLabelForTask,
   createTaskForBoard,
+  deleteChecklistItemForUser,
   deleteLabelForUser,
   getDashboardSnapshot,
   getBoardSnapshot,
@@ -23,11 +25,17 @@ import {
   reorderDashboardInProgressForUser,
   reorderTasksForUser,
   updateBoardForUser,
+  updateChecklistItemForUser,
   revokeApiToken,
   updateTaskForUser,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
-import { labelColorPalette, MAX_LABELS_PER_TASK, starterBoard } from "@/lib/domain";
+import {
+  labelColorPalette,
+  MAX_CHECKLIST_ITEMS_PER_TASK,
+  MAX_LABELS_PER_TASK,
+  starterBoard,
+} from "@/lib/domain";
 import { createTestBoard, createTestUser, resetDatabase } from "./helpers/database";
 
 function sha256(value: string) {
@@ -440,6 +448,166 @@ describe("src/lib/data.ts", () => {
         text: "Too many",
       }),
     ).rejects.toThrow("Tasks can include up to 10 labels.");
+  });
+
+  test("creates, persists, and serializes task checklist items", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Checklist-ready task",
+    });
+
+    const checklistTask = await createChecklistItemForTask(user.id, task.id, {
+      text: "Confirm launch owner",
+    });
+
+    expect(checklistTask.checklist).toEqual([
+      expect.objectContaining({
+        isComplete: false,
+        sortOrder: 0,
+        text: "Confirm launch owner",
+      }),
+    ]);
+    await expect(
+      prisma.checklistItem.findFirstOrThrow({
+        select: {
+          isComplete: true,
+          text: true,
+        },
+        where: { taskId: task.id },
+      }),
+    ).resolves.toEqual({
+      isComplete: false,
+      text: "Confirm launch owner",
+    });
+
+    const snapshot = await getBoardSnapshot(user.id, starterBoard.slug);
+    expect(snapshot?.tasks[0]?.checklist).toEqual([
+      expect.objectContaining({
+        isComplete: false,
+        sortOrder: 0,
+        text: "Confirm launch owner",
+      }),
+    ]);
+  });
+
+  test("enforces the task checklist item cap", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Checklist-capped task",
+    });
+
+    await prisma.checklistItem.createMany({
+      data: Array.from({ length: MAX_CHECKLIST_ITEMS_PER_TASK }, (_, sortOrder) => ({
+        id: randomUUID(),
+        isComplete: false,
+        sortOrder,
+        taskId: task.id,
+        text: `Checklist item ${sortOrder}`,
+      })),
+    });
+
+    await expect(
+      createChecklistItemForTask(user.id, task.id, {
+        text: "Too many",
+      }),
+    ).rejects.toThrow("Tasks can include up to 50 checklist items.");
+  });
+
+  test("updates task checklist item text and completion", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Checklist update task",
+    });
+    const checklistTask = await createChecklistItemForTask(user.id, task.id, {
+      text: "Original item",
+    });
+    const itemId = checklistTask.checklist?.[0]?.id;
+    if (!itemId) {
+      throw new Error("Expected a serialized checklist item id.");
+    }
+
+    const updatedTask = await updateChecklistItemForUser(user.id, itemId, {
+      isComplete: true,
+      text: "Updated item",
+    });
+
+    expect(updatedTask.checklist).toEqual([
+      expect.objectContaining({
+        id: itemId,
+        isComplete: true,
+        text: "Updated item",
+      }),
+    ]);
+    await expect(
+      prisma.checklistItem.findUniqueOrThrow({
+        select: {
+          isComplete: true,
+          text: true,
+        },
+        where: { id: itemId },
+      }),
+    ).resolves.toEqual({
+      isComplete: true,
+      text: "Updated item",
+    });
+  });
+
+  test("deletes task checklist items", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Checklist delete task",
+    });
+    const firstTask = await createChecklistItemForTask(user.id, task.id, {
+      text: "Remove me",
+    });
+    const secondTask = await createChecklistItemForTask(user.id, task.id, {
+      text: "Keep me",
+    });
+    const removedId = firstTask.checklist?.[0]?.id;
+    const retainedId = secondTask.checklist?.find((item) => item.text === "Keep me")?.id;
+    if (!removedId || !retainedId) {
+      throw new Error("Expected serialized checklist item ids.");
+    }
+
+    const deletedTask = await deleteChecklistItemForUser(user.id, removedId);
+
+    expect(deletedTask.checklist).toEqual([
+      expect.objectContaining({
+        id: retainedId,
+        text: "Keep me",
+      }),
+    ]);
+    await expect(
+      prisma.checklistItem.findUnique({ where: { id: removedId } }),
+    ).resolves.toBeNull();
   });
 
   test("reorders tasks within a board", async () => {

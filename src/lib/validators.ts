@@ -192,6 +192,14 @@ export const subtaskCreateSchema = z.object({
     .max(180, "Subtask titles should stay under 180 characters."),
 });
 
+export const checklistCreateSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, "Checklist item is required.")
+    .max(180, "Checklist items should stay under 180 characters."),
+});
+
 export const labelCreateSchema = z.object({
   text: z
     .string()
@@ -209,6 +217,15 @@ export const subtaskUpdateSchema = z
       .min(1, "Subtask title is required.")
       .max(180, "Subtask titles should stay under 180 characters.")
       .optional(),
+    isComplete: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Provide at least one field to update.",
+  });
+
+export const checklistUpdateSchema = z
+  .object({
+    text: z.string().trim().min(1).max(180).optional(),
     isComplete: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
@@ -354,6 +371,8 @@ export type DashboardReorderInput = z.infer<typeof dashboardReorderSchema>;
 export type SubtaskCreateInput = z.infer<typeof subtaskCreateSchema>;
 export type SubtaskUpdateInput = z.infer<typeof subtaskUpdateSchema>;
 export type SubtaskReorderInput = z.infer<typeof subtaskReorderSchema>;
+export type ChecklistCreateInput = z.infer<typeof checklistCreateSchema>;
+export type ChecklistUpdateInput = z.infer<typeof checklistUpdateSchema>;
 export type LabelCreateInput = z.infer<typeof labelCreateSchema>;
 export type NoteInput = z.infer<typeof noteSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;

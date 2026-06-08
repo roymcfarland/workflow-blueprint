@@ -134,6 +134,7 @@ export const labelColorPalette = [
 export type LabelColor = (typeof labelColorPalette)[number];
 
 export const MAX_LABELS_PER_TASK = 10;
+export const MAX_CHECKLIST_ITEMS_PER_TASK = 50;
 
 export function getBoardAccentColor(slug: string) {
   return boardAccentColors[slug] ?? fallbackBoardAccentColor;
