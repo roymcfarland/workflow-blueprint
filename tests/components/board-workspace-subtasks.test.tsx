@@ -390,4 +390,29 @@ describe("BoardWorkspace subtask panel granular API", () => {
 
     await waitFor(() => expect(screen.getAllByText("Urgent").length).toBeGreaterThan(0));
   });
+
+  test("adds a checklist item in the detail modal", async () => {
+    const initialTask = task();
+    const updatedTask = task({
+      checklist: [{ id: "check-1", text: "Verify copy", isComplete: false, sortOrder: 0 }],
+    });
+
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "New checklist item" }), {
+      target: { value: "Verify copy" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add checklist item" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/tasks/${initialTask.id}/checklist`);
+    expect(init.method).toBe("POST");
+    expect(requestJsonBody(init)?.text).toBe("Verify copy");
+
+    await waitFor(() => expect(screen.getByText("Verify copy")).toBeDefined());
+  });
 });
