@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 
 import {
   adminApiTokenSchema,
+  checklistCreateSchema,
+  checklistUpdateSchema,
   createBoardSchema,
   dashboardReorderSchema,
   labelCreateSchema,
@@ -125,6 +127,32 @@ describe("src/lib/validators.ts", () => {
     expect(labelCreateSchema.safeParse({ color: "#3b82f6", text: "a".repeat(31) }).success).toBe(
       false,
     );
+  });
+
+  test("validates checklist creation text limits", () => {
+    const result = checklistCreateSchema.safeParse({
+      text: "  Confirm launch owner  ",
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error("Expected valid checklist payload.");
+    }
+    expect(result.data.text).toBe("Confirm launch owner");
+    expect(checklistCreateSchema.safeParse({ text: "   " }).success).toBe(false);
+    expect(checklistCreateSchema.safeParse({ text: "a".repeat(181) }).success).toBe(false);
+  });
+
+  test("validates checklist updates require at least one field", () => {
+    expect(
+      checklistUpdateSchema.safeParse({
+        isComplete: true,
+        text: "Confirm launch owner",
+      }).success,
+    ).toBe(true);
+    expect(checklistUpdateSchema.safeParse({}).success).toBe(false);
+    expect(checklistUpdateSchema.safeParse({ text: "   " }).success).toBe(false);
+    expect(checklistUpdateSchema.safeParse({ text: "a".repeat(181) }).success).toBe(false);
   });
 
   test("rejects duplicate task ids in dashboard reorder payloads", () => {
