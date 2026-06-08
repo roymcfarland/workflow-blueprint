@@ -64,7 +64,7 @@ function getChartSegments(segments: DashboardSnapshot["boardBreakdown"], totalTa
   return segments.map((segment) => {
     const length = (segment.totalTasks / totalTasks) * chartCircumference;
     const chartSegment = {
-      color: getBoardAccentColor(segment.slug),
+      color: segment.accentColor ?? getBoardAccentColor(segment.slug),
       dashArray: `${length} ${chartCircumference - length}`,
       dashOffset: -offset,
       slug: segment.slug,
@@ -230,7 +230,9 @@ function SnapshotPanel({
                   <div className="flex min-w-0 items-center gap-3">
                     <span
                       className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: getBoardAccentColor(segment.slug) }}
+                      style={{
+                        backgroundColor: segment.accentColor ?? getBoardAccentColor(segment.slug),
+                      }}
                     />
                     <p className="truncate text-sm font-semibold">{segment.name}</p>
                   </div>

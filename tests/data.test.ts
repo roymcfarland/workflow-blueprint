@@ -285,6 +285,30 @@ describe("src/lib/data.ts", () => {
     });
   });
 
+  test("includes board accent colors in dashboard snapshot breakdown", async () => {
+    const user = await createTestUser();
+    const coloredBoard = await createBoardForUser(user.id, {
+      accentColor: "#4f78e6",
+      description: null,
+      iconKey: starterBoard.iconKey,
+      name: "Colored board",
+    });
+    const fallbackBoard = await createBoardForUser(user.id, {
+      description: null,
+      iconKey: starterBoard.iconKey,
+      name: "Fallback board",
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(
+      snapshot.boardBreakdown.find((board) => board.slug === coloredBoard.slug),
+    ).toMatchObject({ accentColor: "#4f78e6" });
+    expect(
+      snapshot.boardBreakdown.find((board) => board.slug === fallbackBoard.slug),
+    ).toMatchObject({ accentColor: null });
+  });
+
   test("rejects creating a task once the board reaches the task cap", async () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);
