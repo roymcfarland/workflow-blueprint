@@ -240,12 +240,18 @@ All contributors and all deploys run Node 22.11.x. Patches flow automatically; m
 
 The schema and code stay portable across any Postgres 14+ host. Supabase is the recommended and current production host but is not a hard requirement.
 
+**Storage exception (task attachments).** File attachments are stored in **Supabase Storage** — a deliberate, scoped exception to the database-portability stance above: *file storage* is coupled to Supabase, the *database* is not. Rules for this exception:
+- `@supabase/supabase-js` may be imported **only** in server-side storage helpers (e.g. `src/lib/storage.ts`) and the attachment API routes — never in a client component, and never for database access (Prisma remains the sole DB client).
+- All access uses the server-only `SUPABASE_SERVICE_ROLE_KEY` (plus `SUPABASE_URL` and a bucket-name env var). The service-role key must never reach the client; client upload/download flows go through the app's own API routes or short-lived, server-minted signed URLs against a **private** bucket.
+- This is the only sanctioned use of `supabase-js`. Supabase Realtime, Auth, Edge Functions, and Supabase-managed RLS policies remain out of scope.
+
 **Sequencing / required corrections:**
 - README: change "Prisma 6 with **Supabase Postgres** persistence" to "Prisma 6 with **PostgreSQL** persistence (currently hosted on Supabase)".
 - README "Supabase Database Setup" section: rename to "Database Setup" and reframe Supabase as a recommended example, not the only path.
 
 **Verifier behavior:**
-- **Hard-fail** any PR that introduces Supabase RLS policies, `supabase-js` imports, or calls to Supabase Realtime / Storage / Edge Functions / Auth.
+- **Hard-fail** any PR that introduces Supabase RLS policies, or calls to Supabase Realtime / Edge Functions / Auth, or uses `supabase-js` for database access (Prisma is the sole DB client).
+- **Allow** `@supabase/supabase-js` **only** in server-side storage helpers / attachment API routes for the task-attachments feature (per the "Storage exception" above), via `SUPABASE_SERVICE_ROLE_KEY`. **Hard-fail** if a Supabase storage client or the service-role key is imported into a client component, if `supabase-js` is used for anything other than Storage, or if the attachments bucket is public.
 - **Hard-fail** any PR that adds Postgres extensions Supabase doesn't support, or that bumps the schema beyond Postgres 15 features.
 - **Warn** if a PR adds connection-string handling beyond the existing `DATABASE_URL` / `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` set.
 
