@@ -1,4 +1,6 @@
 import {
+  ALLOWED_ATTACHMENT_MIME,
+  ATTACHMENT_MAX_BYTES,
   boardAccentPalette,
   boardIconKeys,
   boardStatuses,
@@ -209,6 +211,16 @@ export const labelCreateSchema = z.object({
   color: z.enum(labelColorPalette as unknown as [string, ...string[]]),
 });
 
+export const attachmentMetaSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  contentType: z.enum(ALLOWED_ATTACHMENT_MIME as unknown as [string, ...string[]]),
+  size: z.number().int().positive().max(ATTACHMENT_MAX_BYTES, "Files must be 10 MB or smaller."),
+});
+
+export const attachmentRecordSchema = attachmentMetaSchema.extend({
+  storagePath: z.string().trim().min(1).max(512),
+});
+
 export const subtaskUpdateSchema = z
   .object({
     title: z
@@ -374,5 +386,7 @@ export type SubtaskReorderInput = z.infer<typeof subtaskReorderSchema>;
 export type ChecklistCreateInput = z.infer<typeof checklistCreateSchema>;
 export type ChecklistUpdateInput = z.infer<typeof checklistUpdateSchema>;
 export type LabelCreateInput = z.infer<typeof labelCreateSchema>;
+export type AttachmentMetaInput = z.infer<typeof attachmentMetaSchema>;
+export type AttachmentRecordInput = z.infer<typeof attachmentRecordSchema>;
 export type NoteInput = z.infer<typeof noteSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;
