@@ -365,4 +365,29 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(init.method).toBe("PATCH");
     expect(requestJsonBody(init)?.recurrence).toBe("WEEKLY");
   });
+
+  test("adds a label in the detail modal", async () => {
+    const initialTask = task();
+    const updatedTask = task({
+      labels: [{ id: "label-1", text: "Urgent", color: "#ef4444", sortOrder: 0 }],
+    });
+
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "New label text" }), {
+      target: { value: "Urgent" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/tasks/${initialTask.id}/labels`);
+    expect(init.method).toBe("POST");
+    expect(requestJsonBody(init)?.text).toBe("Urgent");
+
+    await waitFor(() => expect(screen.getAllByText("Urgent").length).toBeGreaterThan(0));
+  });
 });
