@@ -2111,6 +2111,7 @@ function TaskDetailModal({
   const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [labelText, setLabelText] = useState("");
+  const [checklistText, setChecklistText] = useState("");
   const [labelColor, setLabelColor] = useState<string>(labelColorPalette[0]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2213,6 +2214,70 @@ function TaskDetailModal({
       onTaskUpdated(data.task);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to remove label.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addChecklistItem = async () => {
+    const text = checklistText.trim();
+    if (!text || !task) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/checklist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = (await response.json()) as { message?: string; task?: SerializedTask };
+      if (!response.ok || !data.task) {
+        throw new Error(data.message ?? "Unable to add checklist item.");
+      }
+      onTaskUpdated(data.task);
+      setChecklistText("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to add checklist item.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleChecklistItem = async (itemId: string, isComplete: boolean) => {
+    if (!task) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/checklist/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isComplete }),
+      });
+      const data = (await response.json()) as { message?: string; task?: SerializedTask };
+      if (!response.ok || !data.task) {
+        throw new Error(data.message ?? "Unable to update checklist item.");
+      }
+      onTaskUpdated(data.task);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update checklist item.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeChecklistItem = async (itemId: string) => {
+    if (!task) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/checklist/${itemId}`, { method: "DELETE" });
+      const data = (await response.json()) as { message?: string; task?: SerializedTask };
+      if (!response.ok || !data.task) {
+        throw new Error(data.message ?? "Unable to remove checklist item.");
+      }
+      onTaskUpdated(data.task);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to remove checklist item.");
     } finally {
       setSaving(false);
     }
@@ -2403,6 +2468,78 @@ function TaskDetailModal({
               className="blueprint-action shrink-0 rounded-md p-1"
               disabled={saving || !labelText.trim()}
               onClick={() => void addLabel()}
+              type="button"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-xs font-semibold text-text-muted">Checklist</span>
+          {task.checklist && task.checklist.length > 0 ? (
+            <div className="space-y-1">
+              {task.checklist.map((item) => (
+                <div className="flex items-center gap-2" key={item.id}>
+                  <button
+                    aria-label={
+                      item.isComplete
+                        ? "Mark checklist item incomplete"
+                        : "Mark checklist item complete"
+                    }
+                    aria-pressed={item.isComplete}
+                    className={cn(
+                      "shrink-0 transition",
+                      item.isComplete ? "text-success" : "text-text-muted hover:text-success",
+                    )}
+                    disabled={saving}
+                    onClick={() => void toggleChecklistItem(item.id, !item.isComplete)}
+                    type="button"
+                  >
+                    <CircleCheck className="h-5 w-5" strokeWidth={2} />
+                  </button>
+                  <span
+                    className={cn(
+                      "min-w-0 flex-1 text-sm text-text-primary",
+                      item.isComplete && "text-text-muted line-through",
+                    )}
+                  >
+                    {item.text}
+                  </span>
+                  <button
+                    aria-label={`Remove checklist item ${item.text}`}
+                    className="shrink-0 text-text-muted transition hover:text-danger"
+                    disabled={saving}
+                    onClick={() => void removeChecklistItem(item.id)}
+                    type="button"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <input
+              aria-label="New checklist item"
+              className="blueprint-control h-8 flex-1 rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={saving}
+              maxLength={180}
+              onChange={(event) => setChecklistText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void addChecklistItem();
+                }
+              }}
+              placeholder="Add a checklist item…"
+              value={checklistText}
+            />
+            <button
+              aria-label="Add checklist item"
+              className="blueprint-action shrink-0 rounded-md p-1"
+              disabled={saving || !checklistText.trim()}
+              onClick={() => void addChecklistItem()}
               type="button"
             >
               <Plus className="h-4 w-4" />
