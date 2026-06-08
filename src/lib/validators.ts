@@ -3,6 +3,7 @@ import {
   boardIconKeys,
   boardStatuses,
   itemPriorities,
+  labelColorPalette,
   recurrencePatterns,
   themePreferences,
 } from "@/lib/domain";
@@ -191,6 +192,15 @@ export const subtaskCreateSchema = z.object({
     .max(180, "Subtask titles should stay under 180 characters."),
 });
 
+export const labelCreateSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, "Label text is required.")
+    .max(30, "Labels should stay under 30 characters."),
+  color: z.enum(labelColorPalette as unknown as [string, ...string[]]),
+});
+
 export const subtaskUpdateSchema = z
   .object({
     title: z
@@ -344,5 +354,6 @@ export type DashboardReorderInput = z.infer<typeof dashboardReorderSchema>;
 export type SubtaskCreateInput = z.infer<typeof subtaskCreateSchema>;
 export type SubtaskUpdateInput = z.infer<typeof subtaskUpdateSchema>;
 export type SubtaskReorderInput = z.infer<typeof subtaskReorderSchema>;
+export type LabelCreateInput = z.infer<typeof labelCreateSchema>;
 export type NoteInput = z.infer<typeof noteSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;

@@ -96,6 +96,7 @@ model Task {
   updatedAt   DateTime      @updatedAt
   board       Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
   subtasks    Subtask[]
+  labels      TaskLabel[]
 
   @@index([boardId, status, sortOrder])
 }
@@ -109,6 +110,19 @@ model Subtask {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   task       Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, sortOrder])
+}
+
+model TaskLabel {
+  id        String   @id
+  taskId    String
+  text      String
+  color     String
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId, sortOrder])
 }

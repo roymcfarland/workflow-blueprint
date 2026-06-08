@@ -10,8 +10,11 @@ import { describe, expect, test, beforeEach } from "vitest";
 import {
   createApiToken,
   createBoardForUser,
+  createLabelForTask,
   createTaskForBoard,
+  deleteLabelForUser,
   getDashboardSnapshot,
+  getBoardSnapshot,
   getShellSnapshot,
   listApiTokens,
   markTaskDoneForUser,
@@ -24,7 +27,7 @@ import {
   updateTaskForUser,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
-import { starterBoard } from "@/lib/domain";
+import { labelColorPalette, MAX_LABELS_PER_TASK, starterBoard } from "@/lib/domain";
 import { createTestBoard, createTestUser, resetDatabase } from "./helpers/database";
 
 function sha256(value: string) {
@@ -348,6 +351,95 @@ describe("src/lib/data.ts", () => {
       status: "ON_DECK",
       title: "Last allowed task",
     });
+  });
+
+  test("creates, serializes, and deletes task labels", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Label-ready task",
+    });
+
+    const labeledTask = await createLabelForTask(user.id, task.id, {
+      color: labelColorPalette[5],
+      text: "Customer",
+    });
+
+    expect(labeledTask.labels).toEqual([
+      expect.objectContaining({
+        color: labelColorPalette[5],
+        sortOrder: 0,
+        text: "Customer",
+      }),
+    ]);
+    await expect(
+      prisma.taskLabel.findFirstOrThrow({
+        select: {
+          color: true,
+          text: true,
+        },
+        where: { taskId: task.id },
+      }),
+    ).resolves.toEqual({
+      color: labelColorPalette[5],
+      text: "Customer",
+    });
+
+    const snapshot = await getBoardSnapshot(user.id, starterBoard.slug);
+    expect(snapshot?.tasks[0]?.labels).toEqual([
+      expect.objectContaining({
+        color: labelColorPalette[5],
+        sortOrder: 0,
+        text: "Customer",
+      }),
+    ]);
+
+    const labelId = labeledTask.labels?.[0]?.id;
+    if (!labelId) {
+      throw new Error("Expected a serialized label id.");
+    }
+
+    const deletedTask = await deleteLabelForUser(user.id, labelId);
+
+    expect(deletedTask.labels).toEqual([]);
+    await expect(prisma.taskLabel.findUnique({ where: { id: labelId } })).resolves.toBeNull();
+  });
+
+  test("enforces the task label cap", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Label-capped task",
+    });
+
+    await prisma.taskLabel.createMany({
+      data: Array.from({ length: MAX_LABELS_PER_TASK }, (_, sortOrder) => ({
+        color: labelColorPalette[sortOrder % labelColorPalette.length],
+        id: randomUUID(),
+        sortOrder,
+        taskId: task.id,
+        text: `Label ${sortOrder}`,
+      })),
+    });
+
+    await expect(
+      createLabelForTask(user.id, task.id, {
+        color: labelColorPalette[0],
+        text: "Too many",
+      }),
+    ).rejects.toThrow("Tasks can include up to 10 labels.");
   });
 
   test("reorders tasks within a board", async () => {
