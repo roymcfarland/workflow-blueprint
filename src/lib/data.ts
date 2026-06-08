@@ -10,6 +10,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import {
+  MAX_LABELS_PER_TASK,
   starterBoard,
   slugify,
   themePreferenceDbMap,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/domain";
 import type {
   CreateBoardInput,
+  LabelCreateInput,
   ProfileInput,
   SubtaskCreateInput,
   SubtaskReorderInput,
@@ -35,6 +37,11 @@ export const MAX_BOARDS_PER_USER = 100;
 export const MAX_TASKS_PER_BOARD = 1000;
 
 const taskInclude = {
+  labels: {
+    orderBy: {
+      sortOrder: "asc" as const,
+    },
+  },
   subtasks: {
     orderBy: {
       sortOrder: "asc" as const,
@@ -107,6 +114,13 @@ export type SerializedSubtask = {
   priority: ItemPriority;
 };
 
+export type SerializedLabel = {
+  id: string;
+  text: string;
+  color: string;
+  sortOrder: number;
+};
+
 export type SerializedTask = {
   id: string;
   title: string;
@@ -119,6 +133,7 @@ export type SerializedTask = {
   archivedAt: string | null;
   recurrence: RecurrencePattern;
   subtasks: SerializedSubtask[];
+  labels?: SerializedLabel[];
 };
 
 export type BoardSnapshot = {
@@ -232,6 +247,12 @@ function serializeTask(task: DbTask): SerializedTask {
       sortOrder: subtask.sortOrder,
       // Subtasks no longer carry a priority; the external contract still expects the field, so it is a constant.
       priority: "NONE",
+    })),
+    labels: task.labels.map((label) => ({
+      id: label.id,
+      text: label.text,
+      color: label.color,
+      sortOrder: label.sortOrder,
     })),
   };
 }
@@ -1008,6 +1029,64 @@ export async function createSubtaskForUser(
   );
 }
 
+export async function createLabelForTask(
+  userId: string,
+  taskId: string,
+  input: LabelCreateInput,
+): Promise<SerializedTask> {
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.findFirst({
+        where: {
+          id: taskId,
+          board: {
+            userId,
+          },
+        },
+        include: taskInclude,
+      });
+
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
+      if (task.labels.length >= MAX_LABELS_PER_TASK) {
+        throw new Error("Tasks can include up to 10 labels.");
+      }
+
+      const sortOrder =
+        task.labels.reduce(
+          (highestSortOrder, label) => Math.max(highestSortOrder, label.sortOrder),
+          -1,
+        ) + 1;
+
+      await tx.taskLabel.create({
+        data: {
+          id: randomUUID(),
+          taskId: task.id,
+          text: input.text,
+          color: input.color,
+          sortOrder,
+        },
+      });
+
+      const parentTask = await tx.task.findUnique({
+        where: {
+          id: task.id,
+        },
+        include: taskInclude,
+      });
+
+      if (!parentTask) {
+        throw new Error("Task not found.");
+      }
+
+      return serializeTask(parentTask);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
 export async function updateSubtaskForUser(
   userId: string,
   subtaskId: string,
@@ -1092,6 +1171,53 @@ export async function deleteSubtaskForUser(
     const parentTask = await tx.task.findFirst({
       where: {
         id: subtask.taskId,
+        board: {
+          userId,
+        },
+      },
+      include: taskInclude,
+    });
+
+    if (!parentTask) {
+      throw new Error("Task not found.");
+    }
+
+    return serializeTask(parentTask);
+  });
+}
+
+export async function deleteLabelForUser(
+  userId: string,
+  labelId: string,
+): Promise<SerializedTask> {
+  return prisma.$transaction(async (tx) => {
+    const label = await tx.taskLabel.findFirst({
+      where: {
+        id: labelId,
+        task: {
+          board: {
+            userId,
+          },
+        },
+      },
+      select: {
+        taskId: true,
+      },
+    });
+
+    if (!label) {
+      throw new Error("Label not found.");
+    }
+
+    await tx.taskLabel.delete({
+      where: {
+        id: labelId,
+      },
+    });
+
+    const parentTask = await tx.task.findFirst({
+      where: {
+        id: label.taskId,
         board: {
           userId,
         },

@@ -4,6 +4,7 @@ import {
   adminApiTokenSchema,
   createBoardSchema,
   dashboardReorderSchema,
+  labelCreateSchema,
   taskInputSchema,
   taskReorderSchema,
   updateBoardSchema,
@@ -101,6 +102,29 @@ describe("src/lib/validators.ts", () => {
       false,
     );
     expect(updateBoardSchema.safeParse({ accentColor: "red" }).success).toBe(false);
+  });
+
+  test("validates label creation against text limits and the preset palette", () => {
+    const result = labelCreateSchema.safeParse({
+      color: "#3b82f6",
+      text: "  Customer  ",
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error("Expected valid label payload.");
+    }
+    expect(result.data).toEqual({
+      color: "#3b82f6",
+      text: "Customer",
+    });
+    expect(labelCreateSchema.safeParse({ color: "#123456", text: "Customer" }).success).toBe(
+      false,
+    );
+    expect(labelCreateSchema.safeParse({ color: "#3b82f6", text: "   " }).success).toBe(false);
+    expect(labelCreateSchema.safeParse({ color: "#3b82f6", text: "a".repeat(31) }).success).toBe(
+      false,
+    );
   });
 
   test("rejects duplicate task ids in dashboard reorder payloads", () => {
