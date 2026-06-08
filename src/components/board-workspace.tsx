@@ -60,6 +60,7 @@ import { BlueprintTextarea } from "@/components/blueprint/textarea";
 import {
   boardStatuses,
   itemPriorities,
+  labelColorPalette,
   priorityLabels,
   recurrenceLabels,
   recurrencePatterns,
@@ -360,6 +361,17 @@ function TaskMeta({ task }: { task: SerializedTask }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-text-muted">
+      {task.labels && task.labels.length > 0
+        ? task.labels.map((label) => (
+            <span
+              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold text-white"
+              key={label.id}
+              style={{ backgroundColor: label.color }}
+            >
+              {label.text}
+            </span>
+          ))
+        : null}
       <PriorityBadge priority={task.priority} />
       {task.dueDate ? (
         <span
@@ -2086,16 +2098,20 @@ function TaskDetailModal({
   onClose,
   onSave,
   onDelete,
+  onTaskUpdated,
 }: {
   task: SerializedTask | null;
   onClose: () => void;
   onSave: (values: TaskInput, taskId: string) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
+  onTaskUpdated: TaskUpdatedHandler;
 }) {
   const [priority, setPriority] = useState<ItemPriority>(task?.priority ?? "NONE");
   const [recurrence, setRecurrence] = useState<RecurrencePattern>(task?.recurrence ?? "NONE");
   const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : "");
   const [description, setDescription] = useState(task?.description ?? "");
+  const [labelText, setLabelText] = useState("");
+  const [labelColor, setLabelColor] = useState<string>(labelColorPalette[0]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const descriptionFocusedRef = useRef(false);
@@ -2155,6 +2171,48 @@ function TaskDetailModal({
       await onSave({ ...taskToInput(task), ...overrides }, task.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addLabel = async () => {
+    const text = labelText.trim();
+    if (!text || !task) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/labels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, color: labelColor }),
+      });
+      const data = (await response.json()) as { message?: string; task?: SerializedTask };
+      if (!response.ok || !data.task) {
+        throw new Error(data.message ?? "Unable to add label.");
+      }
+      onTaskUpdated(data.task);
+      setLabelText("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to add label.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeLabel = async (labelId: string) => {
+    if (!task) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/labels/${labelId}`, { method: "DELETE" });
+      const data = (await response.json()) as { message?: string; task?: SerializedTask };
+      if (!response.ok || !data.task) {
+        throw new Error(data.message ?? "Unable to remove label.");
+      }
+      onTaskUpdated(data.task);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to remove label.");
     } finally {
       setSaving(false);
     }
@@ -2281,6 +2339,76 @@ function TaskDetailModal({
             value={description}
           />
         </label>
+
+        <div className="space-y-2">
+          <span className="text-xs font-semibold text-text-muted">Labels</span>
+          {task.labels && task.labels.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {task.labels.map((label) => (
+                <span
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold text-white"
+                  key={label.id}
+                  style={{ backgroundColor: label.color }}
+                >
+                  {label.text}
+                  <button
+                    aria-label={`Remove label ${label.text}`}
+                    className="opacity-80 transition hover:opacity-100"
+                    disabled={saving}
+                    onClick={() => void removeLabel(label.id)}
+                    type="button"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <input
+              aria-label="New label text"
+              className="blueprint-control h-8 flex-1 rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+              disabled={saving}
+              maxLength={30}
+              onChange={(event) => setLabelText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void addLabel();
+                }
+              }}
+              placeholder="Add a label..."
+              value={labelText}
+            />
+            <div className="flex gap-1">
+              {labelColorPalette.map((color) => (
+                <button
+                  aria-label={`Label color ${color}`}
+                  aria-pressed={labelColor === color}
+                  className={cn(
+                    "h-6 w-6 rounded-full border-2 transition",
+                    labelColor === color
+                      ? "border-text-primary"
+                      : "border-transparent hover:border-line-strong",
+                  )}
+                  key={color}
+                  onClick={() => setLabelColor(color)}
+                  style={{ backgroundColor: color }}
+                  type="button"
+                />
+              ))}
+            </div>
+            <button
+              aria-label="Add label"
+              className="blueprint-action shrink-0 rounded-md p-1"
+              disabled={saving || !labelText.trim()}
+              onClick={() => void addLabel()}
+              type="button"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
 
         {error ? (
           <p className="text-xs font-semibold text-danger" role="alert">
@@ -2843,6 +2971,7 @@ export function BoardWorkspace({
         onClose={() => setDetailTaskId(null)}
         onDelete={handleDeleteTask}
         onSave={handleSaveTask}
+        onTaskUpdated={handleTaskUpdatedFromServer}
         task={detailTask}
       />
     </div>
