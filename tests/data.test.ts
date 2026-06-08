@@ -5,14 +5,26 @@ import {
 } from "@prisma/client";
 import { addMonths } from "date-fns";
 import { createHash, randomUUID } from "node:crypto";
-import { describe, expect, test, beforeEach } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+
+vi.mock("@/lib/storage", () => ({
+  createSignedUploadUrl: vi.fn(async () => ({
+    uploadUrl: "https://signed.example/upload",
+    token: "t",
+    path: "p",
+  })),
+  createSignedDownloadUrl: vi.fn(async () => "https://signed.example/download"),
+  removeStorageObject: vi.fn(async () => {}),
+}));
 
 import {
   createApiToken,
+  createAttachmentRecord,
   createBoardForUser,
   createChecklistItemForTask,
   createLabelForTask,
   createTaskForBoard,
+  deleteAttachmentForUser,
   deleteChecklistItemForUser,
   deleteLabelForUser,
   getDashboardSnapshot,
@@ -32,10 +44,12 @@ import {
 import { prisma } from "@/lib/db";
 import {
   labelColorPalette,
+  MAX_ATTACHMENTS_PER_TASK,
   MAX_CHECKLIST_ITEMS_PER_TASK,
   MAX_LABELS_PER_TASK,
   starterBoard,
 } from "@/lib/domain";
+import { removeStorageObject } from "@/lib/storage";
 import { createTestBoard, createTestUser, resetDatabase } from "./helpers/database";
 
 function sha256(value: string) {
@@ -67,6 +81,21 @@ function taskRows(boardId: string, count: number) {
     status: PrismaTaskStatus.ON_DECK,
     title: `Task ${index}`,
   }));
+}
+
+function attachmentInput(taskId: string, overrides: Partial<{
+  contentType: string;
+  fileName: string;
+  size: number;
+  storagePath: string;
+}> = {}) {
+  return {
+    contentType: "application/pdf",
+    fileName: "Launch plan.pdf",
+    size: 1024,
+    storagePath: `tasks/${taskId}/${randomUUID()}`,
+    ...overrides,
+  };
 }
 
 const taskSubtasksInclude = {
@@ -130,6 +159,7 @@ function createDataTask({
 
 describe("src/lib/data.ts", () => {
   beforeEach(async () => {
+    vi.clearAllMocks();
     await resetDatabase();
   });
 
@@ -495,6 +525,136 @@ describe("src/lib/data.ts", () => {
         text: "Confirm launch owner",
       }),
     ]);
+  });
+
+  test("creates attachment records without exposing storage paths", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Attachment-ready task",
+    });
+    const input = attachmentInput(task.id);
+
+    const attachedTask = await createAttachmentRecord(user.id, task.id, input);
+
+    expect(attachedTask.attachments).toEqual([
+      expect.objectContaining({
+        contentType: input.contentType,
+        fileName: input.fileName,
+        size: input.size,
+      }),
+    ]);
+    expect(attachedTask.attachments?.[0]).not.toHaveProperty("storagePath");
+    await expect(
+      prisma.attachment.findFirstOrThrow({
+        select: {
+          contentType: true,
+          fileName: true,
+          size: true,
+          storagePath: true,
+        },
+        where: { taskId: task.id },
+      }),
+    ).resolves.toEqual({
+      contentType: input.contentType,
+      fileName: input.fileName,
+      size: input.size,
+      storagePath: input.storagePath,
+    });
+
+    const snapshot = await getBoardSnapshot(user.id, starterBoard.slug);
+    expect(snapshot?.tasks[0]?.attachments).toEqual([
+      expect.objectContaining({
+        contentType: input.contentType,
+        fileName: input.fileName,
+        size: input.size,
+      }),
+    ]);
+    expect(snapshot?.tasks[0]?.attachments?.[0]).not.toHaveProperty("storagePath");
+  });
+
+  test("enforces the task attachment cap", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Attachment-capped task",
+    });
+
+    await prisma.attachment.createMany({
+      data: Array.from({ length: MAX_ATTACHMENTS_PER_TASK }, (_, index) => ({
+        contentType: "application/pdf",
+        fileName: `Attachment ${index}.pdf`,
+        id: randomUUID(),
+        size: 1024,
+        storagePath: `tasks/${task.id}/${randomUUID()}`,
+        taskId: task.id,
+      })),
+    });
+
+    await expect(
+      createAttachmentRecord(user.id, task.id, attachmentInput(task.id)),
+    ).rejects.toThrow("Tasks can include up to 10 attachments.");
+  });
+
+  test("rejects attachment records outside the task storage prefix", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Attachment path task",
+    });
+
+    await expect(
+      createAttachmentRecord(
+        user.id,
+        task.id,
+        attachmentInput(task.id, { storagePath: `tasks/${randomUUID()}/${randomUUID()}` }),
+      ),
+    ).rejects.toThrow("Attachment storage path is invalid.");
+    await expect(prisma.attachment.count()).resolves.toBe(0);
+  });
+
+  test("deletes attachment records and removes the storage object", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Attachment delete task",
+    });
+    const input = attachmentInput(task.id);
+    const attachedTask = await createAttachmentRecord(user.id, task.id, input);
+    const attachmentId = attachedTask.attachments?.[0]?.id;
+    if (!attachmentId) {
+      throw new Error("Expected a serialized attachment id.");
+    }
+
+    const deletedTask = await deleteAttachmentForUser(user.id, attachmentId);
+
+    expect(deletedTask.attachments).toEqual([]);
+    expect(removeStorageObject).toHaveBeenCalledWith(input.storagePath);
+    await expect(prisma.attachment.findUnique({ where: { id: attachmentId } })).resolves.toBeNull();
   });
 
   test("enforces the task checklist item cap", async () => {

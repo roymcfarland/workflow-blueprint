@@ -98,6 +98,7 @@ model Task {
   subtasks    Subtask[]
   labels      TaskLabel[]
   checklist   ChecklistItem[]
+  attachments Attachment[]
 
   @@index([boardId, status, sortOrder])
 }
@@ -139,6 +140,20 @@ model ChecklistItem {
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId, sortOrder])
+}
+
+model Attachment {
+  id          String   @id
+  taskId      String
+  fileName    String
+  contentType String
+  size        Int
+  storagePath String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
 }
 
 model BoardNote {

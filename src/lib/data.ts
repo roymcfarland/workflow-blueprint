@@ -10,6 +10,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import {
+  MAX_ATTACHMENTS_PER_TASK,
   MAX_CHECKLIST_ITEMS_PER_TASK,
   MAX_LABELS_PER_TASK,
   starterBoard,
@@ -21,7 +22,9 @@ import {
   type TaskStatus,
   type ThemePreference,
 } from "@/lib/domain";
+import { removeStorageObject } from "@/lib/storage";
 import type {
+  AttachmentRecordInput,
   ChecklistCreateInput,
   ChecklistUpdateInput,
   CreateBoardInput,
@@ -40,6 +43,11 @@ export const MAX_BOARDS_PER_USER = 100;
 export const MAX_TASKS_PER_BOARD = 1000;
 
 const taskInclude = {
+  attachments: {
+    orderBy: {
+      createdAt: "asc" as const,
+    },
+  },
   checklist: {
     orderBy: {
       sortOrder: "asc" as const,
@@ -136,6 +144,14 @@ export type SerializedChecklistItem = {
   sortOrder: number;
 };
 
+export type SerializedAttachment = {
+  id: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+};
+
 export type SerializedTask = {
   id: string;
   title: string;
@@ -150,6 +166,7 @@ export type SerializedTask = {
   subtasks: SerializedSubtask[];
   labels?: SerializedLabel[];
   checklist?: SerializedChecklistItem[];
+  attachments?: SerializedAttachment[];
 };
 
 export type BoardSnapshot = {
@@ -275,6 +292,13 @@ function serializeTask(task: DbTask): SerializedTask {
       text: item.text,
       isComplete: item.isComplete,
       sortOrder: item.sortOrder,
+    })),
+    attachments: task.attachments.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.fileName,
+      contentType: attachment.contentType,
+      size: attachment.size,
+      createdAt: attachment.createdAt.toISOString(),
     })),
   };
 }
@@ -468,6 +492,26 @@ function statusDates(status: TaskStatus, existing?: { completedAt: Date | null; 
 
 function parseDueDate(value: string | null) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
+}
+
+function attachmentStoragePrefix(taskId: string) {
+  return `tasks/${taskId}`;
+}
+
+function assertAttachmentStoragePath(taskId: string, storagePath: string) {
+  if (!storagePath.startsWith(`${attachmentStoragePrefix(taskId)}/`)) {
+    throw new Error("Attachment storage path is invalid.");
+  }
+}
+
+function assertAttachmentLimit(count: number) {
+  if (count >= MAX_ATTACHMENTS_PER_TASK) {
+    throw new Error(`Tasks can include up to ${MAX_ATTACHMENTS_PER_TASK} attachments.`);
+  }
+}
+
+export function buildAttachmentStoragePath(taskId: string) {
+  return `${attachmentStoragePrefix(taskId)}/${randomUUID()}`;
 }
 
 export async function userExists(userId: string) {
@@ -1167,6 +1211,105 @@ export async function createChecklistItemForTask(
   );
 }
 
+export async function assertCanCreateAttachmentForUser(userId: string, taskId: string) {
+  const task = await prisma.task.findFirst({
+    where: {
+      id: taskId,
+      board: {
+        userId,
+      },
+    },
+    select: {
+      _count: {
+        select: {
+          attachments: true,
+        },
+      },
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found.");
+  }
+
+  assertAttachmentLimit(task._count.attachments);
+}
+
+export async function createAttachmentRecord(
+  userId: string,
+  taskId: string,
+  input: AttachmentRecordInput,
+): Promise<SerializedTask> {
+  return prisma.$transaction(
+    async (tx) => {
+      const task = await tx.task.findFirst({
+        where: {
+          id: taskId,
+          board: {
+            userId,
+          },
+        },
+        include: taskInclude,
+      });
+
+      if (!task) {
+        throw new Error("Task not found.");
+      }
+
+      assertAttachmentLimit(task.attachments.length);
+      assertAttachmentStoragePath(task.id, input.storagePath);
+
+      await tx.attachment.create({
+        data: {
+          id: randomUUID(),
+          taskId: task.id,
+          fileName: input.fileName,
+          contentType: input.contentType,
+          size: input.size,
+          storagePath: input.storagePath,
+        },
+      });
+
+      const parentTask = await tx.task.findUnique({
+        where: {
+          id: task.id,
+        },
+        include: taskInclude,
+      });
+
+      if (!parentTask) {
+        throw new Error("Task not found.");
+      }
+
+      return serializeTask(parentTask);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function getAttachmentForDownload(userId: string, attachmentId: string) {
+  const attachment = await prisma.attachment.findFirst({
+    where: {
+      id: attachmentId,
+      task: {
+        board: {
+          userId,
+        },
+      },
+    },
+    select: {
+      fileName: true,
+      storagePath: true,
+    },
+  });
+
+  if (!attachment) {
+    throw new Error("Attachment not found.");
+  }
+
+  return attachment;
+}
+
 export async function updateSubtaskForUser(
   userId: string,
   subtaskId: string,
@@ -1397,6 +1540,65 @@ export async function deleteLabelForUser(
     const parentTask = await tx.task.findFirst({
       where: {
         id: label.taskId,
+        board: {
+          userId,
+        },
+      },
+      include: taskInclude,
+    });
+
+    if (!parentTask) {
+      throw new Error("Task not found.");
+    }
+
+    return serializeTask(parentTask);
+  });
+}
+
+export async function deleteAttachmentForUser(
+  userId: string,
+  attachmentId: string,
+): Promise<SerializedTask> {
+  const attachment = await prisma.attachment.findFirst({
+    where: {
+      id: attachmentId,
+      task: {
+        board: {
+          userId,
+        },
+      },
+    },
+    select: {
+      storagePath: true,
+      taskId: true,
+    },
+  });
+
+  if (!attachment) {
+    throw new Error("Attachment not found.");
+  }
+
+  await removeStorageObject(attachment.storagePath);
+
+  return prisma.$transaction(async (tx) => {
+    const deleted = await tx.attachment.deleteMany({
+      where: {
+        id: attachmentId,
+        task: {
+          board: {
+            userId,
+          },
+        },
+      },
+    });
+
+    if (deleted.count !== 1) {
+      throw new Error("Attachment not found.");
+    }
+
+    const parentTask = await tx.task.findFirst({
+      where: {
+        id: attachment.taskId,
         board: {
           userId,
         },

@@ -135,6 +135,17 @@ export type LabelColor = (typeof labelColorPalette)[number];
 
 export const MAX_LABELS_PER_TASK = 10;
 export const MAX_CHECKLIST_ITEMS_PER_TASK = 50;
+export const MAX_ATTACHMENTS_PER_TASK = 10;
+export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+export const ALLOWED_ATTACHMENT_MIME = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "text/plain",
+  "text/csv",
+] as const;
 
 export function getBoardAccentColor(slug: string) {
   return boardAccentColors[slug] ?? fallbackBoardAccentColor;

@@ -1,7 +1,10 @@
 import { describe, expect, test } from "vitest";
 
+import { ATTACHMENT_MAX_BYTES } from "@/lib/domain";
 import {
   adminApiTokenSchema,
+  attachmentMetaSchema,
+  attachmentRecordSchema,
   checklistCreateSchema,
   checklistUpdateSchema,
   createBoardSchema,
@@ -141,6 +144,33 @@ describe("src/lib/validators.ts", () => {
     expect(result.data.text).toBe("Confirm launch owner");
     expect(checklistCreateSchema.safeParse({ text: "   " }).success).toBe(false);
     expect(checklistCreateSchema.safeParse({ text: "a".repeat(181) }).success).toBe(false);
+  });
+
+  test("validates attachment metadata and records", () => {
+    const meta = {
+      contentType: "application/pdf",
+      fileName: "  launch-plan.pdf  ",
+      size: ATTACHMENT_MAX_BYTES,
+    };
+
+    const metaResult = attachmentMetaSchema.safeParse(meta);
+
+    expect(metaResult.success).toBe(true);
+    if (!metaResult.success) {
+      throw new Error("Expected valid attachment metadata.");
+    }
+    expect(metaResult.data.fileName).toBe("launch-plan.pdf");
+    expect(
+      attachmentRecordSchema.safeParse({
+        ...meta,
+        storagePath: "tasks/task_1/upload_1",
+      }).success,
+    ).toBe(true);
+    expect(attachmentMetaSchema.safeParse({ ...meta, contentType: "application/zip" }).success)
+      .toBe(false);
+    expect(attachmentMetaSchema.safeParse({ ...meta, size: ATTACHMENT_MAX_BYTES + 1 }).success)
+      .toBe(false);
+    expect(attachmentRecordSchema.safeParse(meta).success).toBe(false);
   });
 
   test("validates checklist updates require at least one field", () => {
