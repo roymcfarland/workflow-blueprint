@@ -33,6 +33,7 @@ import {
   NotebookPen,
   PanelRightClose,
   PanelRightOpen,
+  Paperclip,
   Pencil,
   Plus,
   Repeat,
@@ -107,6 +108,12 @@ function formatApiFailure(
     return retry ? `${base} Try again in ${retry}s.` : base;
   }
   return base;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -2114,8 +2121,10 @@ function TaskDetailModal({
   const [checklistText, setChecklistText] = useState("");
   const [labelColor, setLabelColor] = useState<string>(labelColorPalette[0]);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const descriptionFocusedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const taskId = task?.id ?? null;
 
   useEffect(() => {
@@ -2280,6 +2289,95 @@ function TaskDetailModal({
       setError(err instanceof Error ? err.message : "Unable to remove checklist item.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFileSelected = async (file: File) => {
+    if (!task) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const urlResponse = await fetch(`/api/tasks/${task.id}/attachments/upload-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, size: file.size }),
+      });
+      const urlData = (await urlResponse.json()) as {
+        message?: string;
+        path?: string;
+        uploadUrl?: string;
+      };
+      if (!urlResponse.ok) {
+        throw new Error(urlData.message ?? "Unable to start the upload.");
+      }
+      if (!urlData.path || !urlData.uploadUrl) {
+        throw new Error("Unable to start the upload.");
+      }
+
+      const uploadResponse = await fetch(urlData.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!uploadResponse.ok) {
+        throw new Error("The file upload failed.");
+      }
+
+      const recordResponse = await fetch(`/api/tasks/${task.id}/attachments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+          storagePath: urlData.path,
+        }),
+      });
+      const recordData = (await recordResponse.json()) as {
+        message?: string;
+        task?: SerializedTask;
+      };
+      if (!recordResponse.ok || !recordData.task) {
+        throw new Error(recordData.message ?? "Unable to save the attachment.");
+      }
+      onTaskUpdated(recordData.task);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to upload the attachment.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const downloadAttachment = async (attachmentId: string) => {
+    setError(null);
+    try {
+      const response = await fetch(`/api/attachments/${attachmentId}`);
+      const data = (await response.json()) as { message?: string; url?: string };
+      if (!response.ok || !data.url) {
+        throw new Error(data.message ?? "Unable to download the attachment.");
+      }
+      window.open(data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to download the attachment.");
+    }
+  };
+
+  const removeAttachment = async (attachmentId: string) => {
+    if (!task) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const response = await fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+      const data = (await response.json()) as { message?: string; task?: SerializedTask };
+      if (!response.ok || !data.task) {
+        throw new Error(data.message ?? "Unable to remove the attachment.");
+      }
+      onTaskUpdated(data.task);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to remove the attachment.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -2545,6 +2643,63 @@ function TaskDetailModal({
               <Plus className="h-4 w-4" />
             </button>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-xs font-semibold text-text-muted">Attachments</span>
+          {task.attachments && task.attachments.length > 0 ? (
+            <div className="space-y-1">
+              {task.attachments.map((attachment) => (
+                <div
+                  className="flex items-center gap-2 rounded-md border border-line-soft bg-surface-control px-2 py-1"
+                  key={attachment.id}
+                >
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+                  <button
+                    className="min-w-0 flex-1 truncate text-left text-sm text-text-primary transition hover:text-brand"
+                    disabled={saving || uploading}
+                    onClick={() => void downloadAttachment(attachment.id)}
+                    type="button"
+                  >
+                    {attachment.fileName}
+                  </button>
+                  <span className="shrink-0 text-xs text-text-muted">
+                    {formatFileSize(attachment.size)}
+                  </span>
+                  <button
+                    aria-label={`Remove attachment ${attachment.fileName}`}
+                    className="shrink-0 text-text-muted transition hover:text-danger"
+                    disabled={saving || uploading}
+                    onClick={() => void removeAttachment(attachment.id)}
+                    type="button"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <input
+            accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,text/plain,text/csv"
+            aria-label="Upload attachment"
+            className="hidden"
+            disabled={saving || uploading}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleFileSelected(file);
+            }}
+            ref={fileInputRef}
+            type="file"
+          />
+          <button
+            className="flex items-center gap-2 rounded-md border border-dashed border-line-soft px-3 py-1.5 text-xs font-semibold text-text-muted transition hover:border-line-strong hover:text-text-primary disabled:opacity-60"
+            disabled={saving || uploading}
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+          >
+            <Paperclip className="h-4 w-4" />
+            {uploading ? "Uploading…" : "Add attachment"}
+          </button>
         </div>
 
         {error ? (
