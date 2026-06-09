@@ -415,4 +415,55 @@ describe("BoardWorkspace subtask panel granular API", () => {
 
     await waitFor(() => expect(screen.getByText("Verify copy")).toBeDefined());
   });
+
+  test("uploads an attachment in the detail modal", async () => {
+    const initialTask = task();
+    const updatedTask = task({
+      attachments: [
+        {
+          contentType: "application/pdf",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          fileName: "spec.pdf",
+          id: "att-1",
+          size: 2048,
+        },
+      ],
+    });
+
+    fetchMock
+      .mockResolvedValueOnce(
+        apiResponse({
+          ok: true,
+          path: "tasks/task-active/abc",
+          token: "tok",
+          uploadUrl: "https://signed.example/upload",
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+
+    const file = new File(["pdf-bytes"], "spec.pdf", { type: "application/pdf" });
+    const input = screen.getByLabelText("Upload attachment") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+
+    const [urlUrl, urlInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(urlUrl).toBe(`/api/tasks/${initialTask.id}/attachments/upload-url`);
+    expect(requestJsonBody(urlInit)?.fileName).toBe("spec.pdf");
+
+    const [putUrl, putInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(putUrl).toBe("https://signed.example/upload");
+    expect(putInit.method).toBe("PUT");
+
+    const [recordUrl, recordInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(recordUrl).toBe(`/api/tasks/${initialTask.id}/attachments`);
+    expect(requestJsonBody(recordInit)?.storagePath).toBe("tasks/task-active/abc");
+
+    await waitFor(() => expect(screen.getByText("spec.pdf")).toBeDefined());
+  });
 });
