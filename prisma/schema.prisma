@@ -92,6 +92,7 @@ model Task {
   dueDate     DateTime?
   archivedAt  DateTime?
   completedAt DateTime?
+  visibleAt   DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   board       Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)

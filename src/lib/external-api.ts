@@ -754,11 +754,13 @@ export async function requireExternalApiUser(
 export async function buildExternalDailySummary(
   userId: string,
 ): Promise<ExternalDailySummaryResponse> {
+  const now = new Date();
   const boards = await prisma.board.findMany({
     where: { userId },
     orderBy: { sortOrder: "asc" },
     include: {
       tasks: {
+        where: { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] },
         orderBy: [{ status: "asc" }, { sortOrder: "asc" }],
       },
     },
