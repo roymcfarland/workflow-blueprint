@@ -1,6 +1,7 @@
 import { CalendarClock, Inbox, NotebookPen } from "lucide-react";
 import { redirect } from "next/navigation";
 
+import { DemoButton } from "@/components/auth/demo-button";
 import { LoginForm } from "@/components/auth/login-form";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { getCurrentUser } from "@/lib/auth";
@@ -119,6 +120,18 @@ export default async function LoginPage() {
                 </div>
 
                 <LoginForm />
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    <span className="h-px flex-1 bg-line-soft" />
+                    or
+                    <span className="h-px flex-1 bg-line-soft" />
+                  </div>
+                  <p className="text-center text-sm text-text-muted">
+                    No account? Explore a fully interactive demo — no sign-up needed.
+                  </p>
+                  <DemoButton />
+                </div>
               </div>
             </BlueprintCard>
           </section>
