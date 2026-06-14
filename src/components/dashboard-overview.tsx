@@ -105,7 +105,7 @@ function NewTaskMenu({ boards }: { boards: DashboardSnapshot["boardBreakdown"] }
     <div className="relative">
       <BlueprintButton onClick={() => setOpen((value) => !value)} variant="hero">
         <Plus className="h-4 w-4" />
-        New task
+        New Task
       </BlueprintButton>
       {open ? (
         <>
@@ -248,7 +248,7 @@ function SnapshotPanel({
         <div className="space-y-4 border-t border-line-soft pt-5">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
-              Completion rate
+              Completion Rate
             </h2>
             <span className="blueprint-eyebrow cursor-help" title={completionTooltip}>
               formula
@@ -276,7 +276,7 @@ function SnapshotPanel({
             <div className="rounded-lg border border-line-soft bg-surface-control p-3">
               <div className="flex items-center gap-2 text-text-muted">
                 <ClipboardList className="h-3.5 w-3.5" />
-                <span className="text-xs font-semibold">In progress</span>
+                <span className="text-xs font-semibold">In Progress</span>
               </div>
               <p className="text-2xl font-semibold leading-tight text-text-primary">
                 {data.inProgressCount}
@@ -386,7 +386,7 @@ function InProgressPanel({
           <div className="flex items-center gap-2">
             {dragHandle}
             <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
-              In progress
+              In Progress
             </h2>
           </div>
           <ClipboardList className="h-5 w-5 text-text-muted" />
@@ -813,7 +813,7 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
                 {(handle) => <SnapshotPanel data={data} dragHandle={handle} />}
               </SortableSection>
             ) : (
-              <SortableSection id="in-progress" key="in-progress" label="In progress">
+              <SortableSection id="in-progress" key="in-progress" label="In Progress">
                 {(handle) => (
                   <InProgressPanel
                     dragHandle={handle}
