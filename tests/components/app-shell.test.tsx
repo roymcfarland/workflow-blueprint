@@ -48,6 +48,7 @@ const boards: BoardNavItem[] = [
 const user = {
   avatarLabel: null,
   email: "alex@example.test",
+  isDemo: false,
   name: "Alex Blueprint",
   role: "USER" as UserRole,
   themePreference: "day" as const,
@@ -152,6 +153,18 @@ describe("AppShell collapsible sidebar", () => {
 
     expectWordmarkVisible();
     expect(screen.getByRole("button", { name: "Close navigation overlay" })).toBeDefined();
+  });
+});
+
+describe("AppShell demo banner", () => {
+  test("shows the demo sandbox banner for demo accounts", () => {
+    renderShell({ ...user, isDemo: true });
+    expect(screen.getByText(/demo sandbox/i)).toBeDefined();
+  });
+
+  test("hides the demo sandbox banner for real accounts", () => {
+    renderShell();
+    expect(screen.queryByText(/demo sandbox/i)).toBeNull();
   });
 });
 

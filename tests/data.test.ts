@@ -332,6 +332,18 @@ describe("src/lib/data.ts", () => {
     });
   });
 
+  test("getShellSnapshot flags demo accounts via isDemo", async () => {
+    const realUser = await createTestUser();
+    const demo = await provisionDemoUser();
+
+    await expect(getShellSnapshot(realUser.id)).resolves.toMatchObject({
+      user: { isDemo: false },
+    });
+    await expect(getShellSnapshot(demo.id)).resolves.toMatchObject({
+      user: { isDemo: true },
+    });
+  });
+
   test("includes board accent colors in dashboard snapshot breakdown", async () => {
     const user = await createTestUser();
     const coloredBoard = await createBoardForUser(user.id, {
