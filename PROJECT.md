@@ -119,6 +119,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **`#95`** | Board accent color on dashboard In-progress icons | `#95` | Threaded stored `Board.accentColor` through `DashboardTaskSummary` (new `boardAccentColor`) → enrichment + `summarize` in `getDashboardSnapshot`; the In-progress row icon now uses `task.boardAccentColor ?? getBoardAccentColor(slug)` (parity with the Snapshot donut, #83). Internal-only (external v1 dashboard omits in-progress tasks); no contract change. Data test per Q1. |
 | **`#96`** | Recurring visibility infra — visibleAt column + read-path filtering | `#96` | Added nullable `Task.visibleAt` (migration `add_task_visible_at`) and filtered `visibleAt > now` out of `getBoardSnapshot`, `getDashboardSnapshot`, and `buildExternalDailySummary`. Additive/no-op (nothing sets visibleAt until the spawn slice); internal-only (not serialized, not in the external contract). Read-path filter tests per Q1. |
 | **`#97`** | Recurring tasks hide until 3 days before due (spawn behavior) | `#97` | `spawnNextRecurrence` now spawns the next occurrence as `IN_PROGRESS` with `visibleAt = nextDueDate − 3 days` (null when the source has no due date → visible immediately), so recurring cards stay hidden until 3 days before due and then surface In Progress (paired with the #96 read-path filtering). Completes the recurring-visibility feature. Spawn tests updated with status + visibleAt assertions per Q1. |
+| **`#98`** | Demo access exception (amendment) | `#98` | Documentation-only: carved a scoped exception into the "no open public self-service registration" non-goal allowing a public demo endpoint to provision ephemeral, time-limited, USER-role demo accounts (per-visitor sandboxes, rate-limited, auto-purged via `demoExpiresAt`) without an invitation — solely for the hiring-manager demo. Normal sign-up stays invite-only. Unblocks the demo epic (backend D1, UI D2). |
 
 ### Active phase
 
@@ -179,13 +180,30 @@ The app is organized as a Next.js App Router application under `src/app`: root m
 
 The following are explicitly **out of scope** for this product. Agents should reject or flag work that moves the codebase in any of these directions unless this document is updated first.
 
-- **Not open public self-service registration** — sign-up requires an admin-issued invitation token; admin-gated invitation creation.
+- **Not open public self-service registration** — sign-up requires an admin-issued invitation token; admin-gated invitation creation. **Exception:** a single public demo endpoint may provision ephemeral, time-limited, USER-role demo accounts *without* an invitation, solely so prospective viewers (e.g. hiring managers) can try the app — see "Demo access exception" below. This exemption applies ONLY to that demo endpoint; the normal sign-up flow stays invitation-gated.
 - **Not a browser-oriented cross-origin API surface** — the external API is intentionally not CORS-enabled and uses key-based auth with `no-store`/`noindex` headers.
 - **Not a team, multi-tenant, or enterprise tool** — invitations and data are per-user; no orgs, workspaces, shared boards, or B2B admin surfaces.
 - **Not a realtime collaboration tool** — no websockets, presence, shared editing, or simultaneous board editing.
 - **Not a public or open API** — the `/api/external/v1/*` surface is auth-gated and intended only for consumers under the project owner's control.
 - **Not a native mobile app within this codebase** — the planned native mobile experience will be a separate-repo consumer of `/api/external/v1/*`. This repo will house only the web app and the API; native mobile code (React Native, Swift, Kotlin) is forbidden here. The external API will evolve to support per-user authentication and read/write operations as the mobile app's needs are defined. Any such evolution must be proposed as its own PR with an updated entry in the "Active phase" section above and an explicit Q5 update covering the new auth model; it must not be smuggled into an unrelated PR.
 - **Not a mind-mapping or visual-canvas tool today** — boards are list-based with hierarchical tasks and subtasks; freeform 2D mind maps, node-and-edge canvases, and graph visualizations are explicitly deferred. This requires a PROJECT.md update before any PR introduces canvas/graph rendering libraries (e.g., react-flow, cytoscape, d3-force) or a mind-map data model.
+
+### Demo access exception (hiring-manager demo)
+
+To let prospective viewers try the product without an invitation, a single public endpoint provisions throwaway demo accounts. This is a deliberate, scoped exception to the "no open public self-service registration" non-goal: it does **not** open general registration — it only creates disposable, isolated demo sandboxes.
+
+Rules for this exception:
+- The demo endpoint (`POST /api/auth/demo`) provisions a **new ephemeral user per visitor**, marked with a `User.demoExpiresAt` timestamp (real users have `demoExpiresAt = null`), seeds it with demo data, and issues a normal session. Each visitor gets an isolated sandbox; concurrent visitors never share state.
+- Demo accounts are **USER role only** — never ADMIN — and are subject to the same per-user data scoping as real users. They get no elevated privileges.
+- The endpoint is **rate-limited** (it writes rows) and enforces the same same-origin check as other mutations. It is an internal auth route, **not** part of the external `/api/external/v{N}/*` surface, and adds no CORS.
+- Demo accounts are **time-limited and auto-purged**: because the app has no scheduler, expired demo accounts (`demoExpiresAt < now`) are deleted lazily — e.g. on each demo-login — cascading their boards/tasks. No persistent demo data accumulates.
+- This exemption is **scoped to the demo endpoint only.** The normal sign-up flow (`/api/auth/sign-up`) stays invitation-gated; no demo PR may weaken it.
+
+**Verifier behavior:**
+- **Hard-fail** any PR that lets the demo endpoint (or any new path) create a non-demo account without an invitation, grants a demo account ADMIN role, or leaves a demo-provisioned account without a `demoExpiresAt`.
+- **Hard-fail** any change that removes or weakens the invitation requirement on the normal `/api/auth/sign-up` flow.
+- **Hard-fail** a demo endpoint that lacks rate limiting or lacks auto-purge of expired demo accounts.
+- **Warn** if the demo seed exceeds the per-user board/task caps.
 
 ---
 
