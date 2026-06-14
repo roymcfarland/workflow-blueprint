@@ -593,6 +593,7 @@ export async function getBoardSummaries(userId: string): Promise<BoardSummary[]>
 }
 
 export async function getDashboardSnapshot(userId: string): Promise<DashboardSnapshot> {
+  const now = new Date();
   const boards = await prisma.board.findMany({
     where: { userId },
     orderBy: {
@@ -600,6 +601,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     },
     include: {
       tasks: {
+        where: { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] },
         include: taskInclude,
       },
     },
@@ -824,6 +826,7 @@ export async function markTaskDoneForUser(userId: string, taskId: string) {
 }
 
 export async function getBoardSnapshot(userId: string, slug: string): Promise<BoardSnapshot | null> {
+  const now = new Date();
   const board = await prisma.board.findFirst({
     where: {
       slug,
@@ -832,6 +835,7 @@ export async function getBoardSnapshot(userId: string, slug: string): Promise<Bo
     include: {
       note: true,
       tasks: {
+        where: { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] },
         include: taskInclude,
         orderBy: [
           {

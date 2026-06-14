@@ -42,6 +42,7 @@ import {
   updateTaskForUser,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
+import { buildExternalDailySummary } from "@/lib/external-api";
 import {
   labelColorPalette,
   MAX_ATTACHMENTS_PER_TASK,
@@ -124,6 +125,7 @@ function boardTasksWithSubtasks(boardId: string) {
 function createDataTask({
   boardId,
   completedAt = null,
+  visibleAt = null,
   createdAt,
   dashboardSortOrder,
   description = null,
@@ -134,6 +136,7 @@ function createDataTask({
 }: {
   boardId: string;
   completedAt?: Date | null;
+  visibleAt?: Date | null;
   createdAt?: Date;
   dashboardSortOrder?: number | null;
   description?: string | null;
@@ -146,6 +149,7 @@ function createDataTask({
     data: {
       boardId,
       completedAt,
+      visibleAt,
       dashboardSortOrder,
       description,
       ...(createdAt ? { createdAt } : {}),
@@ -392,6 +396,69 @@ describe("src/lib/data.ts", () => {
     expect(
       snapshot.inProgressTasks.find((task) => task.boardSlug === fallbackBoard.slug),
     ).toMatchObject({ boardAccentColor: null });
+  });
+
+  test("hides tasks with a future visibleAt from the board snapshot", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    await createDataTask({ boardId: board.id, title: "Visible now", visibleAt: null });
+    await createDataTask({
+      boardId: board.id,
+      title: "Hidden until later",
+      visibleAt: new Date("2099-01-01T00:00:00.000Z"),
+    });
+
+    const snapshot = await getBoardSnapshot(user.id, board.slug);
+
+    const titles = snapshot!.tasks.map((task) => task.title);
+    expect(titles).toContain("Visible now");
+    expect(titles).not.toContain("Hidden until later");
+  });
+
+  test("hides tasks with a future visibleAt from the dashboard snapshot", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    await createDataTask({
+      boardId: board.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Active now",
+      visibleAt: null,
+    });
+    await createDataTask({
+      boardId: board.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Hidden recurring",
+      visibleAt: new Date("2099-01-01T00:00:00.000Z"),
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    const titles = snapshot.inProgressTasks.map((task) => task.title);
+    expect(titles).toContain("Active now");
+    expect(titles).not.toContain("Hidden recurring");
+  });
+
+  test("hides tasks with a future visibleAt from the external daily summary", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    await createDataTask({
+      boardId: board.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Briefing visible",
+      visibleAt: null,
+    });
+    await createDataTask({
+      boardId: board.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Briefing hidden",
+      visibleAt: new Date("2099-01-01T00:00:00.000Z"),
+    });
+
+    const summary = await buildExternalDailySummary(user.id);
+
+    const titles = summary.inProgress.map((task) => task.title);
+    expect(titles).toContain("Briefing visible");
+    expect(titles).not.toContain("Briefing hidden");
   });
 
   test("rejects creating a task once the board reaches the task cap", async () => {
