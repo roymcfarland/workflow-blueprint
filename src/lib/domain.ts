@@ -82,24 +82,31 @@ export const starterBoard = {
 export const boardDefinitions = [
   starterBoard,
   {
-    slug: "brightline-labs",
-    name: "Brightline Labs",
-    iconKey: "labs",
-    description: "Growth, product, and operations work for Brightline Labs.",
+    slug: "bag-end",
+    name: "Bag End",
+    iconKey: "home",
+    description: "Hobbit-hole comforts, the garden, and a well-stocked pantry.",
   },
   {
-    slug: "field-ops",
-    name: "Field Ops",
-    iconKey: "target",
-    description: "Cross-team operations, vendor coordination, and launch readiness work.",
+    slug: "the-adventure",
+    name: "The Adventure",
+    iconKey: "compass",
+    description: "There and back again — the road to the Lonely Mountain with thirteen dwarves and a wizard.",
+  },
+  {
+    slug: "there-and-back-again",
+    name: "There & Back Again",
+    iconKey: "book",
+    description: "Writing my memoir — a hobbit's tale, one chapter at a time.",
   },
 ] as const;
 
 export type BoardSlug = (typeof boardDefinitions)[number]["slug"];
 
 const boardAccentColors: Record<string, string> = {
-  "brightline-labs": "#c94f7c",
-  "field-ops": "#2f9f85",
+  "bag-end": "#2f9f85",
+  "the-adventure": "#df7d22",
+  "there-and-back-again": "#9b6bd6",
   personal: "#4f78e6",
 };
 
@@ -196,9 +203,9 @@ export const sessionCookieName = "workflow-blueprint-session";
 
 export const demoUser = {
   id: "user_demo_alex_blue",
-  name: "Alex Blue",
+  name: "Bilbo Baggins",
   email: "alex@workflowblueprint.app",
-  avatarLabel: "AB",
+  avatarLabel: "BB",
   themePreference: "day" as ThemePreference,
 };
 

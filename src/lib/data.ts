@@ -2091,7 +2091,7 @@ const demoAccountTtlDays = 1;
 export async function provisionDemoUser() {
   const id = randomUUID();
   const email = normalizeEmail(`demo-${id}@demo.local`);
-  const name = "Demo Guest";
+  const name = "Bilbo Baggins";
   const passwordHash = await hash(randomUUID(), 12);
   const demoExpiresAt = addDays(new Date(), demoAccountTtlDays);
 

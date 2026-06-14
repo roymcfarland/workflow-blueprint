@@ -1498,6 +1498,7 @@ describe("src/lib/data.ts", () => {
     const second = await provisionDemoUser();
 
     expect(first.id).not.toBe(second.id);
+    expect(first.name).toBe("Bilbo Baggins");
 
     const record = await prisma.user.findUnique({
       where: { id: first.id },
