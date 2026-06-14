@@ -2117,6 +2117,7 @@ function TaskDetailModal({
   onDelete: (taskId: string) => Promise<void>;
   onTaskUpdated: TaskUpdatedHandler;
 }) {
+  const [title, setTitle] = useState(task?.title ?? "");
   const [priority, setPriority] = useState<ItemPriority>(task?.priority ?? "NONE");
   const [recurrence, setRecurrence] = useState<RecurrencePattern>(task?.recurrence ?? "NONE");
   const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : "");
@@ -2138,6 +2139,7 @@ function TaskDetailModal({
     }
 
     descriptionFocusedRef.current = false;
+    const nextTitle = task.title;
     const nextPriority = task.priority;
     const nextDueDate = task.dueDate ? task.dueDate.slice(0, 10) : "";
     const nextDescription = task.description ?? "";
@@ -2147,6 +2149,7 @@ function TaskDetailModal({
         return;
       }
 
+      setTitle(nextTitle);
       setPriority(nextPriority);
       setDueDate(nextDueDate);
       setRecurrence(task.recurrence);
@@ -2413,7 +2416,36 @@ function TaskDetailModal({
         role="dialog"
       >
         <div className="flex items-start justify-between gap-3">
-          <h2 className="break-words text-lg font-semibold text-text-primary">{task.title}</h2>
+          <input
+            aria-label="Task title"
+            className="blueprint-control min-w-0 flex-1 rounded-md px-2 py-1 text-lg font-semibold text-text-primary outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+            disabled={saving}
+            maxLength={180}
+            onBlur={() => {
+              const next = title.trim();
+              if (next === "") {
+                setTitle(task.title);
+                setError("Task title is required.");
+                return;
+              }
+              if (next !== task.title) {
+                void saveField({ title: next });
+              }
+            }}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              if (event.target.value.trim() !== "") {
+                setError(null);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+            }}
+            value={title}
+          />
           <button
             aria-label="Close details"
             className="blueprint-action shrink-0 rounded-md p-1 text-text-muted"
