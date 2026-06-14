@@ -350,6 +350,50 @@ describe("src/lib/data.ts", () => {
     ).toMatchObject({ accentColor: null });
   });
 
+  test("includes board accent colors on dashboard in-progress task summaries", async () => {
+    const user = await createTestUser();
+    const coloredBoard = await createBoardForUser(user.id, {
+      accentColor: "#4f78e6",
+      description: null,
+      iconKey: starterBoard.iconKey,
+      name: "Colored board",
+    });
+    const fallbackBoard = await createBoardForUser(user.id, {
+      description: null,
+      iconKey: starterBoard.iconKey,
+      name: "Fallback board",
+    });
+    const [coloredBoardRecord, fallbackBoardRecord] = await Promise.all([
+      prisma.board.findUniqueOrThrow({
+        select: { id: true },
+        where: { userId_slug: { userId: user.id, slug: coloredBoard.slug } },
+      }),
+      prisma.board.findUniqueOrThrow({
+        select: { id: true },
+        where: { userId_slug: { userId: user.id, slug: fallbackBoard.slug } },
+      }),
+    ]);
+    await createDataTask({
+      boardId: coloredBoardRecord.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Colored in-progress",
+    });
+    await createDataTask({
+      boardId: fallbackBoardRecord.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Fallback in-progress",
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(
+      snapshot.inProgressTasks.find((task) => task.boardSlug === coloredBoard.slug),
+    ).toMatchObject({ boardAccentColor: "#4f78e6" });
+    expect(
+      snapshot.inProgressTasks.find((task) => task.boardSlug === fallbackBoard.slug),
+    ).toMatchObject({ boardAccentColor: null });
+  });
+
   test("rejects creating a task once the board reaches the task cap", async () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);
