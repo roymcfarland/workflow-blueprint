@@ -1296,6 +1296,7 @@ describe("src/lib/data.ts", () => {
       title: "Weekly review",
     });
     expect(nextOccurrence?.dueDate?.toISOString()).toBe("2026-05-12T00:00:00.000Z");
+    expect(nextOccurrence?.visibleAt?.toISOString()).toBe("2026-05-09T00:00:00.000Z");
     expect(
       nextOccurrence?.subtasks.map((subtask) => ({
         isComplete: subtask.isComplete,
@@ -1410,10 +1411,11 @@ describe("src/lib/data.ts", () => {
       description: "Updated description",
       priority: PrismaItemPriority.MEDIUM,
       recurrence: PrismaRecurrencePattern.WEEKLY,
-      status: PrismaTaskStatus.ON_DECK,
+      status: PrismaTaskStatus.IN_PROGRESS,
       title: "Updated runbook",
     });
     expect(nextOccurrence?.dueDate?.toISOString()).toBe("2026-06-17T00:00:00.000Z");
+    expect(nextOccurrence?.visibleAt?.toISOString()).toBe("2026-06-14T00:00:00.000Z");
     expect(
       nextOccurrence?.subtasks.map((subtask) => ({
         isComplete: subtask.isComplete,
@@ -1473,6 +1475,8 @@ describe("src/lib/data.ts", () => {
     expect(
       Math.abs(nextOccurrence.dueDate.getTime() - addMonths(original.completedAt, 1).getTime()),
     ).toBeLessThan(1000);
+    expect(nextOccurrence?.status).toBe(PrismaTaskStatus.IN_PROGRESS);
+    expect(nextOccurrence?.visibleAt).toBeNull();
   });
 
   test("rejects marking another user's task done", async () => {
