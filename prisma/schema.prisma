@@ -52,6 +52,7 @@ model User {
   themePreference     ThemePreference     @default(DAY)
   role                UserRole            @default(USER)
   passwordChangedAt   DateTime            @default(now())
+  demoExpiresAt       DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   boards              Board[]
