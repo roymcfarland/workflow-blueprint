@@ -366,6 +366,54 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(requestJsonBody(init)?.recurrence).toBe("WEEKLY");
   });
 
+  test("editing the title in the detail modal patches the task", async () => {
+    const initialTask = task({ title: "Original title" });
+    const updatedTask = task({ title: "Renamed in modal" });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    const input = screen.getByRole("textbox", { name: "Task title" });
+    fireEvent.change(input, { target: { value: "Renamed in modal" } });
+    fireEvent.blur(input);
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            String(url) === `/api/tasks/${initialTask.id}` &&
+            (init as RequestInit)?.method === "PATCH",
+        ),
+      ).toBe(true),
+    );
+    const patch = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url) === `/api/tasks/${initialTask.id}` &&
+        (init as RequestInit)?.method === "PATCH",
+    );
+    expect(requestJsonBody(patch![1])?.title).toBe("Renamed in modal");
+  });
+
+  test("an empty title in the detail modal is not saved", async () => {
+    const initialTask = task({ title: "Keep me" });
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    const input = screen.getByRole("textbox", { name: "Task title" });
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.blur(input);
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          String(url) === `/api/tasks/${initialTask.id}` &&
+          (init as RequestInit)?.method === "PATCH",
+      ),
+    ).toBe(false);
+  });
+
   test("adds a label in the detail modal", async () => {
     const initialTask = task();
     const updatedTask = task({
