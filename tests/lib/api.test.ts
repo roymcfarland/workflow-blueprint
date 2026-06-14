@@ -31,10 +31,36 @@ describe("assertSameOriginRequest", () => {
     expect(assertSameOriginRequest(request)).toBeNull();
   });
 
+  test("allows an unsafe request whose origin matches the request's own forwarded host", () => {
+    const request = new Request("https://preview-xyz.vercel.app/api/auth/demo", {
+      headers: {
+        origin: "https://preview-xyz.vercel.app",
+        "x-forwarded-host": "preview-xyz.vercel.app",
+        "x-forwarded-proto": "https",
+      },
+      method: "POST",
+    });
+
+    expect(assertSameOriginRequest(request)).toBeNull();
+  });
+
   test("rejects unsafe requests with a cross-origin origin header", () => {
     const request = new Request(routeUrl, {
       headers: {
         origin: "https://attacker.example",
+      },
+      method: "POST",
+    });
+
+    expectBlocked(assertSameOriginRequest(request));
+  });
+
+  test("rejects a cross-site origin even when a forwarded host is present", () => {
+    const request = new Request("https://preview-xyz.vercel.app/api/auth/demo", {
+      headers: {
+        origin: "https://attacker.example",
+        "x-forwarded-host": "preview-xyz.vercel.app",
+        "x-forwarded-proto": "https",
       },
       method: "POST",
     });
