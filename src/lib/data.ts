@@ -195,6 +195,7 @@ export type DashboardTaskSummary = {
   boardSlug: string;
   boardName: string;
   boardIconKey: string;
+  boardAccentColor: string | null;
   subtasks: DashboardSubtaskSummary[];
 };
 
@@ -610,6 +611,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       boardSlug: board.slug,
       boardName: board.name,
       boardIconKey: board.iconKey,
+      boardAccentColor: board.accentColor,
     })),
   );
   const activeStatuses: PrismaTaskStatus[] = ["DONE", "IN_PROGRESS", "ON_DECK"];
@@ -638,6 +640,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       boardSlug: task.boardSlug,
       boardName: task.boardName,
       boardIconKey: task.boardIconKey,
+      boardAccentColor: task.boardAccentColor,
       subtasks: task.subtasks.map((subtask) => ({
         id: subtask.id,
         title: subtask.title,

@@ -33,6 +33,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 function taskSummary(overrides: Partial<DashboardTaskSummary>): DashboardTaskSummary {
   return {
+    boardAccentColor: null,
     boardIconKey: "briefcase",
     boardName: "Launch Plan",
     boardSlug: "launch-plan",

@@ -589,7 +589,7 @@ function SortableInProgressRow({
           <BoardIcon
             className="h-4 w-4 shrink-0"
             iconKey={task.boardIconKey}
-            style={{ color: getBoardAccentColor(task.boardSlug) }}
+            style={{ color: task.boardAccentColor ?? getBoardAccentColor(task.boardSlug) }}
           />
           <div className="min-w-0">
             <Link
