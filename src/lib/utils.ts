@@ -10,9 +10,12 @@ export function formatShortDate(value: string | null) {
     return null;
   }
 
+  // Due dates are stored as UTC-midnight, date-only values; format the UTC
+  // calendar day so the label matches the day the user picked in every timezone.
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   }).format(new Date(value));
 }
 

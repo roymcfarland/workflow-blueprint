@@ -171,29 +171,33 @@ function completedSubtaskCount(task: SerializedTask) {
   return task.subtasks.filter((subtask) => subtask.isComplete).length;
 }
 
+// Due dates are stored as UTC-midnight, date-only values. Express "today" on the
+// same UTC-midnight basis (built from the viewer's local calendar day) so the
+// overdue / due-soon comparison compares calendar days, not instants.
+function startOfTodayUtc() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
 function isDueSoon(task: SerializedTask) {
-  if (!task.dueDate || !activeBoardStatuses.includes(task.status)) {
+  if (!task.dueDate || task.completedAt || !activeBoardStatuses.includes(task.status)) {
     return false;
   }
 
   const dueDate = new Date(task.dueDate);
-  const today = new Date();
-  const sevenDaysFromNow = new Date();
-  today.setHours(0, 0, 0, 0);
-  sevenDaysFromNow.setDate(today.getDate() + 7);
-  sevenDaysFromNow.setHours(23, 59, 59, 999);
+  const today = startOfTodayUtc();
+  const sevenDaysFromNow = new Date(today);
+  sevenDaysFromNow.setUTCDate(today.getUTCDate() + 7);
 
   return dueDate >= today && dueDate <= sevenDaysFromNow;
 }
 
 function isOverdue(task: SerializedTask) {
-  if (!task.dueDate || !activeBoardStatuses.includes(task.status)) {
+  if (!task.dueDate || task.completedAt || !activeBoardStatuses.includes(task.status)) {
     return false;
   }
-  const dueDate = new Date(task.dueDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return dueDate < today;
+
+  return new Date(task.dueDate) < startOfTodayUtc();
 }
 
 function groupTasks(tasks: SerializedTask[]) {
