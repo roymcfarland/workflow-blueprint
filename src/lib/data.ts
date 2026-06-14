@@ -441,7 +441,15 @@ async function spawnNextRecurrence(
     return;
   }
 
-  const sortOrder = await nextSortOrderForStatus(tx, source.boardId, source.status);
+  const sortOrder = await nextSortOrderForStatus(
+    tx,
+    source.boardId,
+    PrismaTaskStatus.IN_PROGRESS,
+  );
+  const nextDueDate = advanceDueDate(source.dueDate ?? completedAt, source.recurrence);
+  // Hide the next occurrence until 3 days before it's due; a source task with no
+  // due date has nothing to hide until, so it's visible immediately.
+  const visibleAt = source.dueDate ? subDays(nextDueDate, 3) : null;
 
   await tx.task.create({
     data: {
@@ -449,11 +457,12 @@ async function spawnNextRecurrence(
       boardId: source.boardId,
       title: source.title,
       description: source.description,
-      status: source.status,
+      status: PrismaTaskStatus.IN_PROGRESS,
       priority: source.priority,
       recurrence: source.recurrence,
       sortOrder,
-      dueDate: advanceDueDate(source.dueDate ?? completedAt, source.recurrence),
+      dueDate: nextDueDate,
+      visibleAt,
       completedAt: null,
       archivedAt: null,
       subtasks: {
