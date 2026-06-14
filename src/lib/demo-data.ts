@@ -29,179 +29,173 @@ function createTask(status: TaskStatus, title: string, options: Omit<DemoTaskSee
   };
 }
 
-const personalBoard: DemoBoardSeed = {
-  slug: "personal",
+const bagEndBoard: DemoBoardSeed = {
+  slug: "bag-end",
   noteLines: [
-    "Move work left.",
-    "Limit WIP.",
-    "Visualize flow.",
-    "Improve continuously.",
+    "Keep the pantry full.",
+    "Mind the Sackville-Bagginses.",
+    "No adventures before tea.",
+    "A hobbit-hole means comfort.",
   ],
   tasks: [
-    createTask("ICE_BOX", "Learn Spanish"),
-    createTask("ICE_BOX", "Build side project idea"),
-    createTask("ICE_BOX", "Read 12 books this year"),
-    createTask("ICE_BOX", "Run a half marathon"),
-    createTask("ICE_BOX", "Organize photos & videos"),
-    createTask("ON_DECK", "Plan weekend trip", {
-      dueInDays: 10,
-      subtasks: [
-        { title: "Pick a city", isComplete: true },
-        { title: "Book the hotel" },
-        { title: "Send itinerary to friends" },
-      ],
-    }),
-    createTask("ON_DECK", "Buy new running shoes", {
-      dueInDays: 5,
-      subtasks: [
-        { title: "Compare two brands", isComplete: true },
-        { title: "Try on in-store" },
-      ],
-    }),
-    createTask("ON_DECK", "Meal prep for the week", {
-      dueInDays: 2,
-      subtasks: [
-        { title: "Choose recipes" },
-        { title: "Order groceries" },
-      ],
-    }),
-    createTask("ON_DECK", "Finish online course"),
-    createTask("ON_DECK", "Call mom this weekend"),
-    createTask("IN_PROGRESS", "Write blog post", {
-      description: "A practical write-up on setting up a reliable weekly planning ritual.",
-      dueInDays: 1,
-      subtasks: [
-        { title: "Draft outline", isComplete: true },
-        { title: "Write introduction" },
-        { title: "Add final screenshots" },
-      ],
-    }),
-    createTask("IN_PROGRESS", "Redesign personal website", {
-      description: "Refresh the homepage, tighten the case studies, and improve mobile spacing.",
-      dueInDays: 7,
-      subtasks: [
-        { title: "Update hero copy", isComplete: true },
-        { title: "Refine mobile nav" },
-        { title: "QA project pages" },
-      ],
-    }),
-    createTask("IN_PROGRESS", "Strength training 3x/week", {
-      subtasks: [
-        { title: "Monday lift", isComplete: true },
-        { title: "Wednesday lift" },
-        { title: "Friday lift" },
-      ],
-    }),
-    createTask("IN_PROGRESS", "Research new laptop"),
-    createTask("IN_PROGRESS", "Prep for team meeting", {
-      subtasks: [
-        { title: "Review agenda", isComplete: true },
-        { title: "Write talking points" },
-        { title: "Draft follow-up notes" },
-      ],
-    }),
-    createTask("DONE", "Grocery shopping", {
-      completedDaysAgo: 1,
-      subtasks: [
-        { title: "Buy produce", isComplete: true },
-        { title: "Restock pantry", isComplete: true },
-      ],
-    }),
-    createTask("DONE", "Dentist appointment", { completedDaysAgo: 3 }),
-    createTask("DONE", "Pay credit card bill", { completedDaysAgo: 2 }),
-    createTask("DONE", "Declutter closet", { completedDaysAgo: 6 }),
-    createTask("DONE", "Oil change", { completedDaysAgo: 9 }),
-    createTask("ARCHIVED", "2023 Tax Return", { archivedDaysAgo: 30 }),
-    createTask("ARCHIVED", "Old project ideas", { archivedDaysAgo: 45 }),
-    createTask("ARCHIVED", "Completed courses", { archivedDaysAgo: 60 }),
-    createTask("ARCHIVED", "Past travel itineraries", { archivedDaysAgo: 90 }),
-    createTask("ARCHIVED", "Sold old furniture", { archivedDaysAgo: 18 }),
-  ],
-};
-
-const brightlineLabsBoard: DemoBoardSeed = {
-  slug: "brightline-labs",
-  noteLines: [
-    "Tighten launch cadence.",
-    "Keep docs current.",
-    "Reduce handoff friction.",
-    "Track the right signals.",
-  ],
-  tasks: [
-    createTask("ICE_BOX", "Explore partner channel"),
-    createTask("ICE_BOX", "Prototype client portal"),
-    createTask("ICE_BOX", "Evaluate analytics vendor"),
-    createTask("ICE_BOX", "Draft Q4 innovation themes"),
-    createTask("ON_DECK", "Finalize homepage copy", {
-      dueInDays: 4,
-      subtasks: [
-        { title: "Revise hero line", isComplete: true },
-        { title: "Confirm proof points" },
-        { title: "Share final draft" },
-      ],
-    }),
-    createTask("ON_DECK", "Prepare investor update"),
-    createTask("ON_DECK", "Review hiring scorecards"),
-    createTask("ON_DECK", "Scope customer interview wave"),
-    createTask("IN_PROGRESS", "Ship pricing page refresh", {
-      description: "Align the pricing story with the latest plan structure and conversion notes.",
+    createTask("ICE_BOX", "Plant an oak by the front gate"),
+    createTask("ICE_BOX", "Learn the Old Took's smoke-ring trick"),
+    createTask("ICE_BOX", "Map the tunnels under the Hill"),
+    createTask("ICE_BOX", "Restore Grandfather's old map case"),
+    createTask("ON_DECK", "Host the Gaffer for afternoon tea", {
       dueInDays: 3,
       subtasks: [
-        { title: "Finalize card copy", isComplete: true },
-        { title: "Polish FAQ layout" },
-        { title: "Run visual QA" },
+        { title: "Bake a seed-cake", isComplete: true },
+        { title: "Brew the good Longbottom Leaf tea" },
+        { title: "Tidy the parlour" },
       ],
     }),
-    createTask("IN_PROGRESS", "Build campaign tracker"),
-    createTask("IN_PROGRESS", "Write launch brief"),
-    createTask("IN_PROGRESS", "Audit content library"),
-    createTask("DONE", "Close beta feedback loop", { completedDaysAgo: 2 }),
-    createTask("DONE", "Publish case study", { completedDaysAgo: 5 }),
-    createTask("DONE", "Send partner invoices", { completedDaysAgo: 8 }),
-    createTask("DONE", "Update sales deck", { completedDaysAgo: 4 }),
-    createTask("ARCHIVED", "2025 planning notes", { archivedDaysAgo: 21 }),
-    createTask("ARCHIVED", "Retired webinar outline", { archivedDaysAgo: 33 }),
-    createTask("ARCHIVED", "Old ad experiments", { archivedDaysAgo: 56 }),
-    createTask("ARCHIVED", "Archived partner list", { archivedDaysAgo: 70 }),
+    createTask("ON_DECK", "Restock the pantry", {
+      dueInDays: 2,
+      subtasks: [
+        { title: "Cheese and pickles" },
+        { title: "Ale from the Green Dragon" },
+        { title: "More bacon, obviously" },
+      ],
+    }),
+    createTask("ON_DECK", "Polish the silver (mind the Sackville-Bagginses)", { dueInDays: 5 }),
+    createTask("ON_DECK", "Repaint the round green door"),
+    createTask("IN_PROGRESS", "Plan my eleventy-first birthday party", {
+      description: "A long-expected party — and a rather dramatic exit.",
+      dueInDays: 7,
+      subtasks: [
+        { title: "Invitations to every Baggins and Took", isComplete: true },
+        { title: "Order fireworks from Gandalf" },
+        { title: "Rehearse the disappearing speech" },
+      ],
+    }),
+    createTask("IN_PROGRESS", "Tend the tomato garden", {
+      subtasks: [
+        { title: "Water the beds", isComplete: true },
+        { title: "Stake the vines" },
+        { title: "Shoo the rabbits" },
+      ],
+    }),
+    createTask("IN_PROGRESS", "Catalogue the wine cellar"),
+    createTask("DONE", "Second breakfast", { completedDaysAgo: 1 }),
+    createTask("DONE", "Air out the spare bedroom", { completedDaysAgo: 2 }),
+    createTask("DONE", "Mend the garden fence", { completedDaysAgo: 4 }),
+    createTask("DONE", "Pay the Gaffer for the week", { completedDaysAgo: 3 }),
+    createTask("ARCHIVED", "Last year's Yule feast", { archivedDaysAgo: 40 }),
+    createTask("ARCHIVED", "Spring cleaning, 1389", { archivedDaysAgo: 60 }),
   ],
 };
 
-const fieldOpsBoard: DemoBoardSeed = {
-  slug: "field-ops",
+const theAdventureBoard: DemoBoardSeed = {
+  slug: "the-adventure",
   noteLines: [
-    "Protect launch quality.",
-    "Streamline vendor ops.",
-    "Keep field stories crisp.",
-    "Close the loop quickly.",
+    "Stick to the path.",
+    "Never laugh at live dragons.",
+    "Keep it secret, keep it safe.",
+    "Home is worth the long road.",
   ],
   tasks: [
-    createTask("ICE_BOX", "Scope new SKU concepts"),
-    createTask("ICE_BOX", "Research event partnerships"),
-    createTask("ICE_BOX", "Outline site-tour playbook"),
-    createTask("ON_DECK", "Prep vendor renegotiation"),
-    createTask("ON_DECK", "Organize sample inventory"),
-    createTask("ON_DECK", "Draft training series"),
-    createTask("IN_PROGRESS", "Refresh packaging artwork", {
-      description: "Bring all primary packaging into the latest compliance and retail-ready standard.",
+    createTask("ICE_BOX", "Find a use for the troll-hoard gold"),
+    createTask("ICE_BOX", "Learn what 'Sting' is worth in a fight"),
+    createTask("ICE_BOX", "Decipher the dwarvish moon-runes"),
+    createTask("ON_DECK", "Reach the Lonely Mountain by Durin's Day", {
       dueInDays: 6,
       subtasks: [
-        { title: "Update ingredient block", isComplete: true },
-        { title: "Review print proof" },
-        { title: "Lock retail barcode" },
+        { title: "Read the moon-runes", isComplete: true },
+        { title: "Find the hidden door" },
+        { title: "Wait for the thrush to knock" },
       ],
     }),
-    createTask("IN_PROGRESS", "Coordinate quarterly field event"),
-    createTask("IN_PROGRESS", "Update DTC fulfillment SOP"),
-    createTask("DONE", "Submit vendor forms", { completedDaysAgo: 1 }),
-    createTask("DONE", "Approve invoice batch", { completedDaysAgo: 6 }),
-    createTask("DONE", "Clean operations notes", { completedDaysAgo: 11 }),
-    createTask("ARCHIVED", "Past quarter recap", { archivedDaysAgo: 28 }),
-    createTask("ARCHIVED", "2024 expo leads", { archivedDaysAgo: 40 }),
-    createTask("ARCHIVED", "Closed sample requests", { archivedDaysAgo: 64 }),
+    createTask("ON_DECK", "Resupply at Lake-town", {
+      dueInDays: 3,
+      subtasks: [
+        { title: "Dry off the dwarves" },
+        { title: "New cloaks and provisions" },
+      ],
+    }),
+    createTask("ON_DECK", "Cross Mirkwood without leaving the path", { dueInDays: 4 }),
+    createTask("IN_PROGRESS", "Burgle the Arkenstone from Smaug", {
+      description: "Tread softly. Dragons keep careful count of their treasure.",
+      dueInDays: 5,
+      subtasks: [
+        { title: "Sneak down the long tunnel", isComplete: true },
+        { title: "Flatter the dragon (carefully)" },
+        { title: "Spot the bare patch on his hide" },
+        { title: "Do NOT wake him fully" },
+      ],
+    }),
+    createTask("IN_PROGRESS", "Keep thirteen dwarves out of trouble", {
+      subtasks: [
+        { title: "Free them from the spiders", isComplete: true },
+        { title: "Free them from the Elvenking" },
+        { title: "Float them out in barrels" },
+      ],
+    }),
+    createTask("IN_PROGRESS", "Keep the ring quiet for now"),
+    createTask("DONE", "Win the riddle-game in the dark", {
+      completedDaysAgo: 5,
+      subtasks: [
+        { title: "Answer Gollum's riddles", isComplete: true },
+        { title: "Find the way out", isComplete: true },
+      ],
+    }),
+    createTask("DONE", "Escape the goblin tunnels", { completedDaysAgo: 6 }),
+    createTask("DONE", "Outwit the trolls until sunrise", { completedDaysAgo: 8 }),
+    createTask("DONE", "Sign Thorin & Co.'s contract", { completedDaysAgo: 11 }),
+    createTask("ARCHIVED", "The unexpected party (and all those dishes)", { archivedDaysAgo: 30 }),
+    createTask("ARCHIVED", "Ran out the door without a handkerchief", { archivedDaysAgo: 28 }),
   ],
 };
 
-export const demoBoardSeeds = [personalBoard, brightlineLabsBoard, fieldOpsBoard];
+const thereAndBackAgainBoard: DemoBoardSeed = {
+  slug: "there-and-back-again",
+  noteLines: [
+    "Begin at the beginning.",
+    "Tell it true (mostly).",
+    "Leave room for the songs.",
+    "A tale grows in the telling.",
+  ],
+  tasks: [
+    createTask("ICE_BOX", "Settle on a title (There and Back Again?)"),
+    createTask("ICE_BOX", "Translate the Elvish songs for the appendix"),
+    createTask("ICE_BOX", "Sketch a map of Wilderland for the endpapers"),
+    createTask("ON_DECK", "Draft the Rivendell chapter", {
+      dueInDays: 4,
+      subtasks: [
+        { title: "Elrond's counsel" },
+        { title: "Reading the map by moonlight" },
+      ],
+    }),
+    createTask("ON_DECK", "Interview Balin for the dwarves' side of the story"),
+    createTask("ON_DECK", "Decide how much to tell about the ring", { dueInDays: 2 }),
+    createTask("IN_PROGRESS", "Write the Smaug chapter", {
+      description: "The conversation with the dragon — every riddling word of it.",
+      dueInDays: 3,
+      subtasks: [
+        { title: "The talk with the dragon", isComplete: true },
+        { title: "The weak spot in his hide" },
+        { title: "The fall of Lake-town" },
+      ],
+    }),
+    createTask("IN_PROGRESS", "Revise 'Riddles in the Dark'", {
+      subtasks: [
+        { title: "Tell it honestly this time", isComplete: true },
+        { title: "Describe Gollum fairly" },
+      ],
+    }),
+    createTask("IN_PROGRESS", "Compile the songs and verses"),
+    createTask("DONE", "Write the opening line", {
+      description: "In a hole in the ground there lived a hobbit.",
+      completedDaysAgo: 6,
+    }),
+    createTask("DONE", "Finish 'An Unexpected Party'", { completedDaysAgo: 2 }),
+    createTask("DONE", "Leave the book to Frodo", { completedDaysAgo: 1 }),
+    createTask("ARCHIVED", "The soggy first draft", { archivedDaysAgo: 35 }),
+    createTask("ARCHIVED", "The preface nobody needed", { archivedDaysAgo: 50 }),
+  ],
+};
+
+export const demoBoardSeeds = [bagEndBoard, theAdventureBoard, thereAndBackAgainBoard];
 
 export function expandDemoSeed() {
   return demoBoardSeeds.map((board, boardIndex) => {
