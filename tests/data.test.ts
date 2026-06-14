@@ -3,7 +3,7 @@ import {
   RecurrencePattern as PrismaRecurrencePattern,
   TaskStatus as PrismaTaskStatus,
 } from "@prisma/client";
-import { addMonths } from "date-fns";
+import { addMonths, subDays } from "date-fns";
 import { createHash, randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -34,6 +34,8 @@ import {
   markTaskDoneForUser,
   MAX_BOARDS_PER_USER,
   MAX_TASKS_PER_BOARD,
+  provisionDemoUser,
+  purgeExpiredDemoUsers,
   reorderDashboardInProgressForUser,
   reorderTasksForUser,
   updateBoardForUser,
@@ -1477,6 +1479,47 @@ describe("src/lib/data.ts", () => {
     ).toBeLessThan(1000);
     expect(nextOccurrence?.status).toBe(PrismaTaskStatus.IN_PROGRESS);
     expect(nextOccurrence?.visibleAt).toBeNull();
+  });
+
+  test("provisionDemoUser creates an isolated USER-role demo sandbox", async () => {
+    const first = await provisionDemoUser();
+    const second = await provisionDemoUser();
+
+    expect(first.id).not.toBe(second.id);
+
+    const record = await prisma.user.findUnique({
+      where: { id: first.id },
+      select: {
+        role: true,
+        demoExpiresAt: true,
+        boards: { include: { tasks: true } },
+      },
+    });
+
+    expect(record?.role).toBe("USER");
+    expect(record?.demoExpiresAt).toBeInstanceOf(Date);
+    expect(record?.demoExpiresAt?.getTime() ?? 0).toBeGreaterThan(Date.now());
+    expect(record?.boards).toHaveLength(3);
+    expect(record?.boards.reduce((sum, board) => sum + board.tasks.length, 0)).toBeGreaterThan(0);
+  });
+
+  test("purgeExpiredDemoUsers removes expired demo accounts but keeps real and unexpired ones", async () => {
+    const realUser = await createTestUser();
+    const expiredDemo = await provisionDemoUser();
+    const liveDemo = await provisionDemoUser();
+
+    await prisma.user.update({
+      where: { id: expiredDemo.id },
+      data: { demoExpiresAt: subDays(new Date(), 1) },
+    });
+
+    const deleted = await purgeExpiredDemoUsers();
+
+    expect(deleted).toBeGreaterThanOrEqual(1);
+    expect(await prisma.user.findUnique({ where: { id: expiredDemo.id } })).toBeNull();
+    expect(await prisma.board.count({ where: { userId: expiredDemo.id } })).toBe(0);
+    expect(await prisma.user.findUnique({ where: { id: liveDemo.id } })).not.toBeNull();
+    expect(await prisma.user.findUnique({ where: { id: realUser.id } })).not.toBeNull();
   });
 
   test("rejects marking another user's task done", async () => {

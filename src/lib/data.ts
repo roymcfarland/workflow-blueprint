@@ -5,10 +5,12 @@ import {
   TaskStatus as PrismaTaskStatus,
   ThemePreference as PrismaThemePreference,
 } from "@prisma/client";
+import { hash } from "bcryptjs";
 import { addDays, addMonths, addWeeks, addYears, subDays } from "date-fns";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { expandDemoSeed } from "@/lib/demo-data";
 import {
   MAX_ATTACHMENTS_PER_TASK,
   MAX_CHECKLIST_ITEMS_PER_TASK,
@@ -2072,6 +2074,94 @@ export async function createUserAccountWithInvitation({
 
     throw error;
   }
+}
+
+const demoAccountTtlDays = 1;
+
+/**
+ * Provision an isolated, throwaway demo account (per the PROJECT.md "Demo access
+ * exception"): a USER-role user with a time-limited demoExpiresAt and a fresh-UUID
+ * copy of the full demo seed. Never logs in by password (the demo endpoint issues
+ * the session); the password hash is random and unusable.
+ */
+export async function provisionDemoUser() {
+  const id = randomUUID();
+  const email = normalizeEmail(`demo-${id}@demo.local`);
+  const name = "Demo Guest";
+  const passwordHash = await hash(randomUUID(), 12);
+  const demoExpiresAt = addDays(new Date(), demoAccountTtlDays);
+
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        id,
+        email,
+        name,
+        avatarLabel: avatarLabelFor(name, email),
+        passwordHash,
+        demoExpiresAt,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        passwordChangedAt: true,
+      },
+    });
+
+    for (const board of expandDemoSeed()) {
+      await tx.board.create({
+        data: {
+          id: randomUUID(),
+          userId: user.id,
+          name: board.name,
+          slug: board.slug,
+          description: board.description,
+          iconKey: board.iconKey,
+          sortOrder: board.sortOrder,
+          note: {
+            create: {
+              id: randomUUID(),
+              content: board.noteContent,
+            },
+          },
+          tasks: {
+            create: board.tasks.map((task) => ({
+              id: randomUUID(),
+              title: task.title,
+              description: task.description,
+              status: task.status as PrismaTaskStatus,
+              sortOrder: task.sortOrder,
+              dueDate: task.dueInDays ? addDays(new Date(), task.dueInDays) : null,
+              completedAt: task.completedDaysAgo ? subDays(new Date(), task.completedDaysAgo) : null,
+              archivedAt: task.archivedDaysAgo ? subDays(new Date(), task.archivedDaysAgo) : null,
+              subtasks: {
+                create: task.subtasks.map((subtask) => ({
+                  id: randomUUID(),
+                  title: subtask.title,
+                  isComplete: subtask.isComplete,
+                  sortOrder: subtask.sortOrder,
+                })),
+              },
+            })),
+          },
+        },
+      });
+    }
+
+    return user;
+  });
+}
+
+/**
+ * Delete demo accounts past their demoExpiresAt (cascades their boards/tasks).
+ * Real users (demoExpiresAt = null) are never matched. Returns the count deleted.
+ */
+export async function purgeExpiredDemoUsers() {
+  const result = await prisma.user.deleteMany({
+    where: { demoExpiresAt: { lt: new Date() } },
+  });
+  return result.count;
 }
 
 export async function findUserByEmail(email: string) {
