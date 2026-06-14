@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 type ShellUser = {
   avatarLabel: string | null;
   email: string;
+  isDemo: boolean;
   name: string;
   role: UserRole;
   themePreference: ThemePreference;
@@ -483,6 +484,11 @@ export function AppShell({ boards, children, user }: AppShellProps) {
           ) : null}
 
           <main className="min-h-screen min-w-0 px-4 pb-10 pt-16 sm:px-6 lg:h-screen lg:overflow-y-auto lg:px-8 lg:pt-8">
+            {user.isDemo ? (
+              <div className="mb-4 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2.5 text-center text-sm font-semibold text-text-primary">
+                You’re exploring a demo sandbox — changes are temporary and reset periodically.
+              </div>
+            ) : null}
             {children}
           </main>
         </div>

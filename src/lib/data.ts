@@ -546,6 +546,7 @@ export async function getShellSnapshot(userId: string) {
         avatarLabel: true,
         themePreference: true,
         role: true,
+        demoExpiresAt: true,
       },
     }),
     prisma.board.findMany({
@@ -566,10 +567,13 @@ export async function getShellSnapshot(userId: string) {
     return null;
   }
 
+  const { demoExpiresAt, ...shellUser } = user;
+
   return {
     user: {
-      ...user,
-      themePreference: themePreferenceToUi(user.themePreference),
+      ...shellUser,
+      themePreference: themePreferenceToUi(shellUser.themePreference),
+      isDemo: demoExpiresAt !== null,
     },
     boards,
   };
