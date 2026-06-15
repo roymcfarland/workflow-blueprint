@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { UserRole } from "@prisma/client";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -165,6 +165,41 @@ describe("AppShell demo banner", () => {
   test("hides the demo sandbox banner for real accounts", () => {
     renderShell();
     expect(screen.queryByText(/demo sandbox/i)).toBeNull();
+  });
+});
+
+describe("AppShell wordmark", () => {
+  test("wordmark links to the dashboard for non-demo users", () => {
+    renderShell();
+
+    const wordmark = screen.getByRole("link", { name: "Workflow Blueprint home" });
+    expect(wordmark.getAttribute("href")).toBe("/dashboard");
+  });
+
+  test("wordmark becomes an exit control in a demo sandbox (no dashboard link)", () => {
+    renderShell({ ...user, isDemo: true });
+
+    expect(screen.queryByRole("link", { name: "Workflow Blueprint home" })).toBeNull();
+    expect(screen.getByRole("button", { name: /leave the demo/i })).toBeDefined();
+  });
+
+  test("clicking the demo wordmark signs out and returns to the landing page", async () => {
+    vi.useRealTimers();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderShell({ ...user, isDemo: true });
+    fireEvent.click(screen.getByRole("button", { name: /leave the demo/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/auth/sign-out",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(navigationMock.push).toHaveBeenCalledWith("/"));
+
+    vi.unstubAllGlobals();
   });
 });
 

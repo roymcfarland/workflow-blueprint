@@ -255,17 +255,36 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       <div className="space-y-4">
         <div className="flex h-14 items-center justify-between gap-2">
           {showFullSidebarContent ? (
-            <Link
-              aria-label="Workflow Blueprint home"
-              className="flex min-w-0 items-center focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-              href="/dashboard"
-              onClick={() => setMobileOpen(false)}
-            >
-              <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
-                <span className="block">Workflow</span>
-                <span className="block">Blueprint</span>
-              </h1>
-            </Link>
+            user.isDemo ? (
+              <button
+                aria-label="Leave the demo and return to the home page"
+                className="flex min-w-0 items-center text-left focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                disabled={isPending}
+                onClick={() => {
+                  setMobileOpen(false);
+                  handleLogout();
+                }}
+                title="Leave the demo"
+                type="button"
+              >
+                <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
+                  <span className="block">Workflow</span>
+                  <span className="block">Blueprint</span>
+                </h1>
+              </button>
+            ) : (
+              <Link
+                aria-label="Workflow Blueprint home"
+                className="flex min-w-0 items-center focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                href="/dashboard"
+                onClick={() => setMobileOpen(false)}
+              >
+                <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
+                  <span className="block">Workflow</span>
+                  <span className="block">Blueprint</span>
+                </h1>
+              </Link>
+            )
           ) : null}
           <button
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
