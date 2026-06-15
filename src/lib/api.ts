@@ -35,17 +35,50 @@ function originFromHeader(value: string | null) {
   }
 }
 
+function requestOwnOrigin(request: Request): string | null {
+  const forwardedHost =
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+
+  if (!forwardedHost) {
+    return null;
+  }
+
+  // x-forwarded-host can be a comma-separated list; the first entry is the client-facing host.
+  const host = forwardedHost.split(",")[0]?.trim();
+
+  if (!host) {
+    return null;
+  }
+
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
+    "https";
+
+  try {
+    return new URL(`${proto}://${host}`).origin;
+  } catch {
+    return null;
+  }
+}
+
 export function assertSameOriginRequest(request: Request) {
   if (safeMethods.has(request.method)) {
     return null;
   }
 
-  const expectedOrigin = siteConfig.url;
+  // Allow the statically-configured site origin (production/canonical) and the
+  // deployment's own origin, so same-origin requests on Vercel preview URLs
+  // are not rejected. Cross-site origins still fail.
+  const allowedOrigins = new Set(
+    [siteConfig.url, requestOwnOrigin(request)].filter(
+      (origin): origin is string => origin !== null,
+    ),
+  );
 
   const originHeader = originFromHeader(request.headers.get("origin"));
 
   if (originHeader) {
-    return originHeader === expectedOrigin
+    return allowedOrigins.has(originHeader)
       ? null
       : apiError("Cross-origin requests are not allowed.", 403);
   }
@@ -53,7 +86,7 @@ export function assertSameOriginRequest(request: Request) {
   const refererOrigin = originFromHeader(request.headers.get("referer"));
 
   if (refererOrigin) {
-    return refererOrigin === expectedOrigin
+    return allowedOrigins.has(refererOrigin)
       ? null
       : apiError("Cross-origin requests are not allowed.", 403);
   }
