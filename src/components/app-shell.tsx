@@ -18,6 +18,7 @@ import { useEffect, useState, useTransition, type CSSProperties } from "react";
 
 import { BoardIcon } from "@/components/board-icon";
 import { BoardManagement } from "@/components/board-management";
+import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintPillToggle } from "@/components/blueprint/pill-toggle";
 import { useBlueprintTheme } from "@/components/providers/theme-provider";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
@@ -255,17 +256,36 @@ export function AppShell({ boards, children, user }: AppShellProps) {
       <div className="space-y-4">
         <div className="flex h-14 items-center justify-between gap-2">
           {showFullSidebarContent ? (
-            <Link
-              aria-label="Workflow Blueprint home"
-              className="flex min-w-0 items-center focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-              href="/dashboard"
-              onClick={() => setMobileOpen(false)}
-            >
-              <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
-                <span className="block">Workflow</span>
-                <span className="block">Blueprint</span>
-              </h1>
-            </Link>
+            user.isDemo ? (
+              <button
+                aria-label="Leave the demo and return to the home page"
+                className="flex min-w-0 items-center text-left focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                disabled={isPending}
+                onClick={() => {
+                  setMobileOpen(false);
+                  handleLogout();
+                }}
+                title="Leave the demo"
+                type="button"
+              >
+                <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
+                  <span className="block">Workflow</span>
+                  <span className="block">Blueprint</span>
+                </h1>
+              </button>
+            ) : (
+              <Link
+                aria-label="Workflow Blueprint home"
+                className="flex min-w-0 items-center focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                href="/dashboard"
+                onClick={() => setMobileOpen(false)}
+              >
+                <h1 className="blueprint-display text-2xl leading-[1] text-text-primary">
+                  <span className="block">Workflow</span>
+                  <span className="block">Blueprint</span>
+                </h1>
+              </Link>
+            )
           ) : null}
           <button
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -485,8 +505,18 @@ export function AppShell({ boards, children, user }: AppShellProps) {
 
           <main className="min-h-screen min-w-0 px-4 pb-10 pt-16 sm:px-6 lg:h-screen lg:overflow-y-auto lg:px-8 lg:pt-8">
             {user.isDemo ? (
-              <div className="mb-4 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2.5 text-center text-sm font-semibold text-text-primary">
-                You’re exploring a demo sandbox — changes are temporary and reset periodically.
+              <div className="mb-4 flex flex-col items-center justify-center gap-3 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2.5 text-center text-sm font-semibold text-text-primary sm:flex-row sm:justify-between sm:text-left">
+                <span>
+                  You’re exploring a demo sandbox — changes are temporary and reset periodically.
+                </span>
+                <BlueprintButton
+                  className="shrink-0"
+                  disabled={isPending}
+                  onClick={handleLogout}
+                  variant="outline"
+                >
+                  Exit Demo Sandbox
+                </BlueprintButton>
               </div>
             ) : null}
             {children}
