@@ -159,12 +159,41 @@ describe("AppShell collapsible sidebar", () => {
 describe("AppShell demo banner", () => {
   test("shows the demo sandbox banner for demo accounts", () => {
     renderShell({ ...user, isDemo: true });
-    expect(screen.getByText(/demo sandbox/i)).toBeDefined();
+    expect(
+      screen.getByText(
+        "You’re exploring a demo sandbox — changes are temporary and reset periodically.",
+      ),
+    ).toBeDefined();
   });
 
   test("hides the demo sandbox banner for real accounts", () => {
     renderShell();
     expect(screen.queryByText(/demo sandbox/i)).toBeNull();
+  });
+
+  test("the demo banner shows an Exit Demo Sandbox button", () => {
+    renderShell({ ...user, isDemo: true });
+
+    expect(screen.getByRole("button", { name: "Exit Demo Sandbox" })).toBeDefined();
+  });
+
+  test("clicking Exit Demo Sandbox signs out and returns to the landing page", async () => {
+    vi.useRealTimers();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderShell({ ...user, isDemo: true });
+    fireEvent.click(screen.getByRole("button", { name: "Exit Demo Sandbox" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/auth/sign-out",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(navigationMock.push).toHaveBeenCalledWith("/"));
+
+    vi.unstubAllGlobals();
   });
 });
 
