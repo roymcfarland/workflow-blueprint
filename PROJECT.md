@@ -127,11 +127,18 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **`#103`** | Re-theme the demo to Bilbo Baggins | `#103` | Re-seeded the demo sandbox around Bilbo Baggins (away from the owner's "Brightline Labs"/personal content): new demo boards **Bag End** / **The Adventure** / **There & Back Again** (slugs, icons, accent colors in `domain.ts`; tasks/subtasks/notes in `demo-data.ts`), and the demo user is now "Bilbo Baggins" (`provisionDemoUser` + the seeded `demoUser` name/avatar; `id`/`email` kept stable). `starterBoard` ("Personal", for real users) is untouched; the external/smoke tests use the independent `seedPlanningData` and are unaffected. Data test asserts the demo user name per Q1. |
 | **`#104`** | Same-origin check accepts the deployment's own host | `#104` | Fixed mutating routes 403-ing "Cross-origin requests are not allowed." on Vercel preview deployments: `assertSameOriginRequest` now accepts a request whose `Origin`/`Referer` matches the request's own forwarded host (`x-forwarded-host`/`host` + `x-forwarded-proto`) in addition to `siteConfig.url` (kept production-preferring for canonical/OG/email URLs). Canonical same-origin check; cross-site requests still rejected. Unblocks the demo (and all mutations) on previews. Tests cover preview-allowed + cross-site-blocked. |
 | **`#105`** | Exit the demo (wordmark + banner button) | `#105` | In a demo sandbox, both the "Workflow Blueprint" sidebar wordmark and a new "Exit Demo Sandbox" button in the demo banner sign out the demo session and return to the landing page (reusing `handleLogout` → `POST /api/auth/sign-out` → `/`). Gated on `user.isDemo` (#102); real users' wordmark still links to `/dashboard`. Fixes demo visitors being unable to reach the landing page (the `/`→`/dashboard` auth redirect kept bouncing them back). UI-only; app-shell tests cover the wordmark + banner exits and the sign-out redirect. |
+| **`#106`** | Agent access — PROJECT.md amendment | `#106` | Documentation-only: evolved Q5's external API from read-only to a **per-user authenticated read/write** contract, carved an "agent access" exception into the "Not a public or open API" non-goal (per-user scoped tokens; never anonymous or cross-user; no new registration), and added **Q7** defining the agent auth model — DB `ApiToken`s resolve to their owner (`createdById`) not `EXTERNAL_USER_ID`, carry a read/write scope, expose USER capabilities only (never ADMIN), and stay no-CORS/no-store + rate-limited; the legacy `EXTERNAL_API_KEY` single-user read-only path is unchanged. Unblocks the agent-access epic (A1 token auth + scopes → A2/A3 write endpoints). |
 | **`#107`** | Bump vite 6.4.2 → 6.4.3 (clear high audit advisory) | `#107` | Within-major patch bump of the `vite` devDependency (`^6.4.2` → `^6.4.3`) to clear the high-severity `npm audit` advisories GHSA-fx2h-pf6j-xcff (vite `server.fs.deny` Windows bypass) + GHSA-v6wh-96g9-6wx3 (launch-editor NTLM), which were reddening the CI `audit` gate on every branch. Dev/build-only (vite backs vitest; `npm audit --prod` was already clean) — no production exposure. Deferred vite 6→8 major NOT triggered. Unblocks the docs-only #106 audit gate. |
 
 ### Active phase
 
-_No PRs are currently in flight. The next slice will be added here before work begins, per the sequencing rule above._
+**Agent access epic (headless, per-user external API).** Goal: let an authenticated user's agents drive `/api/external/v1/*` — read and write — on the user's behalf, doing only what that user could do in the GUI. Sequenced; do not start a later slice before the prior one merges:
+
+- **A0 — this PR (`#106`):** PROJECT.md amendment — Q5 evolved to per-user read/write, the "Not a public or open API" non-goal carves an authenticated agent-access exception, and new **Q7** defines the per-user scoped-token auth model + Verifier rules. Documentation-only; unblocks A1+.
+- **A1 (next):** Per-user token auth + scopes — resolve DB `ApiToken`s to their owner (`createdById`) instead of `EXTERNAL_USER_ID`; add a read/write scope to `ApiToken` (migration; existing tokens default to read); thread owner+scope through the external wrapper; surface scope in the admin token UI. Legacy `EXTERNAL_API_KEY` path unchanged. Ships with tests per Q1.
+- **A2:** Task write endpoints (`POST`/`PATCH`/`DELETE` under `/api/external/v1/*`) over the existing `data.ts` task mutations, write-scope-gated, with `docs/openapi.yaml` + per-user-isolation tests.
+- **A3:** Board + subtask write endpoints, same pattern.
+- **A4 (optional capstone):** an MCP server exposing the read/write surface as agent tools.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -192,7 +199,7 @@ The following are explicitly **out of scope** for this product. Agents should re
 - **Not a browser-oriented cross-origin API surface** — the external API is intentionally not CORS-enabled and uses key-based auth with `no-store`/`noindex` headers.
 - **Not a team, multi-tenant, or enterprise tool** — invitations and data are per-user; no orgs, workspaces, shared boards, or B2B admin surfaces.
 - **Not a realtime collaboration tool** — no websockets, presence, shared editing, or simultaneous board editing.
-- **Not a public or open API** — the `/api/external/v1/*` surface is auth-gated and intended only for consumers under the project owner's control.
+- **Not a public or open API** — the `/api/external/v1/*` surface is auth-gated and not anonymously accessible. **Exception (agent access):** an authenticated user may issue per-user API tokens so their *own* software agents can drive the app headlessly — read **and** write — on their behalf, doing only what that user could do in the GUI. This is **not** open/public access: every request is authenticated to a specific user's token and scoped to that user's own data; there is no anonymous access, no cross-user access, and no new self-service registration (sign-up stays invite-only). See **Q7 (Agent access)** below. The legacy `EXTERNAL_API_KEY` single-consumer path is unchanged.
 - **Not a native mobile app within this codebase** — the planned native mobile experience will be a separate-repo consumer of `/api/external/v1/*`. This repo will house only the web app and the API; native mobile code (React Native, Swift, Kotlin) is forbidden here. The external API will evolve to support per-user authentication and read/write operations as the mobile app's needs are defined. Any such evolution must be proposed as its own PR with an updated entry in the "Active phase" section above and an explicit Q5 update covering the new auth model; it must not be smuggled into an unrelated PR.
 - **Not a mind-mapping or visual-canvas tool today** — boards are list-based with hierarchical tasks and subtasks; freeform 2D mind maps, node-and-edge canvases, and graph visualizations are explicitly deferred. This requires a PROJECT.md update before any PR introduces canvas/graph rendering libraries (e.g., react-flow, cytoscape, d3-force) or a mind-map data model.
 
@@ -293,9 +300,11 @@ The schema and code stay portable across any Postgres 14+ host. Supabase is the 
 
 ### Q5. Is the external API intended to be a stable private integration contract, or a one-off endpoint for the current external consumer?
 
-**Answer: Stable versioned external API; v1 expanded across four endpoints.**
+**Answer: Stable versioned external API; read-only for the legacy key, per-user read/write for tokens.**
 
 `/api/external/*` is a versioned stable contract (v1 today, path-based versioning). The v1 contract under `/api/external/v1/*` is the only supported external surface, serving both the current briefing job consumer and the future second consumer.
+
+**Evolution (agent access).** As of the agent-access epic, `/api/external/v1/*` evolves from read-only to a **per-user authenticated read/write** contract. In addition to the four read endpoints, it gains write endpoints that let an authenticated user's agent create, update, and delete *that user's own* boards, tasks, and subtasks. Two auth paths coexist: the legacy `EXTERNAL_API_KEY` env key (single fixed `EXTERNAL_USER_ID`, **read-only**, for the existing briefing consumer) and **per-user API tokens** that resolve to the token's owner and carry a read/write scope (see Q7). Write endpoints stay inside the `/api/external/v{N}/*` namespace, remain server-to-server (no CORS), `no-store`/`noindex`, and rate-limited.
 
 **Sequencing / required corrections (all completed):**
 - Shared module `src/lib/external-api.ts` exists and is the canonical helper for external v1 routes (shipped in `#8`).
@@ -312,6 +321,8 @@ The Verifier rules below remain in force.
 - **Hard-fail** any PR that removes the `force-dynamic`, `revalidate = 0`, or `Cache-Control: no-store` directives on external routes.
 - **Hard-fail** any PR that introduces a new external endpoint outside the `/api/external/v{N}/` namespace.
 - **Hard-fail** any PR that re-introduces `READ_ONLY_API_KEY` or the `/api/external/daily-summary` route. The v1 contract under `/api/external/v1/*` is the only supported external surface.
+- **Hard-fail** any change that makes the legacy `EXTERNAL_API_KEY` path writable, or that resolves it to anything other than the single `EXTERNAL_USER_ID` — it stays read-only and single-user. Per-user read/write is exclusively via the Q7 token model.
+- **Hard-fail** any new external **write** endpoint that drops `no-store`/`force-dynamic`/`revalidate = 0`, adds CORS, or lives outside `/api/external/v{N}/*`. (Per-user scoping and write-scope enforcement are governed by Q7.)
 - **Warn** on additive changes (new fields).
 
 ---
@@ -324,6 +335,26 @@ Builder agents (Codex and similar) sometimes ship correct-but-unauthorized chang
 - **Warn** if the "Out-of-scope changes (justified)" section is present but the justification is missing, perfunctory ("cleanup," "refactor"), or contradicted by the diff.
 - The Builder prompt MAY explicitly authorize broader latitude (e.g., "you may refactor adjacent helpers if needed for the new API"); changes that fall under such an authorization are in-scope by definition.
 - This rule applies to all PRs from the date of merge forward; existing merged PRs are not retroactively in violation.
+
+### Q7. How do authenticated users let agents operate the app on their behalf (headless / agent access)?
+
+**Answer: Per-user, scoped API tokens that resolve to the token's owner.**
+
+An authenticated user may create API tokens (the existing `ApiToken` model, owned via `createdById`) and hand them to their own agents. An agent presents the token as `Authorization: Bearer <token>` to `/api/external/v1/*` and may perform headlessly the same actions the owning user could perform in the GUI — nothing more.
+
+Rules for this model:
+- **Per-user resolution.** A request authenticated by a DB-issued `ApiToken` resolves to that token's **owner** (`createdById`) and is scoped to that user's own data exactly as the internal session routes are. It must **never** resolve to the fixed `EXTERNAL_USER_ID`, nor to any other user. (The legacy `EXTERNAL_API_KEY` env key keeps resolving to the single `EXTERNAL_USER_ID`, read-only, for the existing briefing consumer.)
+- **Scopes.** Tokens carry a scope — at minimum **read** vs **read/write**. Read endpoints accept any valid, unrevoked token; write endpoints require a write-scoped token. Pre-existing/legacy tokens default to **read**.
+- **USER capabilities only.** The external surface exposes only what a USER can do to their own boards/tasks/subtasks. ADMIN-only operations — invitation issuance, API-token management, role/user administration — are **never** exposed externally, and a token never grants ADMIN.
+- **No new registration, no multi-tenancy, no CORS.** Tokens are issued only to existing authenticated users (sign-up stays invite-only); there are still no orgs/workspaces/shared boards (per-user only); the surface stays server-to-server (no CORS), `no-store`/`noindex`, and rate-limited per the external wrapper.
+- **Revocation & hygiene.** Tokens stay revocable (`revokedAt`) and record `lastUsedAt`; revoked tokens are rejected.
+
+**Verifier behavior:**
+- **Hard-fail** any external endpoint that resolves the acting user to anyone other than the authenticated token's owner (cross-user access), or that resolves a per-user `ApiToken` to the fixed `EXTERNAL_USER_ID`.
+- **Hard-fail** any external **write** endpoint that does not require a write-scoped token.
+- **Hard-fail** any external endpoint that exposes an ADMIN-only operation, or any path by which an external token gains ADMIN role or creates a non-demo account.
+- **Hard-fail** adding CORS to, or removing `no-store`/`noindex` from, the external surface, or skipping rate limiting on a new external route.
+- **Warn** if a new write endpoint lacks per-user-isolation tests (a write authenticated as user A must be shown not to touch user B's data).
 
 ---
 
