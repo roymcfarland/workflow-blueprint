@@ -149,6 +149,16 @@ type ExternalApiError = {
 | `GET` | `/api/external/v1/boards/[slug]` | One board by slug, including tasks, subtasks, and note content |
 | `GET` | `/api/external/v1/daily-summary` | Daily briefing payload used by external automation |
 
+### Write endpoints (`TASKS_WRITE`)
+
+These endpoints require a per-user API token with the `TASKS_WRITE` scope. Each mutation is scoped to the token owner's boards and tasks.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/api/external/v1/tasks` | Create a task on one of the token owner's boards |
+| `PATCH` | `/api/external/v1/tasks/{id}` | Partially update scalar fields on one of the token owner's tasks |
+| `DELETE` | `/api/external/v1/tasks/{id}` | Delete one of the token owner's tasks |
+
 ### `GET /api/external/v1/dashboard`
 
 Request:

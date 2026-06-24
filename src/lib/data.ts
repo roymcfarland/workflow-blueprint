@@ -1048,6 +1048,42 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
   );
 }
 
+export async function updateTaskFieldsForUser(
+  userId: string,
+  taskId: string,
+  fields: Partial<
+    Pick<
+      TaskInput,
+      "title" | "description" | "status" | "priority" | "dueDate" | "recurrence"
+    >
+  >,
+) {
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, board: { userId } },
+    include: taskInclude,
+  });
+
+  if (!task) {
+    throw new Error("Task not found.");
+  }
+
+  const current: TaskInput = {
+    title: task.title,
+    description: task.description,
+    status: task.status as TaskInput["status"],
+    priority: task.priority as TaskInput["priority"],
+    recurrence: task.recurrence as TaskInput["recurrence"],
+    dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : null,
+    subtasks: task.subtasks.map((subtask) => ({
+      id: subtask.id,
+      title: subtask.title,
+      isComplete: subtask.isComplete,
+    })),
+  };
+
+  return updateTaskForUser(userId, taskId, { ...current, ...fields });
+}
+
 export async function deleteTaskForUser(userId: string, taskId: string) {
   const deleted = await prisma.task.deleteMany({
     where: {

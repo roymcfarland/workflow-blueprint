@@ -5,6 +5,10 @@ import {
   externalBoardsResponseSchema,
   externalDailySummaryResponseSchema,
   externalDashboardResponseSchema,
+  externalOkResponseSchema,
+  externalTaskCreateRequestSchema,
+  externalTaskResponseSchema,
+  externalTaskUpdateRequestSchema,
 } from "./external-contract";
 
 type JsonObject = Record<string, unknown>;
@@ -81,10 +85,56 @@ function errorResponse(description: string, schemaName = "ExternalApiError") {
 function commonErrorResponses() {
   return {
     "401": errorResponse("Authorization header is missing or malformed."),
-    "403": errorResponse("Bearer token does not match EXTERNAL_API_KEY."),
+    "403": errorResponse("Bearer token is invalid or lacks the required scope."),
     "429": errorResponse("Request rate limit exceeded.", "ExternalRateLimitError"),
     "500": errorResponse("External API response validation failed."),
     "503": errorResponse("EXTERNAL_API_KEY is not configured."),
+  };
+}
+
+function authenticatedMutation({
+  extraResponses = {},
+  operationId,
+  requestSchemaName,
+  responseSchemaName,
+  status,
+  summary,
+}: {
+  extraResponses?: JsonObject;
+  operationId: string;
+  requestSchemaName?: string;
+  responseSchemaName: string;
+  status: "200" | "201";
+  summary: string;
+}) {
+  return {
+    operationId,
+    ...(requestSchemaName
+      ? {
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: schemaRef(requestSchemaName),
+              },
+            },
+            required: true,
+          },
+        }
+      : {}),
+    responses: {
+      [status]: jsonResponse(summary, responseSchemaName),
+      "400": errorResponse("Request body failed validation."),
+      ...commonErrorResponses(),
+      "404": errorResponse("Requested task or board was not found."),
+      ...extraResponses,
+    },
+    security: [
+      {
+        ExternalApiKeyAuth: [],
+      },
+    ],
+    summary,
+    tags: ["External API v1"],
   };
 }
 
@@ -133,10 +183,48 @@ export function buildExternalOpenApiSpec() {
     tags: [
       {
         name: "External API v1",
-        description: "Bearer-token authenticated GET endpoints under /api/external/v1/*.",
+        description: "Bearer-token authenticated endpoints under /api/external/v1/*.",
       },
     ],
     paths: {
+      "/api/external/v1/tasks": {
+        post: authenticatedMutation({
+          extraResponses: {
+            "409": errorResponse("Board task limit was reached."),
+          },
+          operationId: "createExternalTask",
+          requestSchemaName: "ExternalTaskCreateRequest",
+          responseSchemaName: "ExternalTaskResponse",
+          status: "201",
+          summary: "Create a task on one of the token owner's boards.",
+        }),
+      },
+      "/api/external/v1/tasks/{id}": {
+        parameters: [
+          {
+            in: "path",
+            name: "id",
+            required: true,
+            schema: {
+              minLength: 1,
+              type: "string",
+            },
+          },
+        ],
+        patch: authenticatedMutation({
+          operationId: "updateExternalTask",
+          requestSchemaName: "ExternalTaskUpdateRequest",
+          responseSchemaName: "ExternalTaskResponse",
+          status: "200",
+          summary: "Update scalar fields on one of the token owner's tasks.",
+        }),
+        delete: authenticatedMutation({
+          operationId: "deleteExternalTask",
+          responseSchemaName: "ExternalOkResponse",
+          status: "200",
+          summary: "Delete one of the token owner's tasks.",
+        }),
+      },
       "/api/external/v1/dashboard": {
         get: authenticatedGet({
           extraResponses: {
@@ -228,6 +316,14 @@ export function buildExternalOpenApiSpec() {
         ExternalDashboardResponse: zodComponentSchema(externalDashboardResponseSchema),
         ExternalBoardsResponse: zodComponentSchema(externalBoardsResponseSchema),
         ExternalBoardResponse: zodComponentSchema(externalBoardResponseSchema),
+        ExternalTaskCreateRequest: zodComponentSchema(
+          externalTaskCreateRequestSchema,
+        ),
+        ExternalTaskUpdateRequest: zodComponentSchema(
+          externalTaskUpdateRequestSchema,
+        ),
+        ExternalTaskResponse: zodComponentSchema(externalTaskResponseSchema),
+        ExternalOkResponse: zodComponentSchema(externalOkResponseSchema),
         ExternalDailySummaryResponse: zodComponentSchema(
           externalDailySummaryResponseSchema,
         ),

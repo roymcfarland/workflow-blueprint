@@ -3,6 +3,9 @@ import { z } from "zod";
 import { boardStatuses, itemPriorities, recurrencePatterns } from "@/lib/domain";
 
 const isoDateTimeSchema = z.iso.datetime();
+const externalDueDateSchema = z
+  .iso.date("Enter a valid due date (YYYY-MM-DD).")
+  .nullable();
 
 const externalBoardSummarySchema = z.object({
   slug: z.string().min(1),
@@ -33,6 +36,37 @@ const externalTaskSchema = z.object({
   recurrence: z.enum(recurrencePatterns),
   subtasks: z.array(externalSubtaskSchema),
 });
+
+export const externalTaskCreateRequestSchema = z.object({
+  boardSlug: z.string().min(1),
+  title: z.string().trim().min(1).max(180),
+  description: z.string().trim().max(1200).nullable().default(null),
+  status: z.enum(boardStatuses).default("ON_DECK"),
+  dueDate: externalDueDateSchema.default(null),
+  priority: z.enum(itemPriorities).default("NONE"),
+  recurrence: z.enum(recurrencePatterns).default("NONE"),
+});
+
+export const externalTaskUpdateRequestSchema = z
+  .object({
+    title: z.string().trim().min(1).max(180),
+    description: z.string().trim().max(1200).nullable(),
+    status: z.enum(boardStatuses),
+    dueDate: externalDueDateSchema,
+    priority: z.enum(itemPriorities),
+    recurrence: z.enum(recurrencePatterns),
+  })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Provide at least one field to update.",
+  });
+
+export const externalTaskResponseSchema = z.object({
+  ok: z.literal(true),
+  data: externalTaskSchema,
+});
+
+export const externalOkResponseSchema = z.object({ ok: z.literal(true) });
 
 export const externalDashboardResponseSchema = z.object({
   ok: z.literal(true),
