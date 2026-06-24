@@ -1,4 +1,5 @@
 import {
+  ApiTokenScope,
   ItemPriority as PrismaItemPriority,
   RecurrencePattern as PrismaRecurrencePattern,
   TaskStatus as PrismaTaskStatus,
@@ -27,6 +28,7 @@ import {
   deleteAttachmentForUser,
   deleteChecklistItemForUser,
   deleteLabelForUser,
+  findActiveApiTokenByRawToken,
   getDashboardSnapshot,
   getBoardSnapshot,
   getShellSnapshot,
@@ -58,6 +60,12 @@ import { createTestBoard, createTestUser, resetDatabase } from "./helpers/databa
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
+
+const defaultReadApiTokenScopes = [
+  ApiTokenScope.BOARDS_READ,
+  ApiTokenScope.TASKS_READ,
+  ApiTokenScope.SUBTASKS_READ,
+];
 
 function boardRows(userId: string, count: number) {
   return Array.from({ length: count }, (_, index) => ({
@@ -1559,15 +1567,17 @@ describe("src/lib/data.ts", () => {
     ).resolves.toEqual({ status: PrismaTaskStatus.IN_PROGRESS });
   });
 
-  test("creates API tokens with hash-only persistence", async () => {
+  test("creates API tokens with hash-only persistence and scopes", async () => {
     const user = await createTestUser({
       email: "admin@example.test",
       name: "Admin User",
     });
+    const scopes = [ApiTokenScope.BOARDS_READ, ApiTokenScope.TASKS_READ];
 
     const { apiToken, token } = await createApiToken({
       createdById: user.id,
       label: "  External Consumer  ",
+      scopes,
     });
 
     expect(token).toMatch(/^wbk_/);
@@ -1578,6 +1588,7 @@ describe("src/lib/data.ts", () => {
       },
       label: "External Consumer",
       prefix: token.slice(0, 12),
+      scopes,
       status: "ACTIVE",
     });
     expect(apiToken).not.toHaveProperty("tokenHash");
@@ -1591,7 +1602,24 @@ describe("src/lib/data.ts", () => {
 
     expect(row.tokenHash).toBe(sha256(token));
     expect(row.prefix).toBe(token.slice(0, 12));
+    expect(row.scopes).toEqual(scopes);
     expect(rowValues).not.toContain(token);
+  });
+
+  test("findActiveApiTokenByRawToken returns token owner and scopes", async () => {
+    const user = await createTestUser();
+    const scopes = [ApiTokenScope.SUBTASKS_READ];
+    const { apiToken, token } = await createApiToken({
+      createdById: user.id,
+      label: "Scoped consumer",
+      scopes,
+    });
+
+    await expect(findActiveApiTokenByRawToken(token)).resolves.toEqual({
+      createdById: user.id,
+      id: apiToken.id,
+      scopes,
+    });
   });
 
   test("lists API tokens newest first without exposing token hashes", async () => {
@@ -1599,10 +1627,12 @@ describe("src/lib/data.ts", () => {
     const first = await createApiToken({
       createdById: user.id,
       label: "First consumer",
+      scopes: defaultReadApiTokenScopes,
     });
     const second = await createApiToken({
       createdById: user.id,
       label: "Second consumer",
+      scopes: defaultReadApiTokenScopes,
     });
 
     await prisma.apiToken.update({
@@ -1625,6 +1655,7 @@ describe("src/lib/data.ts", () => {
     const { apiToken } = await createApiToken({
       createdById: user.id,
       label: "Reporting partner",
+      scopes: defaultReadApiTokenScopes,
     });
 
     await expect(revokeApiToken(apiToken.id)).resolves.toEqual({

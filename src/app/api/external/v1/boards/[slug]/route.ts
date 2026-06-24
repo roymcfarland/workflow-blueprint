@@ -1,3 +1,5 @@
+import { ApiTokenScope } from "@prisma/client";
+
 import { getBoardSnapshot } from "@/lib/data";
 import {
   externalApiError,
@@ -35,5 +37,6 @@ export async function GET(
         requestId,
       );
     },
+    { requiredScope: ApiTokenScope.BOARDS_READ },
   );
 }

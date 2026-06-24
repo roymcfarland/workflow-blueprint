@@ -27,6 +27,7 @@ type ApiTokenResponse = {
     id: string;
     label: string;
     prefix: string;
+    scopes: string[];
     status: "ACTIVE" | "REVOKED";
   };
   ok: true;
@@ -41,6 +42,8 @@ type ApiTokensResponse = {
 const authState = vi.hoisted(() => ({
   user: null as AuthUser | null,
 }));
+
+const defaultApiTokenScopes = ["BOARDS_READ", "TASKS_READ"];
 
 vi.mock("@/lib/auth", () => ({
   getCurrentUser: vi.fn(async () => authState.user),
@@ -97,9 +100,9 @@ function authenticate(user: TestUser) {
   };
 }
 
-async function createApiTokenViaRoute(label = "News briefing") {
+async function createApiTokenViaRoute(label = "News briefing", scopes = defaultApiTokenScopes) {
   const response = await createApiTokenRoute(
-    jsonRequest("/api/admin/api-tokens", { label }),
+    jsonRequest("/api/admin/api-tokens", { label, scopes }),
   );
 
   expect(response.status).toBe(200);
@@ -118,7 +121,8 @@ describe("admin API token route handlers", () => {
     const admin = await createAdmin();
     authenticate(admin);
 
-    const body = await createApiTokenViaRoute("External briefing");
+    const scopes = ["BOARDS_READ", "TASKS_READ", "SUBTASKS_READ"];
+    const body = await createApiTokenViaRoute("External briefing", scopes);
     const row = await prisma.apiToken.findUnique({
       where: { id: body.apiToken.id },
     });
@@ -129,7 +133,9 @@ describe("admin API token route handlers", () => {
       id: body.apiToken.id,
       label: "External briefing",
       prefix: body.token.slice(0, 12),
+      scopes,
     });
+    expect(body.apiToken.scopes).toEqual(scopes);
   });
 
   test("POST /api/admin/api-tokens rejects non-admin and anonymous users", async () => {
@@ -140,12 +146,18 @@ describe("admin API token route handlers", () => {
     authenticate(user);
 
     const nonAdminResponse = await createApiTokenRoute(
-      jsonRequest("/api/admin/api-tokens", { label: "Blocked token" }),
+      jsonRequest("/api/admin/api-tokens", {
+        label: "Blocked token",
+        scopes: defaultApiTokenScopes,
+      }),
     );
 
     authState.user = null;
     const anonymousResponse = await createApiTokenRoute(
-      jsonRequest("/api/admin/api-tokens", { label: "No user token" }),
+      jsonRequest("/api/admin/api-tokens", {
+        label: "No user token",
+        scopes: defaultApiTokenScopes,
+      }),
     );
 
     expect(nonAdminResponse.status).toBe(403);
@@ -168,10 +180,28 @@ describe("admin API token route handlers", () => {
       expect.objectContaining({
         id: created.apiToken.id,
         label: "Reporting partner",
+        scopes: defaultApiTokenScopes,
         status: "ACTIVE",
       }),
     ]);
     expect(body.apiTokens.every((apiToken) => !("tokenHash" in apiToken))).toBe(true);
+  });
+
+  test("POST /api/admin/api-tokens rejects an empty scope list", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+
+    const response = await createApiTokenRoute(
+      jsonRequest("/api/admin/api-tokens", {
+        label: "No scopes",
+        scopes: [],
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      message: "Select at least one scope.",
+    });
   });
 
   test("POST /api/admin/api-tokens/[id]/revoke revokes tokens and handles errors", async () => {
@@ -252,7 +282,10 @@ describe("admin API token route handlers", () => {
     vi.mocked(createApiTokenData).mockRejectedValueOnce(new Error("boom"));
 
     const response = await createApiTokenRoute(
-      jsonRequest("/api/admin/api-tokens", { label: "Broken token" }),
+      jsonRequest("/api/admin/api-tokens", {
+        label: "Broken token",
+        scopes: defaultApiTokenScopes,
+      }),
     );
 
     consoleError.mockRestore();
