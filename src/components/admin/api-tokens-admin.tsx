@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 
 import { BlueprintButton } from "@/components/blueprint/button";
+import { BlueprintCheckbox } from "@/components/blueprint/checkbox";
 import { Field } from "@/components/blueprint/field";
 import { BlueprintInput } from "@/components/blueprint/input";
 import type { SerializedApiToken } from "@/lib/data";
@@ -26,6 +27,35 @@ type ApiTokenCreateResponse = ApiMessage & {
   apiToken?: SerializedApiToken;
   token?: string;
 };
+
+type ApiTokenScopeValue = SerializedApiToken["scopes"][number];
+
+const apiTokenScopeOptions = [
+  { value: "BOARDS_READ", label: "Boards read" },
+  { value: "BOARDS_WRITE", label: "Boards write" },
+  { value: "TASKS_READ", label: "Tasks read" },
+  { value: "TASKS_WRITE", label: "Tasks write" },
+  { value: "SUBTASKS_READ", label: "Subtasks read" },
+  { value: "SUBTASKS_WRITE", label: "Subtasks write" },
+] satisfies readonly { value: ApiTokenScopeValue; label: string }[];
+
+const defaultApiTokenScopes: SerializedApiToken["scopes"] = [
+  "BOARDS_READ",
+  "TASKS_READ",
+  "SUBTASKS_READ",
+];
+
+const apiTokenScopeLabels = {
+  BOARDS_READ: "Boards read",
+  BOARDS_WRITE: "Boards write",
+  TASKS_READ: "Tasks read",
+  TASKS_WRITE: "Tasks write",
+  SUBTASKS_READ: "Subtasks read",
+  SUBTASKS_WRITE: "Subtasks write",
+} satisfies Record<ApiTokenScopeValue, string>;
+
+const scopeClassName =
+  "inline-flex rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-muted";
 
 const statusLabels = {
   ACTIVE: "Active",
@@ -49,6 +79,9 @@ function statusClassName(status: SerializedApiToken["status"]) {
 
 export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
   const [label, setLabel] = useState("");
+  const [selectedScopes, setSelectedScopes] = useState<SerializedApiToken["scopes"]>(() => [
+    ...defaultApiTokenScopes,
+  ]);
   const [apiTokens, setApiTokens] = useState(initialApiTokens);
   const [message, setMessage] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
@@ -66,11 +99,20 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
     setApiTokens(body.apiTokens);
   };
 
+  const toggleScope = (scope: ApiTokenScopeValue) => {
+    setSelectedScopes((currentScopes) =>
+      currentScopes.includes(scope)
+        ? currentScopes.filter((selectedScope) => selectedScope !== scope)
+        : [...currentScopes, scope],
+    );
+  };
+
   const handleCreateApiToken = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedLabel = label.trim();
+    const scopes = [...selectedScopes];
 
-    if (!trimmedLabel) {
+    if (!trimmedLabel || scopes.length === 0) {
       return;
     }
 
@@ -79,7 +121,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
 
     startTransition(async () => {
       const response = await fetch("/api/admin/api-tokens", {
-        body: JSON.stringify({ label: trimmedLabel }),
+        body: JSON.stringify({ label: trimmedLabel, scopes }),
         headers: {
           "Content-Type": "application/json",
         },
@@ -93,6 +135,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
       }
 
       setLabel("");
+      setSelectedScopes([...defaultApiTokenScopes]);
       setMessage(body.message ?? "API token created.");
       setCreatedToken(body.token);
 
@@ -140,7 +183,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
               Issue token
             </h2>
             <p className="text-sm text-text-muted">
-              Create read-only credentials for external API consumers.
+              Create scoped credentials for external API consumers.
             </p>
           </div>
 
@@ -156,9 +199,24 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
               />
             </Field>
 
+            <fieldset className="rounded-lg border border-line-soft bg-surface-control/40 p-4">
+              <legend className="px-1 text-sm font-semibold text-text-primary">Scopes</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {apiTokenScopeOptions.map((scope) => (
+                  <BlueprintCheckbox
+                    checked={selectedScopes.includes(scope.value)}
+                    id={`api-token-scope-${scope.value}`}
+                    key={scope.value}
+                    label={scope.label}
+                    onChange={() => toggleScope(scope.value)}
+                  />
+                ))}
+              </div>
+            </fieldset>
+
             <BlueprintButton
               className="w-full"
-              disabled={isPending || !label.trim()}
+              disabled={isPending || !label.trim() || selectedScopes.length === 0}
               type="submit"
               variant="hero"
             >
@@ -204,10 +262,11 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
+          <table className="w-full min-w-[68rem] border-collapse text-left text-sm">
             <thead className="bg-surface-control text-text-muted">
               <tr>
                 <th className="blueprint-eyebrow px-5 py-3">Label</th>
+                <th className="blueprint-eyebrow px-5 py-3">Scopes</th>
                 <th className="blueprint-eyebrow px-5 py-3">Token</th>
                 <th className="blueprint-eyebrow px-5 py-3">Status</th>
                 <th className="blueprint-eyebrow px-5 py-3">Last used</th>
@@ -218,7 +277,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
             <tbody>
               {apiTokens.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-text-muted" colSpan={6}>
+                  <td className="px-5 py-8 text-center text-text-muted" colSpan={7}>
                     No API tokens yet.
                   </td>
                 </tr>
@@ -227,6 +286,19 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
                   <tr className="border-t border-line-soft" key={token.id}>
                     <td className="px-5 py-3">
                       <p className="font-semibold text-text-primary">{token.label}</p>
+                    </td>
+                    <td className="px-5 py-3">
+                      {token.scopes.length > 0 ? (
+                        <div className="flex max-w-xs flex-wrap gap-1.5">
+                          {token.scopes.map((scope) => (
+                            <span className={scopeClassName} key={scope}>
+                              {apiTokenScopeLabels[scope]}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-text-muted">&mdash;</span>
+                      )}
                     </td>
                     <td className="px-5 py-3 font-mono text-xs text-text-muted">
                       {token.prefix}...
