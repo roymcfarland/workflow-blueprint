@@ -1,3 +1,5 @@
+import { ApiTokenScope } from "@prisma/client";
+
 import { getBoardSummaries } from "@/lib/data";
 import {
   externalApiJson,
@@ -26,5 +28,6 @@ export async function GET(request: Request) {
         requestId,
       );
     },
+    { requiredScope: ApiTokenScope.BOARDS_READ },
   );
 }

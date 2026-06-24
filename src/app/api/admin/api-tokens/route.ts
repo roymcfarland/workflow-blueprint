@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     const { apiToken, token } = await createApiToken({
       createdById: currentUser.data.id,
       label: payload.data.label,
+      scopes: payload.data.scopes,
     });
 
     await recordAdminAudit({

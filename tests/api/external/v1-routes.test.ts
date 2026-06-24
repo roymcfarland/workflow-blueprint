@@ -1,3 +1,9 @@
+import {
+  ApiTokenScope,
+  ItemPriority as PrismaItemPriority,
+  TaskStatus as PrismaTaskStatus,
+} from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { z, type ZodType } from "zod";
 
@@ -8,7 +14,7 @@ import { GET as getDashboard } from "@/app/api/external/v1/dashboard/route";
 import { rateLimitKey } from "@/lib/api";
 import { createApiToken, revokeApiToken } from "@/lib/data";
 import { prisma } from "@/lib/db";
-import { demoUser } from "@/lib/domain";
+import { demoUser, starterBoard } from "@/lib/domain";
 import {
   externalApiJson,
   withExternalApiObservability,
@@ -20,7 +26,12 @@ import {
   externalDashboardResponseSchema,
 } from "@/lib/external-contract";
 import { evaluateRateLimit } from "@/lib/rate-limit";
-import { resetDatabase, seedPlanningData } from "../../helpers/database";
+import {
+  createTestBoard,
+  createTestUser,
+  resetDatabase,
+  seedPlanningData,
+} from "../../helpers/database";
 
 type MockSentryScope = {
   setContext(name: string, context: Record<string, unknown>): void;
@@ -47,6 +58,11 @@ const externalRateLimit = {
   limit: 120,
   windowMs: 60_000,
 };
+const defaultReadApiTokenScopes = [
+  ApiTokenScope.BOARDS_READ,
+  ApiTokenScope.TASKS_READ,
+  ApiTokenScope.SUBTASKS_READ,
+];
 
 type StructuredExternalApiLog = {
   kind: "external_api_request";
@@ -114,6 +130,28 @@ function resetSentryMock() {
   );
 }
 
+async function createNamedBoard(userId: string, name: string, slug: string) {
+  const board = await createTestBoard(userId);
+
+  return prisma.board.update({
+    data: { name, slug },
+    where: { id: board.id },
+  });
+}
+
+async function createRouteTask(boardId: string, title: string) {
+  return prisma.task.create({
+    data: {
+      boardId,
+      id: randomUUID(),
+      priority: PrismaItemPriority.NONE,
+      sortOrder: 0,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title,
+    },
+  });
+}
+
 async function expectJsonContract<T>(response: Response, schema: ZodType<T>) {
   const body = await response.json();
   const parsed = schema.safeParse(body);
@@ -122,7 +160,11 @@ async function expectJsonContract<T>(response: Response, schema: ZodType<T>) {
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   expect(parsed.success).toBe(true);
 
-  return body;
+  if (!parsed.success) {
+    throw new Error("Expected response to match external contract.");
+  }
+
+  return parsed.data;
 }
 
 function expectRateLimitHeaders(response: Response) {
@@ -272,6 +314,7 @@ describe("external v1 route contracts", () => {
       const { token } = await createApiToken({
         createdById: demoUser.id,
         label: "Briefing consumer",
+        scopes: defaultReadApiTokenScopes,
       });
 
       const response = await getDashboard(
@@ -283,10 +326,63 @@ describe("external v1 route contracts", () => {
       expect(log.userId).toBe(demoUser.id);
     });
 
+    test("GET /api/external/v1/boards resolves DB tokens to their owner", async () => {
+      const owner = await createTestUser({
+        email: "owner@example.test",
+        name: "Owner User",
+      });
+      const otherUser = await createTestUser({
+        email: "other@example.test",
+        name: "Other User",
+      });
+      await createNamedBoard(owner.id, "Owner roadmap", "owner-roadmap");
+      await createNamedBoard(otherUser.id, "Other roadmap", "other-roadmap");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner agent",
+        scopes: [ApiTokenScope.BOARDS_READ],
+      });
+
+      const response = await getBoards(
+        externalGetRequest("/api/external/v1/boards", token),
+      );
+      const body = await expectJsonContract(response, externalBoardsResponseSchema);
+      const boardNames = body.data.boards.map((board) => board.name);
+      const log = structuredLog();
+
+      expect(boardNames).toEqual(["Owner roadmap"]);
+      expect(boardNames).not.toContain(starterBoard.name);
+      expect(boardNames).not.toContain("Other roadmap");
+      expect(log.userId).toBe(owner.id);
+    });
+
+    test("GET /api/external/v1/boards rejects DB tokens without the required scope", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Tasks-only consumer",
+        scopes: [ApiTokenScope.TASKS_READ],
+      });
+
+      const response = await getBoards(
+        externalGetRequest("/api/external/v1/boards", token),
+      );
+      const body = await response.json();
+      const log = structuredLog();
+
+      expect(response.status).toBe(403);
+      expect(body).toEqual({
+        error: "Insufficient token scope: requires BOARDS_READ.",
+        ok: false,
+      });
+      expect(log.outcome).toBe("auth_failed");
+      expect(log.userId).toBe(demoUser.id);
+    });
+
     test("GET /api/external/v1/dashboard touches lastUsedAt for DB tokens", async () => {
       const { apiToken, token } = await createApiToken({
         createdById: demoUser.id,
         label: "Usage tracked consumer",
+        scopes: defaultReadApiTokenScopes,
       });
 
       const response = await getDashboard(
@@ -305,6 +401,7 @@ describe("external v1 route contracts", () => {
       const { apiToken, token } = await createApiToken({
         createdById: demoUser.id,
         label: "Revoked consumer",
+        scopes: defaultReadApiTokenScopes,
       });
       await revokeApiToken(apiToken.id);
 
@@ -324,6 +421,52 @@ describe("external v1 route contracts", () => {
 
       await expectJsonContract(response, externalDashboardResponseSchema);
     });
+  });
+
+  test("legacy env API key returns EXTERNAL_USER_ID data on all external read routes", async () => {
+    const otherUser = await createTestUser({
+      email: "legacy-other@example.test",
+      name: "Legacy Other",
+    });
+    const otherBoard = await createNamedBoard(otherUser.id, "Other private board", "other-private");
+    await createRouteTask(otherBoard.id, "Other private task");
+
+    const dashboard = await expectJsonContract(
+      await getDashboard(externalGetRequest("/api/external/v1/dashboard")),
+      externalDashboardResponseSchema,
+    );
+    const boards = await expectJsonContract(
+      await getBoards(externalGetRequest("/api/external/v1/boards")),
+      externalBoardsResponseSchema,
+    );
+    const board = await expectJsonContract(
+      await getBoard(externalGetRequest("/api/external/v1/boards/personal"), {
+        params: Promise.resolve({ slug: "personal" }),
+      }),
+      externalBoardResponseSchema,
+    );
+    const dailySummary = await expectJsonContract(
+      await getDailySummary(externalGetRequest("/api/external/v1/daily-summary")),
+      externalDailySummaryResponseSchema,
+    );
+
+    expect(dashboard.data.totalTaskCount).toBe(3);
+    expect(dashboard.data.boardBreakdown.map((item) => item.name)).toEqual([
+      starterBoard.name,
+    ]);
+    expect(boards.data.boards.map((item) => item.name)).toEqual([starterBoard.name]);
+    expect(board.data.name).toBe(starterBoard.name);
+    expect(board.data.tasks.map((task) => task.title)).not.toContain("Other private task");
+
+    const summaryTitles = [
+      ...dailySummary.inProgress,
+      ...dailySummary.onDeck,
+      ...dailySummary.iceBox,
+      ...dailySummary.recentlyCompleted,
+    ].map((task) => task.title);
+
+    expect(summaryTitles).toContain("Prepare launch notes");
+    expect(summaryTitles).not.toContain("Other private task");
   });
 
   test("GET /api/external/v1/dashboard returns a request ID matching the structured log", async () => {

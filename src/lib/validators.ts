@@ -104,6 +104,18 @@ export const adminApiTokenSchema = z.object({
     .trim()
     .min(1, "Label is required.")
     .max(80, "Labels should stay under 80 characters."),
+  scopes: z
+    .array(
+      z.enum([
+        "BOARDS_READ",
+        "BOARDS_WRITE",
+        "TASKS_READ",
+        "TASKS_WRITE",
+        "SUBTASKS_READ",
+        "SUBTASKS_WRITE",
+      ]),
+    )
+    .min(1, "Select at least one scope."),
 });
 
 export const taskInputSchema = z

@@ -1,4 +1,5 @@
 import {
+  ApiTokenScope,
   Prisma,
   ItemPriority as PrismaItemPriority,
   RecurrencePattern as PrismaRecurrencePattern,
@@ -96,6 +97,7 @@ const apiTokenListSelect = {
   id: true,
   label: true,
   prefix: true,
+  scopes: true,
   lastUsedAt: true,
   revokedAt: true,
   createdAt: true,
@@ -247,6 +249,7 @@ export type SerializedApiToken = {
   id: string;
   label: string;
   prefix: string;
+  scopes: ApiTokenScope[];
   status: ApiTokenStatus;
   lastUsedAt: string | null;
   revokedAt: string | null;
@@ -365,6 +368,7 @@ function serializeApiToken(token: DbApiTokenListItem): SerializedApiToken {
     id: token.id,
     label: token.label,
     prefix: token.prefix,
+    scopes: token.scopes,
     status: token.revokedAt ? "REVOKED" : "ACTIVE",
     lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
     revokedAt: token.revokedAt?.toISOString() ?? null,
@@ -2276,9 +2280,11 @@ export async function revokeInvitation(invitationId: string) {
 export async function createApiToken({
   createdById,
   label,
+  scopes,
 }: {
   createdById: string;
   label: string;
+  scopes: ApiTokenScope[];
 }) {
   const rawToken = `wbk_${generateRawToken()}`;
 
@@ -2289,6 +2295,7 @@ export async function createApiToken({
       tokenHash: hashToken(rawToken),
       prefix: rawToken.slice(0, 12),
       createdById,
+      scopes,
     },
     select: apiTokenListSelect,
   });
@@ -2320,7 +2327,7 @@ export async function findActiveApiTokenByRawToken(rawToken: string) {
       revokedAt: null,
       tokenHash: hashToken(rawToken),
     },
-    select: { id: true },
+    select: { id: true, createdById: true, scopes: true },
   });
 }
 

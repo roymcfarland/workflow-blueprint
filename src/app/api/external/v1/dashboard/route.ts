@@ -1,3 +1,5 @@
+import { ApiTokenScope } from "@prisma/client";
+
 import { getDashboardSnapshot } from "@/lib/data";
 import {
   externalApiJson,
@@ -34,5 +36,6 @@ export async function GET(request: Request) {
         requestId,
       );
     },
+    { requiredScope: ApiTokenScope.TASKS_READ },
   );
 }

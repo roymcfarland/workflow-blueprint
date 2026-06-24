@@ -19,6 +19,7 @@ describe("src/lib/validators.ts", () => {
   test("validates admin API token labels", () => {
     const result = adminApiTokenSchema.safeParse({
       label: "  External Consumer  ",
+      scopes: ["BOARDS_READ", "TASKS_READ"],
     });
 
     expect(result.success).toBe(true);
@@ -26,8 +27,19 @@ describe("src/lib/validators.ts", () => {
       throw new Error("Expected valid API token label.");
     }
     expect(result.data.label).toBe("External Consumer");
-    expect(adminApiTokenSchema.safeParse({ label: "   " }).success).toBe(false);
-    expect(adminApiTokenSchema.safeParse({ label: "a".repeat(81) }).success).toBe(false);
+    expect(result.data.scopes).toEqual(["BOARDS_READ", "TASKS_READ"]);
+    expect(adminApiTokenSchema.safeParse({ label: "   ", scopes: ["BOARDS_READ"] }).success).toBe(
+      false,
+    );
+    expect(
+      adminApiTokenSchema.safeParse({ label: "a".repeat(81), scopes: ["BOARDS_READ"] }).success,
+    ).toBe(false);
+    expect(adminApiTokenSchema.safeParse({ label: "External Consumer", scopes: [] }).success).toBe(
+      false,
+    );
+    expect(
+      adminApiTokenSchema.safeParse({ label: "External Consumer", scopes: ["ADMIN_READ"] }).success,
+    ).toBe(false);
   });
 
   test("defaults task recurrence to none", () => {

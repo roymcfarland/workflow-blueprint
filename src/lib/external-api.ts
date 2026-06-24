@@ -1,6 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-import type { TaskStatus as PrismaTaskStatus } from "@prisma/client";
+import {
+  ApiTokenScope,
+  type TaskStatus as PrismaTaskStatus,
+} from "@prisma/client";
 import { subDays } from "date-fns";
 import { NextResponse } from "next/server";
 import type { ZodType } from "zod";
@@ -63,10 +66,11 @@ type ExternalRateLimitResult =
 export type ExternalApiContext = {
   requestId: string;
   rateLimitHeaders: RateLimitHeaders;
-  user: { userId: string };
+  user: { userId: string; scopes: ApiTokenScope[] };
 };
 
 type ExternalApiObservabilityOptions = {
+  requiredScope?: ApiTokenScope;
   requireExistingUser?: boolean;
   rateLimitScope?: string;
 };
@@ -93,6 +97,7 @@ const externalRateLimit = {
 const internalOutcomeHeader = "X-Internal-Outcome";
 const recentlyCompletedWindowDays = 7;
 const recentlyCompletedLimit = 25;
+const ALL_API_TOKEN_SCOPES: ApiTokenScope[] = Object.values(ApiTokenScope);
 
 const priorityMap: Record<ItemPriority, ExternalDailySummaryTask["priority"]> = {
   NONE: "none",
@@ -440,6 +445,7 @@ export async function withExternalApiObservability(
   handler: (ctx: ExternalApiContext) => Promise<NextResponse>,
   {
     rateLimitScope = "external-api",
+    requiredScope,
     requireExistingUser = true,
   }: ExternalApiObservabilityOptions = {},
 ): Promise<NextResponse> {
@@ -501,6 +507,30 @@ export async function withExternalApiObservability(
 
     resolvedUserId = access.data.userId;
 
+    if (requiredScope && !access.data.scopes.includes(requiredScope)) {
+      const response = externalApiError(
+        `Insufficient token scope: requires ${requiredScope}.`,
+        403,
+        headersWithRateLimit(undefined, rateLimitHeaders),
+        requestId,
+      );
+
+      attachWrapperHeaders(response, requestId, rateLimitHeaders);
+      logExternalApiRequest(
+        externalApiLogFields({
+          outcome: "auth_failed",
+          request,
+          requestId,
+          route,
+          startedAt,
+          status: response.status,
+          userId: resolvedUserId,
+        }),
+      );
+
+      return response;
+    }
+
     if (requireExistingUser && !(await userExists(resolvedUserId))) {
       const response = externalApiError(
         "External API user was not found.",
@@ -528,7 +558,7 @@ export async function withExternalApiObservability(
     const response = await handler({
       requestId,
       rateLimitHeaders,
-      user: { userId: resolvedUserId },
+      user: { userId: resolvedUserId, scopes: access.data.scopes },
     });
     const internalOutcome = response.headers.get(internalOutcomeHeader);
     const outcome = outcomeForResponse(response.status, internalOutcome);
@@ -604,7 +634,7 @@ async function resolveExternalApiAccess(
     rateLimitHeaders,
     requestId,
   }: Pick<RequireExternalApiAccessOptions, "rateLimitHeaders" | "requestId"> = {},
-): Promise<ApiResult<{ userId: string }>> {
+): Promise<ApiResult<{ userId: string; scopes: ApiTokenScope[] }>> {
   const expectedKeys = getRequiredExternalApiKeys();
 
   if (expectedKeys.length === 0) {
@@ -656,30 +686,34 @@ async function resolveExternalApiAccess(
       break;
   }
 
-  if (!tokenMatchesAny(bearer.token, expectedKeys)) {
-    // Env key didn't match, so fall back to DB-issued, revocable API tokens.
-    const dbToken = await findActiveApiTokenByRawToken(bearer.token);
-
-    if (!dbToken) {
-      return {
-        ok: false,
-        response: externalApiError(
-          "Invalid API key.",
-          403,
-          headersWithRateLimit(undefined, rateLimitHeaders),
-          requestId,
-        ),
-      };
-    }
-
-    await touchApiTokenLastUsed(dbToken.id);
+  // Legacy env key: full-access, single fixed user (briefing-job consumer).
+  if (tokenMatchesAny(bearer.token, expectedKeys)) {
+    return {
+      ok: true,
+      data: { userId: externalUserId(), scopes: ALL_API_TOKEN_SCOPES },
+    };
   }
 
+  // DB-issued, revocable, per-user, scoped token.
+  const dbToken = await findActiveApiTokenByRawToken(bearer.token);
+
+  if (!dbToken) {
+    return {
+      ok: false,
+      response: externalApiError(
+        "Invalid API key.",
+        403,
+        headersWithRateLimit(undefined, rateLimitHeaders),
+        requestId,
+      ),
+    };
+  }
+
+  await touchApiTokenLastUsed(dbToken.id);
+
   return {
-    data: {
-      userId: externalUserId(),
-    },
     ok: true,
+    data: { userId: dbToken.createdById, scopes: dbToken.scopes },
   };
 }
 
@@ -690,7 +724,7 @@ export async function requireExternalApiAccess(
     rateLimitScope = "external-api",
     requestId,
   }: RequireExternalApiAccessOptions = {},
-): Promise<ApiResult<{ userId: string }>> {
+): Promise<ApiResult<{ userId: string; scopes: ApiTokenScope[] }>> {
   const rateLimit: ExternalRateLimitResult = rateLimitHeaders
     ? { kind: "ok", headers: rateLimitHeaders }
     : await checkExternalRateLimit(request, rateLimitScope, requestId);
@@ -711,7 +745,7 @@ export async function requireExternalApiAccess(
 export async function requireExternalApiUser(
   request: Request,
   options: RequireExternalApiAccessOptions = {},
-) {
+): Promise<ApiResult<{ userId: string; scopes: ApiTokenScope[] }>> {
   const rateLimit: ExternalRateLimitResult = options.rateLimitHeaders
     ? { kind: "ok", headers: options.rateLimitHeaders }
     : await checkExternalRateLimit(

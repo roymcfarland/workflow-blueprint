@@ -43,6 +43,15 @@ enum UserRole {
   ADMIN
 }
 
+enum ApiTokenScope {
+  BOARDS_READ
+  BOARDS_WRITE
+  TASKS_READ
+  TASKS_WRITE
+  SUBTASKS_READ
+  SUBTASKS_WRITE
+}
+
 model User {
   id                  String              @id
   name                String
@@ -200,6 +209,7 @@ model ApiToken {
   tokenHash   String    @unique
   prefix      String
   createdById String
+  scopes      ApiTokenScope[] @default([BOARDS_READ, TASKS_READ, SUBTASKS_READ])
   lastUsedAt  DateTime?
   revokedAt   DateTime?
   createdAt   DateTime  @default(now())

@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "ApiTokenScope" AS ENUM ('BOARDS_READ', 'BOARDS_WRITE', 'TASKS_READ', 'TASKS_WRITE', 'SUBTASKS_READ', 'SUBTASKS_WRITE');
+
+-- AlterTable
+ALTER TABLE "ApiToken" ADD COLUMN     "scopes" "ApiTokenScope"[] DEFAULT ARRAY['BOARDS_READ', 'TASKS_READ', 'SUBTASKS_READ']::"ApiTokenScope"[];

@@ -1,3 +1,5 @@
+import { ApiTokenScope } from "@prisma/client";
+
 import {
   handleExternalDailySummary,
   withExternalApiObservability,
@@ -15,6 +17,7 @@ export async function GET(request: Request) {
       handleExternalDailySummary(user.userId, requestId),
     {
       rateLimitScope: "external-daily-summary",
+      requiredScope: ApiTokenScope.TASKS_READ,
       requireExistingUser: false,
     },
   );
