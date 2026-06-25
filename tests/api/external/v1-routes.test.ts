@@ -7,14 +7,27 @@ import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { z, type ZodType } from "zod";
 
-import { GET as getBoard } from "@/app/api/external/v1/boards/[slug]/route";
-import { GET as getBoards } from "@/app/api/external/v1/boards/route";
+import {
+  DELETE as deleteBoard,
+  GET as getBoard,
+  PATCH as patchBoard,
+} from "@/app/api/external/v1/boards/[slug]/route";
+import { PATCH as patchBoardNote } from "@/app/api/external/v1/boards/[slug]/note/route";
+import {
+  GET as getBoards,
+  POST as postBoard,
+} from "@/app/api/external/v1/boards/route";
 import { GET as getDailySummary } from "@/app/api/external/v1/daily-summary/route";
 import { GET as getDashboard } from "@/app/api/external/v1/dashboard/route";
+import {
+  DELETE as deleteSubtask,
+  PATCH as patchSubtask,
+} from "@/app/api/external/v1/subtasks/[id]/route";
 import {
   DELETE as deleteTask,
   PATCH as patchTask,
 } from "@/app/api/external/v1/tasks/[id]/route";
+import { POST as postSubtask } from "@/app/api/external/v1/tasks/[id]/subtasks/route";
 import { POST as postTask } from "@/app/api/external/v1/tasks/route";
 import { rateLimitKey } from "@/lib/api";
 import { createApiToken, revokeApiToken } from "@/lib/data";
@@ -26,6 +39,7 @@ import {
 } from "@/lib/external-api";
 import {
   externalBoardResponseSchema,
+  externalBoardWriteResponseSchema,
   externalBoardsResponseSchema,
   externalDailySummaryResponseSchema,
   externalDashboardResponseSchema,
@@ -195,6 +209,22 @@ async function createRouteTask(boardId: string, title: string) {
       priority: PrismaItemPriority.NONE,
       sortOrder: 0,
       status: PrismaTaskStatus.IN_PROGRESS,
+      title,
+    },
+  });
+}
+
+async function createRouteSubtask(
+  taskId: string,
+  title: string,
+  { isComplete = false, sortOrder = 0 } = {},
+) {
+  return prisma.subtask.create({
+    data: {
+      id: randomUUID(),
+      isComplete,
+      sortOrder,
+      taskId,
       title,
     },
   });
@@ -730,6 +760,556 @@ describe("external v1 route contracts", () => {
         error: "Provide at least one field to update.",
         ok: false,
       });
+    });
+
+    test("POST /api/external/v1/boards creates a board with an auto-generated slug", async () => {
+      const owner = await createTestUser({
+        email: "board-create-owner@example.test",
+        name: "Board Create Owner",
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board creator",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await postBoard(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/boards",
+          {
+            accentColor: "#2f9f85",
+            description: "Created externally",
+            iconKey: "rocket",
+            name: "My New Board",
+          },
+          token,
+        ),
+      );
+      const body = await expectJsonContract(
+        response,
+        externalBoardWriteResponseSchema,
+        201,
+      );
+      const board = await prisma.board.findFirst({
+        where: { slug: "my-new-board", userId: owner.id },
+      });
+
+      expect(body.data).toMatchObject({
+        accentColor: "#2f9f85",
+        iconKey: "rocket",
+        name: "My New Board",
+        slug: "my-new-board",
+      });
+      expect(board).toMatchObject({
+        description: "Created externally",
+        name: "My New Board",
+        slug: "my-new-board",
+      });
+    });
+
+    test("PATCH /api/external/v1/boards/[slug] updates a board for the token owner", async () => {
+      const owner = await createTestUser({
+        email: "board-update-owner@example.test",
+        name: "Board Update Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Board to update", "board-update");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board updater",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoard(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}`,
+          {
+            accentColor: "#c94f7c",
+            description: "Updated externally",
+            iconKey: "target",
+            name: "Updated Board",
+          },
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const body = await expectJsonContract(
+        response,
+        externalBoardWriteResponseSchema,
+      );
+      const previousSlug = await prisma.board.findFirst({
+        where: { slug: board.slug, userId: owner.id },
+      });
+      const updated = await prisma.board.findFirst({
+        where: { slug: "updated-board", userId: owner.id },
+      });
+
+      expect(body.data).toMatchObject({
+        accentColor: "#c94f7c",
+        iconKey: "target",
+        name: "Updated Board",
+        slug: "updated-board",
+      });
+      expect(previousSlug).toBeNull();
+      expect(updated).toMatchObject({
+        description: "Updated externally",
+        name: "Updated Board",
+      });
+    });
+
+    test("DELETE /api/external/v1/boards/[slug] deletes a board for the token owner", async () => {
+      const owner = await createTestUser({
+        email: "board-delete-owner@example.test",
+        name: "Board Delete Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Board to delete", "board-delete");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board deleter",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await deleteBoard(
+        externalDeleteRequest(`/api/external/v1/boards/${board.slug}`, token),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const deleted = await prisma.board.findUnique({ where: { id: board.id } });
+
+      await expectJsonContract(response, externalOkResponseSchema);
+      expect(deleted).toBeNull();
+    });
+
+    test("PATCH /api/external/v1/boards/[slug]/note updates a board note", async () => {
+      const owner = await createTestUser({
+        email: "board-note-owner@example.test",
+        name: "Board Note Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Board note", "board-note");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board note writer",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoardNote(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}/note`,
+          { content: "Updated from the external API." },
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const note = await prisma.boardNote.findUnique({
+        where: { boardId: board.id },
+      });
+
+      await expectJsonContract(response, externalOkResponseSchema);
+      expect(note?.content).toBe("Updated from the external API.");
+    });
+
+    test("subtask write routes create, update, and delete subtasks on the parent task", async () => {
+      const owner = await createTestUser({
+        email: "subtask-lifecycle-owner@example.test",
+        name: "Subtask Lifecycle Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Subtask board", "subtask-board");
+      const task = await createRouteTask(board.id, "Parent task");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner subtask writer",
+        scopes: [ApiTokenScope.SUBTASKS_WRITE],
+      });
+
+      const createResponse = await postSubtask(
+        externalJsonRequest(
+          "POST",
+          `/api/external/v1/tasks/${task.id}/subtasks`,
+          { title: "Created subtask" },
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const createdBody = await expectJsonContract(
+        createResponse,
+        externalTaskResponseSchema,
+        201,
+      );
+      const createdSubtask = createdBody.data.subtasks.find(
+        (subtask) => subtask.title === "Created subtask",
+      );
+
+      if (!createdSubtask) {
+        throw new Error("Expected subtask create response to include the new subtask.");
+      }
+
+      const updateResponse = await patchSubtask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/subtasks/${createdSubtask.id}`,
+          { isComplete: true, title: "Updated subtask" },
+          token,
+        ),
+        { params: Promise.resolve({ id: createdSubtask.id }) },
+      );
+      const updatedBody = await expectJsonContract(
+        updateResponse,
+        externalTaskResponseSchema,
+      );
+      const updatedSubtask = updatedBody.data.subtasks.find(
+        (subtask) => subtask.id === createdSubtask.id,
+      );
+
+      expect(createdBody.data.id).toBe(task.id);
+      expect(createdSubtask.isComplete).toBe(false);
+      expect(updatedBody.data.id).toBe(task.id);
+      expect(updatedSubtask).toMatchObject({
+        isComplete: true,
+        title: "Updated subtask",
+      });
+
+      const deleteResponse = await deleteSubtask(
+        externalDeleteRequest(
+          `/api/external/v1/subtasks/${createdSubtask.id}`,
+          token,
+        ),
+        { params: Promise.resolve({ id: createdSubtask.id }) },
+      );
+      const deletedBody = await expectJsonContract(
+        deleteResponse,
+        externalTaskResponseSchema,
+      );
+      const deleted = await prisma.subtask.findUnique({
+        where: { id: createdSubtask.id },
+      });
+
+      expect(deletedBody.data.id).toBe(task.id);
+      expect(deletedBody.data.subtasks.map((subtask) => subtask.id)).not.toContain(
+        createdSubtask.id,
+      );
+      expect(deleted).toBeNull();
+    });
+
+    test("BOARDS_WRITE tokens cannot update or delete another user's board", async () => {
+      const owner = await createTestUser({
+        email: "board-isolation-owner@example.test",
+        name: "Board Isolation Owner",
+      });
+      const otherUser = await createTestUser({
+        email: "board-isolation-other@example.test",
+        name: "Board Isolation Other",
+      });
+      await createNamedBoard(owner.id, "Owner board", "owner-board");
+      const otherBoard = await createNamedBoard(
+        otherUser.id,
+        "Other user's board",
+        "other-board",
+      );
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board isolator",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const updateResponse = await patchBoard(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${otherBoard.slug}`,
+          { name: "Stolen board" },
+          token,
+        ),
+        { params: Promise.resolve({ slug: otherBoard.slug }) },
+      );
+      const afterUpdate = await prisma.board.findUniqueOrThrow({
+        where: { id: otherBoard.id },
+      });
+      const deleteResponse = await deleteBoard(
+        externalDeleteRequest(
+          `/api/external/v1/boards/${otherBoard.slug}`,
+          token,
+        ),
+        { params: Promise.resolve({ slug: otherBoard.slug }) },
+      );
+      const afterDelete = await prisma.board.findUnique({
+        where: { id: otherBoard.id },
+      });
+
+      expect(updateResponse.status).toBe(404);
+      expect(afterUpdate).toMatchObject({
+        name: "Other user's board",
+        slug: "other-board",
+      });
+      expect(deleteResponse.status).toBe(404);
+      expect(afterDelete).not.toBeNull();
+    });
+
+    test("BOARDS_WRITE tokens cannot update another user's board note", async () => {
+      const owner = await createTestUser({
+        email: "board-note-isolation-owner@example.test",
+        name: "Board Note Isolation Owner",
+      });
+      const otherUser = await createTestUser({
+        email: "board-note-isolation-other@example.test",
+        name: "Board Note Isolation Other",
+      });
+      await createNamedBoard(owner.id, "Owner note board", "owner-note-board");
+      const otherBoard = await createNamedBoard(
+        otherUser.id,
+        "Other user's note board",
+        "other-note-board",
+      );
+      await prisma.boardNote.create({
+        data: {
+          boardId: otherBoard.id,
+          content: "B's private note",
+          id: randomUUID(),
+        },
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board note isolator",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoardNote(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${otherBoard.slug}/note`,
+          { content: "hijacked" },
+          token,
+        ),
+        { params: Promise.resolve({ slug: otherBoard.slug }) },
+      );
+      const afterDeniedWrite = await prisma.boardNote.findUniqueOrThrow({
+        where: { boardId: otherBoard.id },
+      });
+
+      expect(response.status).toBe(404);
+      expect(afterDeniedWrite.content).toBe("B's private note");
+    });
+
+    test("SUBTASKS_WRITE tokens cannot update or delete another user's subtask", async () => {
+      const owner = await createTestUser({
+        email: "subtask-isolation-owner@example.test",
+        name: "Subtask Isolation Owner",
+      });
+      const otherUser = await createTestUser({
+        email: "subtask-isolation-other@example.test",
+        name: "Subtask Isolation Other",
+      });
+      const ownerBoard = await createNamedBoard(owner.id, "Owner subtask board", "owner-subtask");
+      const otherBoard = await createNamedBoard(otherUser.id, "Other subtask board", "other-subtask");
+      await createRouteTask(ownerBoard.id, "Owner task");
+      const otherTask = await createRouteTask(otherBoard.id, "Other task");
+      const otherSubtask = await createRouteSubtask(
+        otherTask.id,
+        "Other user's subtask",
+      );
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner subtask isolator",
+        scopes: [ApiTokenScope.SUBTASKS_WRITE],
+      });
+
+      const updateResponse = await patchSubtask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/subtasks/${otherSubtask.id}`,
+          { title: "Stolen subtask" },
+          token,
+        ),
+        { params: Promise.resolve({ id: otherSubtask.id }) },
+      );
+      const afterUpdate = await prisma.subtask.findUniqueOrThrow({
+        where: { id: otherSubtask.id },
+      });
+      const deleteResponse = await deleteSubtask(
+        externalDeleteRequest(
+          `/api/external/v1/subtasks/${otherSubtask.id}`,
+          token,
+        ),
+        { params: Promise.resolve({ id: otherSubtask.id }) },
+      );
+      const afterDelete = await prisma.subtask.findUnique({
+        where: { id: otherSubtask.id },
+      });
+
+      expect(updateResponse.status).toBe(404);
+      expect(afterUpdate).toMatchObject({
+        isComplete: false,
+        title: "Other user's subtask",
+      });
+      expect(deleteResponse.status).toBe(404);
+      expect(afterDelete).not.toBeNull();
+    });
+
+    test("board write routes reject DB tokens without BOARDS_WRITE", async () => {
+      const owner = await createTestUser({
+        email: "board-scope-owner@example.test",
+        name: "Board Scope Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Board scope", "board-scope");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Subtasks-only consumer",
+        scopes: [ApiTokenScope.SUBTASKS_WRITE],
+      });
+
+      const createResponse = await postBoard(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/boards",
+          { name: "Forbidden board" },
+          token,
+        ),
+      );
+      const updateResponse = await patchBoard(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}`,
+          { name: "Forbidden update" },
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const deleteResponse = await deleteBoard(
+        externalDeleteRequest(`/api/external/v1/boards/${board.slug}`, token),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const noteResponse = await patchBoardNote(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}/note`,
+          { content: "Forbidden note" },
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const afterDeniedWrites = await prisma.board.findUniqueOrThrow({
+        where: { id: board.id },
+      });
+
+      expect(createResponse.status).toBe(403);
+      expect(updateResponse.status).toBe(403);
+      expect(deleteResponse.status).toBe(403);
+      expect(noteResponse.status).toBe(403);
+      expect(afterDeniedWrites.name).toBe("Board scope");
+    });
+
+    test("subtask write routes reject DB tokens without SUBTASKS_WRITE", async () => {
+      const owner = await createTestUser({
+        email: "subtask-scope-owner@example.test",
+        name: "Subtask Scope Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Subtask scope", "subtask-scope");
+      const task = await createRouteTask(board.id, "Scoped parent");
+      const subtask = await createRouteSubtask(task.id, "Scoped subtask");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Boards-only consumer",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const createResponse = await postSubtask(
+        externalJsonRequest(
+          "POST",
+          `/api/external/v1/tasks/${task.id}/subtasks`,
+          { title: "Forbidden subtask" },
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const updateResponse = await patchSubtask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/subtasks/${subtask.id}`,
+          { title: "Forbidden update" },
+          token,
+        ),
+        { params: Promise.resolve({ id: subtask.id }) },
+      );
+      const deleteResponse = await deleteSubtask(
+        externalDeleteRequest(`/api/external/v1/subtasks/${subtask.id}`, token),
+        { params: Promise.resolve({ id: subtask.id }) },
+      );
+      const afterDeniedWrites = await prisma.subtask.findUniqueOrThrow({
+        where: { id: subtask.id },
+      });
+
+      expect(createResponse.status).toBe(403);
+      expect(updateResponse.status).toBe(403);
+      expect(deleteResponse.status).toBe(403);
+      expect(afterDeniedWrites.title).toBe("Scoped subtask");
+    });
+
+    test("board and subtask write routes reject malformed and empty request bodies", async () => {
+      const owner = await createTestUser({
+        email: "board-subtask-validation-owner@example.test",
+        name: "Board Subtask Validation Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Validation board", "validation-board");
+      const task = await createRouteTask(board.id, "Validation parent");
+      const subtask = await createRouteSubtask(task.id, "Validation subtask");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board and subtask writer",
+        scopes: [ApiTokenScope.BOARDS_WRITE, ApiTokenScope.SUBTASKS_WRITE],
+      });
+
+      const malformedBoardCreate = await postBoard(
+        externalRawJsonRequest("POST", "/api/external/v1/boards", "{", token),
+      );
+      const emptyBoardPatch = await patchBoard(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}`,
+          {},
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const emptyNotePatch = await patchBoardNote(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}/note`,
+          {},
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const malformedSubtaskCreate = await postSubtask(
+        externalRawJsonRequest(
+          "POST",
+          `/api/external/v1/tasks/${task.id}/subtasks`,
+          "{",
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const emptySubtaskPatch = await patchSubtask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/subtasks/${subtask.id}`,
+          {},
+          token,
+        ),
+        { params: Promise.resolve({ id: subtask.id }) },
+      );
+
+      expect(malformedBoardCreate.status).toBe(400);
+      await expect(malformedBoardCreate.json()).resolves.toEqual({
+        error: "Invalid JSON body.",
+        ok: false,
+      });
+      expect(emptyBoardPatch.status).toBe(400);
+      expect(emptyNotePatch.status).toBe(400);
+      expect(malformedSubtaskCreate.status).toBe(400);
+      await expect(malformedSubtaskCreate.json()).resolves.toEqual({
+        error: "Invalid JSON body.",
+        ok: false,
+      });
+      expect(emptySubtaskPatch.status).toBe(400);
     });
   });
 

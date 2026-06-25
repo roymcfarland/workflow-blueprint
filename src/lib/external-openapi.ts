@@ -1,11 +1,17 @@
 import { z, type ZodType } from "zod";
 
 import {
+  externalBoardCreateRequestSchema,
+  externalBoardNoteRequestSchema,
   externalBoardResponseSchema,
+  externalBoardUpdateRequestSchema,
+  externalBoardWriteResponseSchema,
   externalBoardsResponseSchema,
   externalDailySummaryResponseSchema,
   externalDashboardResponseSchema,
   externalOkResponseSchema,
+  externalSubtaskCreateRequestSchema,
+  externalSubtaskUpdateRequestSchema,
   externalTaskCreateRequestSchema,
   externalTaskResponseSchema,
   externalTaskUpdateRequestSchema,
@@ -16,6 +22,18 @@ type JsonObject = Record<string, unknown>;
 function schemaRef(name: string) {
   return {
     $ref: `#/components/schemas/${name}`,
+  };
+}
+
+function pathParameter(name: string) {
+  return {
+    in: "path",
+    name,
+    required: true,
+    schema: {
+      minLength: 1,
+      type: "string",
+    },
   };
 }
 
@@ -200,17 +218,7 @@ export function buildExternalOpenApiSpec() {
         }),
       },
       "/api/external/v1/tasks/{id}": {
-        parameters: [
-          {
-            in: "path",
-            name: "id",
-            required: true,
-            schema: {
-              minLength: 1,
-              type: "string",
-            },
-          },
-        ],
+        parameters: [pathParameter("id")],
         patch: authenticatedMutation({
           operationId: "updateExternalTask",
           requestSchemaName: "ExternalTaskUpdateRequest",
@@ -223,6 +231,35 @@ export function buildExternalOpenApiSpec() {
           responseSchemaName: "ExternalOkResponse",
           status: "200",
           summary: "Delete one of the token owner's tasks.",
+        }),
+      },
+      "/api/external/v1/tasks/{id}/subtasks": {
+        parameters: [pathParameter("id")],
+        post: authenticatedMutation({
+          extraResponses: {
+            "409": errorResponse("Task subtask limit was reached."),
+          },
+          operationId: "createExternalSubtask",
+          requestSchemaName: "ExternalSubtaskCreateRequest",
+          responseSchemaName: "ExternalTaskResponse",
+          status: "201",
+          summary: "Create a subtask on one of the token owner's tasks.",
+        }),
+      },
+      "/api/external/v1/subtasks/{id}": {
+        parameters: [pathParameter("id")],
+        patch: authenticatedMutation({
+          operationId: "updateExternalSubtask",
+          requestSchemaName: "ExternalSubtaskUpdateRequest",
+          responseSchemaName: "ExternalTaskResponse",
+          status: "200",
+          summary: "Update one of the token owner's subtasks.",
+        }),
+        delete: authenticatedMutation({
+          operationId: "deleteExternalSubtask",
+          responseSchemaName: "ExternalTaskResponse",
+          status: "200",
+          summary: "Delete one of the token owner's subtasks.",
         }),
       },
       "/api/external/v1/dashboard": {
@@ -244,31 +281,55 @@ export function buildExternalOpenApiSpec() {
           schemaName: "ExternalBoardsResponse",
           summary: "List boards owned by the configured external user.",
         }),
+        post: authenticatedMutation({
+          extraResponses: {
+            "409": errorResponse("Board limit was reached or slug already exists."),
+          },
+          operationId: "createExternalBoard",
+          requestSchemaName: "ExternalBoardCreateRequest",
+          responseSchemaName: "ExternalBoardWriteResponse",
+          status: "201",
+          summary: "Create a board for the token owner.",
+        }),
       },
       "/api/external/v1/boards/{slug}": {
-        get: {
-          ...authenticatedGet({
-            extraResponses: {
-              "404": errorResponse(
-                "Configured external API user or board was not found.",
-              ),
-            },
-            operationId: "getExternalBoard",
-            schemaName: "ExternalBoardResponse",
-            summary: "Get one board by slug, including tasks, subtasks, and note content.",
-          }),
-          parameters: [
-            {
-              in: "path",
-              name: "slug",
-              required: true,
-              schema: {
-                minLength: 1,
-                type: "string",
-              },
-            },
-          ],
-        },
+        parameters: [pathParameter("slug")],
+        get: authenticatedGet({
+          extraResponses: {
+            "404": errorResponse(
+              "Configured external API user or board was not found.",
+            ),
+          },
+          operationId: "getExternalBoard",
+          schemaName: "ExternalBoardResponse",
+          summary: "Get one board by slug, including tasks, subtasks, and note content.",
+        }),
+        patch: authenticatedMutation({
+          extraResponses: {
+            "409": errorResponse("Board slug already exists."),
+          },
+          operationId: "updateExternalBoard",
+          requestSchemaName: "ExternalBoardUpdateRequest",
+          responseSchemaName: "ExternalBoardWriteResponse",
+          status: "200",
+          summary: "Update one of the token owner's boards.",
+        }),
+        delete: authenticatedMutation({
+          operationId: "deleteExternalBoard",
+          responseSchemaName: "ExternalOkResponse",
+          status: "200",
+          summary: "Delete one of the token owner's boards.",
+        }),
+      },
+      "/api/external/v1/boards/{slug}/note": {
+        parameters: [pathParameter("slug")],
+        patch: authenticatedMutation({
+          operationId: "updateExternalBoardNote",
+          requestSchemaName: "ExternalBoardNoteRequest",
+          responseSchemaName: "ExternalOkResponse",
+          status: "200",
+          summary: "Update note content for one of the token owner's boards.",
+        }),
       },
       "/api/external/v1/daily-summary": {
         get: authenticatedGet({
@@ -316,11 +377,29 @@ export function buildExternalOpenApiSpec() {
         ExternalDashboardResponse: zodComponentSchema(externalDashboardResponseSchema),
         ExternalBoardsResponse: zodComponentSchema(externalBoardsResponseSchema),
         ExternalBoardResponse: zodComponentSchema(externalBoardResponseSchema),
+        ExternalBoardCreateRequest: zodComponentSchema(
+          externalBoardCreateRequestSchema,
+        ),
+        ExternalBoardUpdateRequest: zodComponentSchema(
+          externalBoardUpdateRequestSchema,
+        ),
+        ExternalBoardNoteRequest: zodComponentSchema(
+          externalBoardNoteRequestSchema,
+        ),
+        ExternalBoardWriteResponse: zodComponentSchema(
+          externalBoardWriteResponseSchema,
+        ),
         ExternalTaskCreateRequest: zodComponentSchema(
           externalTaskCreateRequestSchema,
         ),
         ExternalTaskUpdateRequest: zodComponentSchema(
           externalTaskUpdateRequestSchema,
+        ),
+        ExternalSubtaskCreateRequest: zodComponentSchema(
+          externalSubtaskCreateRequestSchema,
+        ),
+        ExternalSubtaskUpdateRequest: zodComponentSchema(
+          externalSubtaskUpdateRequestSchema,
         ),
         ExternalTaskResponse: zodComponentSchema(externalTaskResponseSchema),
         ExternalOkResponse: zodComponentSchema(externalOkResponseSchema),

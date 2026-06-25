@@ -133,6 +133,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **`#109`** | Agent access A1b — admin scope UI for API tokens | `#109` | Admin token UI (`api-tokens-admin.tsx`) now matches the A1a contract: the create form has a scope multi-select (the 6 `ApiTokenScope` values, default read set, ≥1 required) and sends `scopes` in the POST; the token ledger shows each token's scopes. Fixes the create form 400-ing after A1a made `scopes` required. UI-only; component test added. Completes A1 (per-user token auth + granular scopes). |
 | **`#110`** | Agent access A2 — external task write endpoints | `#110` | `POST /api/external/v1/tasks` plus `PATCH`/`DELETE /api/external/v1/tasks/{id}` let a `TASKS_WRITE` token create, update, and delete the token owner's tasks. Mutations are owner-scoped, `TASKS_WRITE`-gated, and PATCH is subtask-safe via new `updateTaskFieldsForUser`, which preserves existing subtasks while delegating to `updateTaskForUser` for status-transition and recurrence logic. Adds explicit external request/response schemas, OpenAPI paths, a `generate:openapi` script, regenerated `docs/openapi.yaml`, drift coverage, and per-user-isolation/scope tests. |
 | **`#111`** | Landing: agentic-access card + thatched hero line | `#111` | Added a 4th landing feature blurb advertising per-user scoped agent API access ("Drive it from your own agents") and changed the hero accent line under the "Workflow / Blueprint" heading from a solid `bg-brand` bar to a thatched one via `.blueprint-hatch`. Public copy is scoped/per-user — not an open/public API. Presentational; `src/app/page.tsx` only. |
+| **`#112`** | Agent access A3 — external board + subtask write endpoints | `#112` | Boards POST/PATCH/DELETE + note PATCH (`BOARDS_WRITE`), subtasks POST/PATCH/DELETE (`SUBTASKS_WRITE`), owner-scoped, explicit contract + OpenAPI + isolation tests; pure wrapping of existing mutations, no data-layer/schema change. **Completes the agent-access epic write surface.** |
 
 ### Active phase
 
@@ -141,9 +142,9 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 - **A0 (`#106`):** PROJECT.md amendment — Q5 evolved to per-user read/write, the "Not a public or open API" non-goal carves an authenticated agent-access exception, and new **Q7** defines the per-user scoped-token auth model + Verifier rules. Documentation-only; unblocks A1+.
 - **A1a (`#108`):** Per-user token resolution + granular scopes (backend) — DB `ApiToken`s resolve to their owner (`createdById`), new `ApiTokenScope` enum + `scopes` column (existing tokens → read set), wrapper enforces per-route `requiredScope`, the four read routes declare their read scope. Legacy `EXTERNAL_API_KEY` full-access read-only unchanged. Tests per Q1.
 - **A1b (`#109`):** admin token UI — scope multi-select on create + display scopes on existing tokens. Completes A1.
-- **A2 (this PR, `#110`):** Task write endpoints (`POST`/`PATCH`/`DELETE` under `/api/external/v1/tasks`), write-scope-gated, owner-scoped, subtask-safe partial update via `updateTaskFieldsForUser`, with `docs/openapi.yaml` + per-user-isolation tests.
-- **A3 (next):** Board + subtask write endpoints, same pattern.
-- **A4 (optional capstone):** an MCP server exposing the read/write surface as agent tools.
+- **A2 (`#110`):** Task write endpoints (`POST`/`PATCH`/`DELETE` under `/api/external/v1/tasks`), write-scope-gated, owner-scoped, subtask-safe partial update via `updateTaskFieldsForUser`, with `docs/openapi.yaml` + per-user-isolation tests.
+- **A3 (this PR, `#112`):** Board + subtask write endpoints: `POST`/`PATCH`/`DELETE` boards plus board-note `PATCH` (`BOARDS_WRITE`), and `POST`/`PATCH`/`DELETE` subtasks (`SUBTASKS_WRITE`), owner-scoped with explicit contract, OpenAPI, isolation, and scope tests. Completes the agent-access epic write surface.
+- **A4 (optional capstone, remaining):** an MCP server exposing the read/write surface as agent tools.
 
 ### Standing Builder guardrails (post-PR-1)
 
