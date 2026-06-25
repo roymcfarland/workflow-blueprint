@@ -1,4 +1,4 @@
-import { CalendarClock, Inbox, NotebookPen } from "lucide-react";
+import { Bot, CalendarClock, Inbox, NotebookPen } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { DemoButton } from "@/components/auth/demo-button";
@@ -65,6 +65,11 @@ const featureBlurbs = [
     title: "See due-this-week at a glance",
     copy: "Overdue and upcoming tasks surface on the dashboard.",
   },
+  {
+    icon: Bot,
+    title: "Drive it from your own agents",
+    copy: "Issue a scoped API token — your agents read and update your boards, no browser needed.",
+  },
 ];
 
 export default async function LoginPage() {
@@ -84,7 +89,7 @@ export default async function LoginPage() {
                 <span className="block">Workflow</span>
                 <span className="block">Blueprint</span>
               </h1>
-              <div className="h-1 w-32 max-w-full rounded-full bg-brand sm:w-40" />
+              <div className="blueprint-hatch h-1 w-32 max-w-full rounded-full bg-brand sm:w-40" />
               <p className="text-xl font-medium text-text-primary sm:text-2xl">
                 Plan. Execute. Achieve.
               </p>
