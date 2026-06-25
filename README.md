@@ -119,13 +119,15 @@ Every v1 response is JSON, dynamic (`force-dynamic`, `revalidate = 0`), and sent
 
 ### Authentication
 
-Every canonical v1 request must include the configured external key:
+Read endpoints support the legacy configured external key:
 
 ```http
 Authorization: Bearer <EXTERNAL_API_KEY>
 ```
 
-Keys are compared with SHA-256 + `timingSafeEqual`. All external routes require `EXTERNAL_API_KEY` to be set.
+Keys are compared with SHA-256 + `timingSafeEqual`. The legacy key resolves to `EXTERNAL_USER_ID` and remains read-only.
+
+Per-user API tokens are issued inside the app and resolve to the token owner. They carry granular scopes (`BOARDS_READ`, `BOARDS_WRITE`, `TASKS_READ`, `TASKS_WRITE`, `SUBTASKS_READ`, `SUBTASKS_WRITE`). Write endpoints require the matching write scope. The MCP endpoint below requires a per-user scoped API token and does not accept the legacy `EXTERNAL_API_KEY`.
 
 - Missing or malformed `Authorization` header → `401` JSON.
 - Wrong key → `403` JSON.
@@ -179,6 +181,29 @@ These endpoints require a per-user API token with the `SUBTASKS_WRITE` scope. Ea
 | `POST` | `/api/external/v1/tasks/{id}/subtasks` | Create a subtask on one of the token owner's tasks |
 | `PATCH` | `/api/external/v1/subtasks/{id}` | Partially update one of the token owner's subtasks |
 | `DELETE` | `/api/external/v1/subtasks/{id}` | Delete one of the token owner's subtasks |
+
+### MCP endpoint
+
+`POST /api/external/v1/mcp` serves an in-repo MCP-over-HTTP endpoint for server-to-server agents. It is authenticated with the same per-user scoped Bearer API tokens as the REST write surface, resolves every tool call to the token owner, sends `Cache-Control: no-store`, and exposes no CORS handler. The endpoint is MCP protocol, not REST JSON, so it is not included in `docs/openapi.yaml`.
+
+Available tools:
+
+| Tool | Required scope | Description |
+| --- | --- | --- |
+| `get_dashboard` | `TASKS_READ` | Get the token owner's dashboard snapshot |
+| `list_boards` | `BOARDS_READ` | List the token owner's boards |
+| `get_board` | `BOARDS_READ` | Get one owner-scoped board by slug |
+| `get_daily_summary` | `TASKS_READ` | Get the token owner's daily task summary |
+| `create_task` | `TASKS_WRITE` | Create a task on one of the token owner's boards |
+| `update_task` | `TASKS_WRITE` | Update scalar fields on one of the token owner's tasks |
+| `delete_task` | `TASKS_WRITE` | Delete one of the token owner's tasks |
+| `create_board` | `BOARDS_WRITE` | Create a board for the token owner |
+| `update_board` | `BOARDS_WRITE` | Update one of the token owner's boards |
+| `delete_board` | `BOARDS_WRITE` | Delete one of the token owner's boards |
+| `update_board_note` | `BOARDS_WRITE` | Update the note on one of the token owner's boards |
+| `create_subtask` | `SUBTASKS_WRITE` | Create a subtask on one of the token owner's tasks |
+| `update_subtask` | `SUBTASKS_WRITE` | Update one of the token owner's subtasks |
+| `delete_subtask` | `SUBTASKS_WRITE` | Delete one of the token owner's subtasks |
 
 ### `GET /api/external/v1/dashboard`
 

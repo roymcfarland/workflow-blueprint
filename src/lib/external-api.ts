@@ -53,15 +53,27 @@ type RequireExternalApiAccessOptions = {
   requestId?: string;
 };
 
-type RateLimitHeaders = {
+export type RateLimitHeaders = {
   "X-RateLimit-Limit": string;
   "X-RateLimit-Remaining": string;
   "X-RateLimit-Reset": string;
 };
 
+type ResolveExternalApiAccessOptions = Pick<
+  RequireExternalApiAccessOptions,
+  "rateLimitHeaders" | "requestId"
+> & {
+  allowLegacyKey?: boolean;
+};
+
 type ExternalRateLimitResult =
   | { kind: "ok"; headers: RateLimitHeaders }
   | { kind: "limited"; response: NextResponse; headers: RateLimitHeaders };
+
+export type ExternalTokenAccess = {
+  userId: string;
+  scopes: ApiTokenScope[];
+};
 
 export type ExternalApiContext = {
   requestId: string;
@@ -631,13 +643,14 @@ export async function withExternalApiObservability(
 async function resolveExternalApiAccess(
   request: Request,
   {
+    allowLegacyKey = true,
     rateLimitHeaders,
     requestId,
-  }: Pick<RequireExternalApiAccessOptions, "rateLimitHeaders" | "requestId"> = {},
-): Promise<ApiResult<{ userId: string; scopes: ApiTokenScope[] }>> {
+  }: ResolveExternalApiAccessOptions = {},
+): Promise<ApiResult<ExternalTokenAccess>> {
   const expectedKeys = getRequiredExternalApiKeys();
 
-  if (expectedKeys.length === 0) {
+  if (allowLegacyKey && expectedKeys.length === 0) {
     return {
       ok: false,
       response: externalApiError(
@@ -687,7 +700,7 @@ async function resolveExternalApiAccess(
   }
 
   // Legacy env key: full-access, single fixed user (briefing-job consumer).
-  if (tokenMatchesAny(bearer.token, expectedKeys)) {
+  if (allowLegacyKey && tokenMatchesAny(bearer.token, expectedKeys)) {
     return {
       ok: true,
       data: { userId: externalUserId(), scopes: ALL_API_TOKEN_SCOPES },
@@ -715,6 +728,32 @@ async function resolveExternalApiAccess(
     ok: true,
     data: { userId: dbToken.createdById, scopes: dbToken.scopes },
   };
+}
+
+export async function resolveExternalToken(
+  request: Request,
+): Promise<ExternalTokenAccess | null> {
+  const access = await resolveExternalApiAccess(request, {
+    allowLegacyKey: false,
+  });
+
+  if (!access.ok) {
+    return null;
+  }
+
+  if (!(await userExists(access.data.userId))) {
+    return null;
+  }
+
+  return access.data;
+}
+
+export async function checkExternalApiRateLimit(
+  request: Request,
+  scope: string,
+  requestId?: string,
+): Promise<ExternalRateLimitResult> {
+  return checkExternalRateLimit(request, scope, requestId);
 }
 
 export async function requireExternalApiAccess(
