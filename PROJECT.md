@@ -134,6 +134,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **`#110`** | Agent access A2 — external task write endpoints | `#110` | `POST /api/external/v1/tasks` plus `PATCH`/`DELETE /api/external/v1/tasks/{id}` let a `TASKS_WRITE` token create, update, and delete the token owner's tasks. Mutations are owner-scoped, `TASKS_WRITE`-gated, and PATCH is subtask-safe via new `updateTaskFieldsForUser`, which preserves existing subtasks while delegating to `updateTaskForUser` for status-transition and recurrence logic. Adds explicit external request/response schemas, OpenAPI paths, a `generate:openapi` script, regenerated `docs/openapi.yaml`, drift coverage, and per-user-isolation/scope tests. |
 | **`#111`** | Landing: agentic-access card + thatched hero line | `#111` | Added a 4th landing feature blurb advertising per-user scoped agent API access ("Drive it from your own agents") and changed the hero accent line under the "Workflow / Blueprint" heading from a solid `bg-brand` bar to a thatched one via `.blueprint-hatch`. Public copy is scoped/per-user — not an open/public API. Presentational; `src/app/page.tsx` only. |
 | **`#112`** | Agent access A3 — external board + subtask write endpoints | `#112` | Boards POST/PATCH/DELETE + note PATCH (`BOARDS_WRITE`), subtasks POST/PATCH/DELETE (`SUBTASKS_WRITE`), owner-scoped, explicit contract + OpenAPI + isolation tests; pure wrapping of existing mutations, no data-layer/schema change. **Completes the agent-access epic write surface.** |
+| **`#113`** | Agent access A4a — MCP surface amendment | `#113` | Documentation-only: added **Q8** defining the in-repo MCP-over-HTTP capstone at `/api/external/v1/mcp` — a new MCP-protocol transport for the Q7 agent-access model (tools map to existing read/write ops), authenticated by the same per-user scoped tokens, owner-resolved, scope-gated per tool, USER-capabilities-only (never ADMIN), no-CORS/no-store/rate-limited, never anonymous. In-namespace (Q5) but exempt from the REST/OpenAPI shape rules (it's MCP protocol, not REST). Unblocks the A4b MCP implementation. |
 
 ### Active phase
 
@@ -144,7 +145,9 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 - **A1b (`#109`):** admin token UI — scope multi-select on create + display scopes on existing tokens. Completes A1.
 - **A2 (`#110`):** Task write endpoints (`POST`/`PATCH`/`DELETE` under `/api/external/v1/tasks`), write-scope-gated, owner-scoped, subtask-safe partial update via `updateTaskFieldsForUser`, with `docs/openapi.yaml` + per-user-isolation tests.
 - **A3 (this PR, `#112`):** Board + subtask write endpoints: `POST`/`PATCH`/`DELETE` boards plus board-note `PATCH` (`BOARDS_WRITE`), and `POST`/`PATCH`/`DELETE` subtasks (`SUBTASKS_WRITE`), owner-scoped with explicit contract, OpenAPI, isolation, and scope tests. Completes the agent-access epic write surface.
-- **A4 (optional capstone, remaining):** an MCP server exposing the read/write surface as agent tools.
+- **A4 — MCP capstone (in-repo).** Splits into:
+  - **A4a (this PR, `#113`):** PROJECT.md amendment — new **Q8** defining the in-repo MCP-over-HTTP surface at `/api/external/v1/mcp`, its per-user scoped-token auth model, and Verifier rules. Documentation-only; unblocks A4b.
+  - **A4b (next):** the MCP server implementation — the `/api/external/v1/mcp` route + tool definitions mapping to the existing read/write operations, per-user token auth, scope-gated. Ships with tests per Q1.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -361,6 +364,25 @@ Rules for this model:
 - **Hard-fail** any external endpoint that exposes an ADMIN-only operation, or any path by which an external token gains ADMIN role or creates a non-demo account.
 - **Hard-fail** adding CORS to, or removing `no-store`/`noindex` from, the external surface, or skipping rate limiting on a new external route.
 - **Warn** if a new write endpoint lacks per-user-isolation tests (a write authenticated as user A must be shown not to touch user B's data).
+
+### Q8. How is the app exposed to agents over MCP (Model Context Protocol)?
+
+**Answer: An in-repo MCP-over-HTTP server at `/api/external/v1/mcp`, authenticated by the same per-user scoped tokens as Q7.**
+
+The MCP server exposes the existing read/write operations as agent **tools**, so an MCP client (e.g. Claude Desktop) can operate a user's workspace headlessly. It is a new **transport** for the Q7 agent-access model, not a new capability — every tool maps to an operation already available under `/api/external/v1/*`.
+
+Rules for this model:
+- **Placement.** The MCP endpoint lives **in-namespace** at `/api/external/v1/mcp` (satisfying Q5's namespace rule). It is an **MCP-protocol** surface (Streamable HTTP), **not** a REST JSON endpoint — so it is not part of the `docs/openapi.yaml` REST contract and is exempt from Q5's response-shape/drift rules. Its tools instead map to the documented REST operations.
+- **Auth.** The same per-user `Bearer` API tokens as Q7. An MCP request resolves to the token's **owner** and is scoped to that user's own data; it must **never** resolve to the fixed `EXTERNAL_USER_ID` or any other user.
+- **Scope-gated tools.** Each tool is gated by the same `ApiTokenScope`s as its REST equivalent — read tools require the relevant read scope, write tools the relevant write scope.
+- **USER capabilities only.** Tools expose only what a USER can do to their own boards/tasks/subtasks. No ADMIN operation (invitations, API-token management, role/user administration) is ever exposed as a tool, and a token never grants ADMIN.
+- **Server-to-server, no CORS,** `no-store`, rate-limited per the external wrapper, and **never anonymous** — a valid scoped token is required for every tool call.
+
+**Verifier behavior:**
+- **Hard-fail** any MCP tool that resolves the acting user to anyone other than the token owner, or that resolves a per-user token to the fixed `EXTERNAL_USER_ID`.
+- **Hard-fail** any **write** tool that does not require a write-scoped token, or any tool that exposes an ADMIN-only operation / grants ADMIN.
+- **Hard-fail** an MCP endpoint outside `/api/external/v{N}/`, adding CORS to it, or allowing anonymous (token-less) tool calls.
+- **Warn** if a new tool lacks a per-user-isolation test.
 
 ---
 
