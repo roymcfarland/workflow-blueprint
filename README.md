@@ -1,6 +1,6 @@
 # Workflow Blueprint
 
-Workflow Blueprint is an invite-gated Next.js App Router task planning workspace with admin-issued invitations, board-based task management, notes, profile settings, Resend-backed transactional email, and a key-authenticated external API (`/api/external/v1/*`) that other projects under the owner's control consume.
+Workflow Blueprint is an invite-gated Next.js App Router task-planning workspace — board-based tasks, subtasks, recurring work, notes, profile settings, Resend-backed transactional email, and a per-visitor demo sandbox — with a first-class **agent-access layer**: per-user scoped API tokens, a full read/write external REST API (`/api/external/v1/*`), and an in-repo **MCP server** (`/api/external/v1/mcp`) so a user's AI agents can run their own boards, tasks, and subtasks headlessly.
 
 The live deployment is at [https://www.workflowblueprint.io](https://www.workflowblueprint.io).
 
@@ -8,13 +8,13 @@ The live deployment is at [https://www.workflowblueprint.io](https://www.workflo
 
 This repository is published as a **showcase of a multi-agent development workflow with PR-level guardrails**, not just as a working product. The artifacts of that workflow are checked in alongside the code:
 
-- **Strategic source of truth.** [`PROJECT.md`](./PROJECT.md) defines the product's purpose, non-goals, and the resolved open questions (Q1–Q6) that act as durable Verifier rules. Any PR that violates these rules is an automatic reject.
+- **Strategic source of truth.** [`PROJECT.md`](./PROJECT.md) defines the product's purpose, non-goals, and the resolved open questions (Q1–Q8) that act as durable Verifier rules. Any PR that violates these rules is an automatic reject.
 - **Tactical agent runbook.** [`AGENTS.md`](./AGENTS.md) is the operational quickstart that Builder agents (OpenAI Codex) read before writing code, plus dev-environment gotchas.
 - **Walked-through case study.** [`CASE_STUDY.md`](./CASE_STUDY.md) traces a single PR (`#13`) end-to-end: the Builder prompt, the diff Codex returned, the Verifier rule it triggered (the Q6 scope-discipline rule), and how the rule itself was born from that PR.
 - **Machine-readable API contract with CI drift detection.** [`docs/openapi.yaml`](./docs/openapi.yaml) is generated from Zod schemas in [`src/lib/external-contract.ts`](./src/lib/external-contract.ts); a CI test (`tests/api/external/openapi.test.ts`) fails any PR where the committed spec diverges from the schemas.
-- **Real CI gates, not vibes.** [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs three parallel jobs (`lint`, `test`, `smoke`) on every PR, with a Postgres service container backing the integration and smoke suites.
+- **Real CI gates, not vibes.** [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) runs six parallel jobs (`lint`, `audit`, `typecheck`, `build`, `test`, `smoke`) on every PR, with a Postgres service container backing the integration and smoke suites.
 
-The most informative entry points are [`PROJECT.md`](./PROJECT.md), the merged PR history (especially `#7`, `#10`, `#13`, and `#14`), and [`CASE_STUDY.md`](./CASE_STUDY.md).
+The most informative entry points are [`PROJECT.md`](./PROJECT.md), the merged PR history (especially `#7`, `#10`, `#13`, and `#14`, plus the `#106`–`#114` agent-access epic — per-user scoped auth → read/write endpoints → MCP capstone, each slice gated by the same Verifier rules), and [`CASE_STUDY.md`](./CASE_STUDY.md).
 
 ## What I would do differently
 
