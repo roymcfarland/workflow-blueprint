@@ -1,11 +1,38 @@
 import { z } from "zod";
 
-import { boardStatuses, itemPriorities, recurrencePatterns } from "@/lib/domain";
+import {
+  boardAccentPalette,
+  boardIconKeys,
+  boardStatuses,
+  itemPriorities,
+  recurrencePatterns,
+} from "@/lib/domain";
 
 const isoDateTimeSchema = z.iso.datetime();
 const externalDueDateSchema = z
   .iso.date("Enter a valid due date (YYYY-MM-DD).")
   .nullable();
+const externalBoardIconKeySchema = z.enum(
+  boardIconKeys as unknown as [string, ...string[]],
+);
+const externalBoardAccentColorSchema = z.enum(
+  boardAccentPalette as unknown as [string, ...string[]],
+);
+const externalBoardNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Board name is required.")
+  .max(60, "Board names should stay under 60 characters.");
+const externalBoardDescriptionSchema = z
+  .string()
+  .trim()
+  .max(200, "Descriptions should stay under 200 characters.")
+  .nullable();
+const externalSubtaskTitleSchema = z
+  .string()
+  .trim()
+  .min(1, "Subtask title is required.")
+  .max(180, "Subtask titles should stay under 180 characters.");
 
 const externalBoardSummarySchema = z.object({
   slug: z.string().min(1),
@@ -61,6 +88,42 @@ export const externalTaskUpdateRequestSchema = z
     message: "Provide at least one field to update.",
   });
 
+export const externalBoardCreateRequestSchema = z.object({
+  name: externalBoardNameSchema,
+  iconKey: externalBoardIconKeySchema.default("briefcase"),
+  description: externalBoardDescriptionSchema.default(null),
+  accentColor: externalBoardAccentColorSchema.optional(),
+});
+
+export const externalBoardUpdateRequestSchema = z
+  .object({
+    name: externalBoardNameSchema,
+    iconKey: externalBoardIconKeySchema,
+    description: externalBoardDescriptionSchema,
+    accentColor: externalBoardAccentColorSchema,
+  })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Provide at least one field to update.",
+  });
+
+export const externalBoardNoteRequestSchema = z.object({
+  content: z.string().trim().max(5000, "Notes should stay under 5000 characters."),
+});
+
+export const externalSubtaskCreateRequestSchema = z.object({
+  title: externalSubtaskTitleSchema,
+});
+
+export const externalSubtaskUpdateRequestSchema = z
+  .object({
+    title: externalSubtaskTitleSchema.optional(),
+    isComplete: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "Provide at least one field to update.",
+  });
+
 export const externalTaskResponseSchema = z.object({
   ok: z.literal(true),
   data: externalTaskSchema,
@@ -106,6 +169,16 @@ export const externalBoardResponseSchema = z.object({
     iconKey: z.string().min(1),
     noteContent: z.string(),
     tasks: z.array(externalTaskSchema),
+  }),
+});
+
+export const externalBoardWriteResponseSchema = z.object({
+  ok: z.literal(true),
+  data: z.object({
+    slug: z.string().min(1),
+    name: z.string().min(1),
+    iconKey: z.string().min(1),
+    accentColor: z.string().nullable(),
   }),
 });
 
