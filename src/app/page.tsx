@@ -89,7 +89,7 @@ export default async function LoginPage() {
                 <span className="block">Workflow</span>
                 <span className="block">Blueprint</span>
               </h1>
-              <div className="blueprint-hatch h-1 w-32 max-w-full rounded-full bg-brand sm:w-40" />
+              <div className="blueprint-hatch h-3 w-32 max-w-full rounded-full bg-brand sm:w-40" />
               <p className="text-xl font-medium text-text-primary sm:text-2xl">
                 Plan. Execute. Achieve.
               </p>
