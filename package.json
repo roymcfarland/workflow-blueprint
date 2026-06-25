@@ -21,6 +21,7 @@
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "generate:openapi": "tsx scripts/generate-openapi.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:smoke": "vitest run --dir tests/smoke"

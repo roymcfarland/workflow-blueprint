@@ -11,6 +11,11 @@ import { GET as getBoard } from "@/app/api/external/v1/boards/[slug]/route";
 import { GET as getBoards } from "@/app/api/external/v1/boards/route";
 import { GET as getDailySummary } from "@/app/api/external/v1/daily-summary/route";
 import { GET as getDashboard } from "@/app/api/external/v1/dashboard/route";
+import {
+  DELETE as deleteTask,
+  PATCH as patchTask,
+} from "@/app/api/external/v1/tasks/[id]/route";
+import { POST as postTask } from "@/app/api/external/v1/tasks/route";
 import { rateLimitKey } from "@/lib/api";
 import { createApiToken, revokeApiToken } from "@/lib/data";
 import { prisma } from "@/lib/db";
@@ -24,6 +29,8 @@ import {
   externalBoardsResponseSchema,
   externalDailySummaryResponseSchema,
   externalDashboardResponseSchema,
+  externalOkResponseSchema,
+  externalTaskResponseSchema,
 } from "@/lib/external-contract";
 import { evaluateRateLimit } from "@/lib/rate-limit";
 import {
@@ -101,6 +108,47 @@ function externalGetRequestWithoutAuthorization(path: string) {
   });
 }
 
+function externalJsonRequest(
+  method: "PATCH" | "POST",
+  path: string,
+  body: unknown,
+  apiKey = process.env.EXTERNAL_API_KEY ?? "",
+) {
+  return new Request(externalUrl(path), {
+    body: JSON.stringify(body),
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    method,
+  });
+}
+
+function externalDeleteRequest(path: string, apiKey = process.env.EXTERNAL_API_KEY ?? "") {
+  return new Request(externalUrl(path), {
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+    },
+    method: "DELETE",
+  });
+}
+
+function externalRawJsonRequest(
+  method: "PATCH" | "POST",
+  path: string,
+  body: string,
+  apiKey = process.env.EXTERNAL_API_KEY ?? "",
+) {
+  return new Request(externalUrl(path), {
+    body,
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    method,
+  });
+}
+
 function structuredLogLine(index = 0) {
   const call = consoleLogSpy.mock.calls[index];
 
@@ -152,11 +200,15 @@ async function createRouteTask(boardId: string, title: string) {
   });
 }
 
-async function expectJsonContract<T>(response: Response, schema: ZodType<T>) {
+async function expectJsonContract<T>(
+  response: Response,
+  schema: ZodType<T>,
+  expectedStatus = 200,
+) {
   const body = await response.json();
   const parsed = schema.safeParse(body);
 
-  expect(response.status).toBe(200);
+  expect(response.status).toBe(expectedStatus);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   expect(parsed.success).toBe(true);
 
@@ -420,6 +472,264 @@ describe("external v1 route contracts", () => {
       const response = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
 
       await expectJsonContract(response, externalDashboardResponseSchema);
+    });
+
+    test("POST /api/external/v1/tasks creates a task for the token owner", async () => {
+      const owner = await createTestUser({
+        email: "task-create-owner@example.test",
+        name: "Task Create Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Owner write board", "owner-write");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner task writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await postTask(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/tasks",
+          {
+            boardSlug: board.slug,
+            description: "Created externally",
+            dueDate: "2026-07-04",
+            priority: "HIGH",
+            recurrence: "NONE",
+            status: "ON_DECK",
+            title: "Created from external API",
+          },
+          token,
+        ),
+      );
+      const body = await expectJsonContract(
+        response,
+        externalTaskResponseSchema,
+        201,
+      );
+      const task = await prisma.task.findFirst({
+        where: { id: body.data.id, board: { userId: owner.id } },
+      });
+
+      expect(body.data.title).toBe("Created from external API");
+      expect(task).toMatchObject({
+        boardId: board.id,
+        description: "Created externally",
+        priority: PrismaItemPriority.HIGH,
+        status: PrismaTaskStatus.ON_DECK,
+        title: "Created from external API",
+      });
+    });
+
+    test("PATCH /api/external/v1/tasks/[id] updates scalar fields without deleting subtasks", async () => {
+      const owner = await createTestUser({
+        email: "task-update-owner@example.test",
+        name: "Task Update Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Owner patch board", "owner-patch");
+      const task = await createRouteTask(board.id, "Patch me");
+      await prisma.subtask.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            isComplete: false,
+            sortOrder: 0,
+            taskId: task.id,
+            title: "First preserved subtask",
+          },
+          {
+            id: randomUUID(),
+            isComplete: true,
+            sortOrder: 1,
+            taskId: task.id,
+            title: "Second preserved subtask",
+          },
+        ],
+      });
+      const before = await prisma.subtask.findMany({
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, isComplete: true, sortOrder: true, title: true },
+        where: { taskId: task.id },
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner task patcher",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await patchTask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/tasks/${task.id}`,
+          { status: "DONE" },
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const body = await expectJsonContract(response, externalTaskResponseSchema);
+      const after = await prisma.subtask.findMany({
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, isComplete: true, sortOrder: true, title: true },
+        where: { taskId: task.id },
+      });
+
+      expect(body.data.status).toBe("DONE");
+      expect(after).toEqual(before);
+      expect(body.data.subtasks.map((subtask) => subtask.title)).toEqual([
+        "First preserved subtask",
+        "Second preserved subtask",
+      ]);
+    });
+
+    test("DELETE /api/external/v1/tasks/[id] deletes a task for the token owner", async () => {
+      const owner = await createTestUser({
+        email: "task-delete-owner@example.test",
+        name: "Task Delete Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Owner delete board", "owner-delete");
+      const task = await createRouteTask(board.id, "Delete me");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner task deleter",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await deleteTask(
+        externalDeleteRequest(`/api/external/v1/tasks/${task.id}`, token),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const deleted = await prisma.task.findUnique({ where: { id: task.id } });
+
+      await expectJsonContract(response, externalOkResponseSchema);
+      expect(deleted).toBeNull();
+    });
+
+    test("TASKS_WRITE tokens cannot update or delete another user's task", async () => {
+      const owner = await createTestUser({
+        email: "task-isolation-owner@example.test",
+        name: "Task Isolation Owner",
+      });
+      const otherUser = await createTestUser({
+        email: "task-isolation-other@example.test",
+        name: "Task Isolation Other",
+      });
+      const ownerBoard = await createNamedBoard(owner.id, "Owner isolated board", "owner-isolated");
+      const otherBoard = await createNamedBoard(otherUser.id, "Other isolated board", "other-isolated");
+      const otherTask = await createRouteTask(otherBoard.id, "Other user's task");
+      await createRouteTask(ownerBoard.id, "Owner task");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner isolated writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const updateResponse = await patchTask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/tasks/${otherTask.id}`,
+          { title: "Stolen task" },
+          token,
+        ),
+        { params: Promise.resolve({ id: otherTask.id }) },
+      );
+      const afterUpdate = await prisma.task.findUniqueOrThrow({
+        where: { id: otherTask.id },
+      });
+      const deleteResponse = await deleteTask(
+        externalDeleteRequest(`/api/external/v1/tasks/${otherTask.id}`, token),
+        { params: Promise.resolve({ id: otherTask.id }) },
+      );
+      const afterDelete = await prisma.task.findUnique({ where: { id: otherTask.id } });
+
+      expect(updateResponse.status).toBe(404);
+      expect(afterUpdate).toMatchObject({
+        status: PrismaTaskStatus.IN_PROGRESS,
+        title: "Other user's task",
+      });
+      expect(deleteResponse.status).toBe(404);
+      expect(afterDelete).not.toBeNull();
+    });
+
+    test("write routes reject DB tokens without TASKS_WRITE", async () => {
+      const owner = await createTestUser({
+        email: "task-scope-owner@example.test",
+        name: "Task Scope Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Owner scope board", "owner-scope");
+      const task = await createRouteTask(board.id, "Scoped task");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Read-only task consumer",
+        scopes: [ApiTokenScope.TASKS_READ],
+      });
+
+      const createResponse = await postTask(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/tasks",
+          { boardSlug: board.slug, title: "Forbidden create" },
+          token,
+        ),
+      );
+      const updateResponse = await patchTask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/tasks/${task.id}`,
+          { title: "Forbidden update" },
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const deleteResponse = await deleteTask(
+        externalDeleteRequest(`/api/external/v1/tasks/${task.id}`, token),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const afterDeniedWrites = await prisma.task.findUniqueOrThrow({
+        where: { id: task.id },
+      });
+
+      expect(createResponse.status).toBe(403);
+      expect(updateResponse.status).toBe(403);
+      expect(deleteResponse.status).toBe(403);
+      expect(afterDeniedWrites.title).toBe("Scoped task");
+    });
+
+    test("write routes reject malformed and empty request bodies", async () => {
+      const owner = await createTestUser({
+        email: "task-validation-owner@example.test",
+        name: "Task Validation Owner",
+      });
+      const board = await createNamedBoard(owner.id, "Owner validation board", "owner-validation");
+      const task = await createRouteTask(board.id, "Validate me");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner validation writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const malformedCreate = await postTask(
+        externalRawJsonRequest("POST", "/api/external/v1/tasks", "{", token),
+      );
+      const emptyPatch = await patchTask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/tasks/${task.id}`,
+          {},
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+
+      expect(malformedCreate.status).toBe(400);
+      await expect(malformedCreate.json()).resolves.toEqual({
+        error: "Invalid JSON body.",
+        ok: false,
+      });
+      expect(emptyPatch.status).toBe(400);
+      await expect(emptyPatch.json()).resolves.toEqual({
+        error: "Provide at least one field to update.",
+        ok: false,
+      });
     });
   });
 

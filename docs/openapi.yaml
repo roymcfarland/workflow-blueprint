@@ -2,23 +2,30 @@ openapi: 3.1.0
 info:
   title: Workflow Blueprint External API
   version: 1.0.0
-  description: Stable private API contract for project-owned consumers of Workflow Blueprint planning data.
+  description: Stable private API contract for project-owned consumers of Workflow
+    Blueprint planning data.
 servers:
   - url: https://www.workflowblueprint.io
 tags:
   - name: External API v1
-    description: Bearer-token authenticated GET endpoints under /api/external/v1/*.
+    description: Bearer-token authenticated endpoints under /api/external/v1/*.
 paths:
-  /api/external/v1/dashboard:
-    get:
-      operationId: getExternalDashboard
+  /api/external/v1/tasks:
+    post:
+      operationId: createExternalTask
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExternalTaskCreateRequest"
+        required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExternalDashboardResponse"
-          description: Aggregate dashboard payload.
+                $ref: "#/components/schemas/ExternalTaskResponse"
+          description: Create a task on one of the token owner's boards.
           headers:
             Cache-Control:
               description: External API responses are not cacheable.
@@ -31,7 +38,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -41,7 +49,47 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Request body failed validation.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -68,7 +116,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -78,7 +127,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -92,7 +142,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExternalApiError"
-          description: Bearer token does not match EXTERNAL_API_KEY.
+          description: Bearer token is invalid or lacks the required scope.
           headers:
             Cache-Control:
               description: External API responses are not cacheable.
@@ -105,7 +155,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -115,7 +166,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -129,7 +181,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExternalApiError"
-          description: Configured external API user was not found.
+          description: Requested task or board was not found.
           headers:
             Cache-Control:
               description: External API responses are not cacheable.
@@ -142,7 +194,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -152,7 +205,47 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Board task limit was reached.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -179,7 +272,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -189,7 +283,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -216,7 +311,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -226,7 +322,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -253,7 +350,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -263,7 +361,944 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+      security:
+        - ExternalApiKeyAuth: []
+      summary: Create a task on one of the token owner's boards.
+      tags:
+        - External API v1
+  /api/external/v1/tasks/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          minLength: 1
+          type: string
+    patch:
+      operationId: updateExternalTask
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExternalTaskUpdateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalTaskResponse"
+          description: Update scalar fields on one of the token owner's tasks.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Request body failed validation.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Authorization header is missing or malformed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Bearer token is invalid or lacks the required scope.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Requested task or board was not found.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRateLimitError"
+          description: Request rate limit exceeded.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: External API response validation failed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: EXTERNAL_API_KEY is not configured.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+      security:
+        - ExternalApiKeyAuth: []
+      summary: Update scalar fields on one of the token owner's tasks.
+      tags:
+        - External API v1
+    delete:
+      operationId: deleteExternalTask
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalOkResponse"
+          description: Delete one of the token owner's tasks.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Request body failed validation.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Authorization header is missing or malformed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Bearer token is invalid or lacks the required scope.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Requested task or board was not found.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRateLimitError"
+          description: Request rate limit exceeded.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: External API response validation failed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: EXTERNAL_API_KEY is not configured.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+      security:
+        - ExternalApiKeyAuth: []
+      summary: Delete one of the token owner's tasks.
+      tags:
+        - External API v1
+  /api/external/v1/dashboard:
+    get:
+      operationId: getExternalDashboard
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalDashboardResponse"
+          description: Aggregate dashboard payload.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Authorization header is missing or malformed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Bearer token is invalid or lacks the required scope.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: Configured external API user was not found.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalRateLimitError"
+          description: Request rate limit exceeded.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: External API response validation failed.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
+              schema:
+                type: integer
+                minimum: 0
+            X-RateLimit-Reset:
+              description: Unix epoch second when the current rate-limit window resets.
+              schema:
+                type: integer
+                minimum: 0
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalApiError"
+          description: EXTERNAL_API_KEY is not configured.
+          headers:
+            Cache-Control:
+              description: External API responses are not cacheable.
+              schema:
+                const: no-store
+                type: string
+            X-Robots-Tag:
+              description: External API responses are excluded from indexing.
+              schema:
+                const: noindex
+                type: string
+            X-Request-Id:
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
+              schema:
+                format: uuid
+                type: string
+            X-RateLimit-Limit:
+              description: Max requests allowed per rate-limit window.
+              schema:
+                type: integer
+                minimum: 1
+            X-RateLimit-Remaining:
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -299,7 +1334,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -309,7 +1345,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -336,7 +1373,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -346,7 +1384,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -360,7 +1399,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExternalApiError"
-          description: Bearer token does not match EXTERNAL_API_KEY.
+          description: Bearer token is invalid or lacks the required scope.
           headers:
             Cache-Control:
               description: External API responses are not cacheable.
@@ -373,7 +1412,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -383,7 +1423,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -410,7 +1451,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -420,7 +1462,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -447,7 +1490,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -457,7 +1501,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -484,7 +1529,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -494,7 +1540,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -521,7 +1568,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -531,7 +1579,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -567,7 +1616,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -577,7 +1627,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -604,7 +1655,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -614,7 +1666,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -628,7 +1681,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExternalApiError"
-          description: Bearer token does not match EXTERNAL_API_KEY.
+          description: Bearer token is invalid or lacks the required scope.
           headers:
             Cache-Control:
               description: External API responses are not cacheable.
@@ -641,7 +1694,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -651,7 +1705,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -678,7 +1733,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -688,7 +1744,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -715,7 +1772,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -725,7 +1783,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -752,7 +1811,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -762,7 +1822,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -789,7 +1850,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -799,7 +1861,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -842,7 +1905,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -852,7 +1916,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -879,7 +1944,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -889,7 +1955,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -903,7 +1970,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ExternalApiError"
-          description: Bearer token does not match EXTERNAL_API_KEY.
+          description: Bearer token is invalid or lacks the required scope.
           headers:
             Cache-Control:
               description: External API responses are not cacheable.
@@ -916,7 +1983,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -926,7 +1994,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -953,7 +2022,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -963,7 +2033,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -990,7 +2061,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -1000,7 +2072,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -1027,7 +2100,8 @@ paths:
                 const: noindex
                 type: string
             X-Request-Id:
-              description: Unique request ID (UUID v4) for log correlation. Echoed on every response, including errors.
+              description: Unique request ID (UUID v4) for log correlation. Echoed on every
+                response, including errors.
               schema:
                 format: uuid
                 type: string
@@ -1037,7 +2111,8 @@ paths:
                 type: integer
                 minimum: 1
             X-RateLimit-Remaining:
-              description: Requests remaining in the current rate-limit window after this request was counted.
+              description: Requests remaining in the current rate-limit window after this
+                request was counted.
               schema:
                 type: integer
                 minimum: 0
@@ -1055,7 +2130,8 @@ components:
   securitySchemes:
     ExternalApiKeyAuth:
       bearerFormat: EXTERNAL_API_KEY
-      description: Send the configured EXTERNAL_API_KEY value in the Authorization header as a Bearer token.
+      description: Send the configured EXTERNAL_API_KEY value in the Authorization
+        header as a Bearer token.
       scheme: bearer
       type: http
   schemas:
@@ -1345,6 +2421,234 @@ components:
       required:
         - ok
         - data
+      additionalProperties: false
+    ExternalTaskCreateRequest:
+      type: object
+      properties:
+        boardSlug:
+          type: string
+          minLength: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 180
+        description:
+          default: null
+          anyOf:
+            - type: string
+              maxLength: 1200
+            - type: "null"
+        status:
+          default: ON_DECK
+          type: string
+          enum:
+            - ICE_BOX
+            - ON_DECK
+            - IN_PROGRESS
+            - DONE
+            - ARCHIVED
+        dueDate:
+          default: null
+          anyOf:
+            - type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            - type: "null"
+        priority:
+          default: NONE
+          type: string
+          enum:
+            - NONE
+            - LOW
+            - MEDIUM
+            - HIGH
+            - URGENT
+        recurrence:
+          default: NONE
+          type: string
+          enum:
+            - NONE
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+            - SEMI_ANNUALLY
+            - ANNUALLY
+      required:
+        - boardSlug
+        - title
+        - description
+        - status
+        - dueDate
+        - priority
+        - recurrence
+      additionalProperties: false
+    ExternalTaskUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 180
+        description:
+          anyOf:
+            - type: string
+              maxLength: 1200
+            - type: "null"
+        status:
+          type: string
+          enum:
+            - ICE_BOX
+            - ON_DECK
+            - IN_PROGRESS
+            - DONE
+            - ARCHIVED
+        dueDate:
+          anyOf:
+            - type: string
+              format: date
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+            - type: "null"
+        priority:
+          type: string
+          enum:
+            - NONE
+            - LOW
+            - MEDIUM
+            - HIGH
+            - URGENT
+        recurrence:
+          type: string
+          enum:
+            - NONE
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+            - SEMI_ANNUALLY
+            - ANNUALLY
+      additionalProperties: false
+    ExternalTaskResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              minLength: 1
+            title:
+              type: string
+              minLength: 1
+            description:
+              anyOf:
+                - type: string
+                - type: "null"
+            status:
+              type: string
+              enum:
+                - ICE_BOX
+                - ON_DECK
+                - IN_PROGRESS
+                - DONE
+                - ARCHIVED
+            sortOrder:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            priority:
+              type: string
+              enum:
+                - NONE
+                - LOW
+                - MEDIUM
+                - HIGH
+                - URGENT
+            dueDate:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            completedAt:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            archivedAt:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            recurrence:
+              type: string
+              enum:
+                - NONE
+                - DAILY
+                - WEEKLY
+                - MONTHLY
+                - SEMI_ANNUALLY
+                - ANNUALLY
+            subtasks:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                  title:
+                    type: string
+                    minLength: 1
+                  isComplete:
+                    type: boolean
+                  sortOrder:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  priority:
+                    type: string
+                    enum:
+                      - NONE
+                      - LOW
+                      - MEDIUM
+                      - HIGH
+                      - URGENT
+                required:
+                  - id
+                  - title
+                  - isComplete
+                  - sortOrder
+                  - priority
+                additionalProperties: false
+          required:
+            - id
+            - title
+            - description
+            - status
+            - sortOrder
+            - priority
+            - dueDate
+            - completedAt
+            - archivedAt
+            - recurrence
+            - subtasks
+          additionalProperties: false
+      required:
+        - ok
+        - data
+      additionalProperties: false
+    ExternalOkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          const: true
+      required:
+        - ok
       additionalProperties: false
     ExternalDailySummaryResponse:
       type: object
