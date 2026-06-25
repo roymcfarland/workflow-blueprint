@@ -1044,6 +1044,51 @@ describe("external v1 route contracts", () => {
       expect(afterDelete).not.toBeNull();
     });
 
+    test("BOARDS_WRITE tokens cannot update another user's board note", async () => {
+      const owner = await createTestUser({
+        email: "board-note-isolation-owner@example.test",
+        name: "Board Note Isolation Owner",
+      });
+      const otherUser = await createTestUser({
+        email: "board-note-isolation-other@example.test",
+        name: "Board Note Isolation Other",
+      });
+      await createNamedBoard(owner.id, "Owner note board", "owner-note-board");
+      const otherBoard = await createNamedBoard(
+        otherUser.id,
+        "Other user's note board",
+        "other-note-board",
+      );
+      await prisma.boardNote.create({
+        data: {
+          boardId: otherBoard.id,
+          content: "B's private note",
+          id: randomUUID(),
+        },
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Owner board note isolator",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoardNote(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${otherBoard.slug}/note`,
+          { content: "hijacked" },
+          token,
+        ),
+        { params: Promise.resolve({ slug: otherBoard.slug }) },
+      );
+      const afterDeniedWrite = await prisma.boardNote.findUniqueOrThrow({
+        where: { boardId: otherBoard.id },
+      });
+
+      expect(response.status).toBe(404);
+      expect(afterDeniedWrite.content).toBe("B's private note");
+    });
+
     test("SUBTASKS_WRITE tokens cannot update or delete another user's subtask", async () => {
       const owner = await createTestUser({
         email: "subtask-isolation-owner@example.test",
