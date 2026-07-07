@@ -97,6 +97,26 @@ function apiResponse(body: unknown, status = 200) {
   });
 }
 
+type DashboardSubtaskSummary = DashboardTaskSummary["subtasks"][number];
+
+function renderExpandedSubtasks(subtasks: DashboardSubtaskSummary[]) {
+  render(
+    <DashboardOverview
+      data={dashboardSnapshot({
+        inProgressTasks: [
+          taskSummary({
+            subtasks,
+          }),
+        ],
+      })}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Show subtasks for Draft launch checklist" }),
+  );
+}
+
 describe("DashboardOverview in-progress panel", () => {
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -218,6 +238,89 @@ describe("DashboardOverview in-progress panel", () => {
     resolveFetch(apiResponse({ ok: true }));
 
     await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalledTimes(1));
+  });
+
+  test("renames a subtask title optimistically and patches the subtask", async () => {
+    let resolveFetch!: (response: Response) => void;
+    fetchMock.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit subtask Draft intro copy" }));
+
+    const input = screen.getByRole("textbox", {
+      name: "Subtask title for Draft intro copy",
+    });
+
+    fireEvent.change(input, { target: { value: "Revise intro copy" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "Edit subtask Revise intro copy" })).toBeDefined();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-brief");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ title: "Revise intro copy" });
+
+    resolveFetch(apiResponse({ ok: true }));
+
+    await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalledTimes(1));
+  });
+
+  test("reverts an empty subtask title without patching", () => {
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit subtask Draft intro copy" }));
+    const input = screen.getByRole("textbox", {
+      name: "Subtask title for Draft intro copy",
+    });
+
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.blur(input);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Edit subtask Draft intro copy" })).toBeDefined();
+  });
+
+  test("cancels subtask title editing with Escape without patching", () => {
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit subtask Draft intro copy" }));
+    const input = screen.getByRole("textbox", {
+      name: "Subtask title for Draft intro copy",
+    });
+
+    fireEvent.change(input, { target: { value: "Revise intro copy" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Edit subtask Draft intro copy" })).toBeDefined();
+  });
+
+  test("reverts an unchanged subtask title without patching", () => {
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit subtask Draft intro copy" }));
+    fireEvent.keyDown(
+      screen.getByRole("textbox", { name: "Subtask title for Draft intro copy" }),
+      { key: "Enter" },
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Edit subtask Draft intro copy" })).toBeDefined();
   });
 
   test("deletes a subtask via the trash button", async () => {
