@@ -144,13 +144,15 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#120** | Node pin to 22.23.x (U2) | `#120` | Bumped the Node pin within the 22 LTS line across all three Q3 pin sites — `package.json` `engines.node` `22.23.x`, `.nvmrc` `22.23`, CI unchanged (reads `.nvmrc`) — and updated the Q3/Stack prose to match (historical PR-1 row untouched). Deliberate minor bump per Q3; prerequisite for U3 (vite 8 requires Node ≥22.12). Owner confirmed the Vercel project Node setting (22.x) per Q3's warn. Config/docs-only. |
 | **#121** | vite 6 → 8 + @vitejs/plugin-react 4 → 6 (U3) | `#121` | Lifted the vite major deferred since `#92`/`#107`: `vite ^8.1.3` + `@vitejs/plugin-react ^6.0.3` (peer-locked to vite 8), single deduped vite under vitest 4 (whose range already allowed ^8), `vite-tsconfig-paths` and the `esbuild`/`postcss` overrides unchanged, audit clean at both levels. Zero `vitest.config.mts` changes needed. Test toolchain only — the app builds with Next/webpack. Completes the dependency-currency pass (U1 `#119`, U2 `#120`). |
 | **#122** | Drop vite-tsconfig-paths (M1) | `#122` | Removed the `vite-tsconfig-paths` devDependency and its `vitest.config.mts` plugin entry — vite 8 (`#121`) resolves the `tsconfig.json` `@/*` paths natively (enabled via `resolve.tsconfigPaths` per the vite docs). Full suite (32 files / 270 tests) + smoke green on the native resolution; audit clean; zero live config/manifest references remain outside the lockfile history. First of the post-U3 toolchain follow-ups (M2: Node 22→24). |
+| **#123** | Node 24.18.x LTS + @types/node ^24 (M2) | `#123` | Moved the runtime to the active LTS line across all three Q3 pin sites — `engines.node` `24.18.x`, `.nvmrc` `24.18`, CI via `.nvmrc` — bumped `@types/node` `^20` → `^24` to track the runtime major, and updated the Q3/Stack prose (historical PR-1/#120 rows untouched). Owner flipped the Vercel Node setting to 24.x before merge per Q3's warn. All six CI jobs green on 24.18.x. Completes the M1–M2 toolchain follow-ups. |
 
 ### Active phase
 
-**Toolchain follow-ups (M1–M2).** Post-U3 cleanup after the vite 8 upgrade in `#121`: M1 drops the redundant path-resolution plugin; M2 moves the Node pin from 22 to 24 LTS in the next PR.
+**Toolchain follow-ups (M1–M2 complete; M3 queued).** Post-U3 cleanup after the vite 8 upgrade in `#121`: M1 dropped the redundant path-resolution plugin; M2 moves the Node pin to Node 24.18.x LTS in this PR. M3 updates the README token-expiry documentation next.
 
-- **M1 (this PR):** Drop `vite-tsconfig-paths`; Vite 8 handles `tsconfig.json` `@/*` path resolution through native config.
-- **M2:** Node 22 → 24 LTS pin move (next PR).
+- **M1:** Drop `vite-tsconfig-paths`; Vite 8 handles `tsconfig.json` `@/*` path resolution through native config.
+- **M2 (this PR):** Node 24.18.x LTS pin move with `@types/node` `^24`.
+- **M3 (queued):** README token-expiry documentation.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -180,7 +182,7 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 - Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, @dnd-kit drag-and-drop, and Recharts (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`).
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
-- Runtime versions: Node.js 22.23.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^20` (acceptable; types do not need to match runtime exactly) and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
+- Runtime versions: Node.js 24.18.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^24` to match the runtime major and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
 
 ---
 
@@ -275,13 +277,13 @@ Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration
 
 ### Q3. Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
 
-**Answer: Node 22.23.x, enforced across three pin sites.**
+**Answer: Node 24.18.x, enforced across three pin sites.**
 
-All contributors and all deploys run Node 22.23.x. Patches flow automatically; minor bumps require a deliberate PR.
+All contributors and all deploys run Node 24.18.x. Patches flow automatically; minor bumps require a deliberate PR.
 
 **Sequencing / required corrections:**
-- Add `"engines": { "node": "22.23.x" }` to `package.json`.
-- Add `.nvmrc` file at repo root containing `22.23`.
+- Add `"engines": { "node": "24.18.x" }` to `package.json`.
+- Add `.nvmrc` file at repo root containing `24.18`.
 - Ensure `.github/workflows/ci.yml` uses `node-version-file: '.nvmrc'`.
 
 **Verifier behavior:**
