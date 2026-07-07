@@ -505,7 +505,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
 
           <main className="min-h-screen min-w-0 px-4 pb-10 pt-16 sm:px-6 lg:h-screen lg:overflow-y-auto lg:px-8 lg:pt-8">
             {user.isDemo ? (
-              <div className="mb-4 flex flex-col items-center justify-center gap-3 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2.5 text-center text-sm font-semibold text-text-primary sm:flex-row sm:justify-between sm:text-left">
+              <div className="mb-4 flex flex-col items-center justify-center gap-3 rounded-lg border border-accent/40 bg-accent-soft px-4 py-2.5 text-center text-sm font-semibold text-text-primary sm:flex-row sm:justify-between sm:text-left dark:border-line-soft dark:bg-surface-raised">
                 <span>
                   You’re exploring a demo sandbox — changes are temporary and reset periodically.
                 </span>
