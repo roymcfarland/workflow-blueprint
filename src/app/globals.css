@@ -5,6 +5,8 @@
 @import "@fontsource/manrope/800.css";
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f7f9fd;
   --foreground: #17213a;

@@ -263,7 +263,7 @@ function SnapshotPanel({
           <div className="space-y-2">
             <div className="h-3 overflow-hidden rounded-full border border-line-strong bg-surface-control">
               <div
-                className="blueprint-fill-flat h-full rounded-full"
+                className="blueprint-fill h-full rounded-full"
                 style={{ width: `${data.completionRate}%` }}
               />
             </div>
