@@ -45,6 +45,15 @@ const defaultApiTokenScopes: SerializedApiToken["scopes"] = [
   "SUBTASKS_READ",
 ];
 
+const apiTokenExpiryOptions = [
+  { value: "", label: "Never" },
+  { value: "30", label: "30 days" },
+  { value: "60", label: "60 days" },
+  { value: "90", label: "90 days" },
+  { value: "180", label: "180 days" },
+  { value: "365", label: "365 days" },
+] as const;
+
 const apiTokenScopeLabels = {
   BOARDS_READ: "Boards read",
   BOARDS_WRITE: "Boards write",
@@ -84,6 +93,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
   const [selectedScopes, setSelectedScopes] = useState<SerializedApiToken["scopes"]>(() => [
     ...defaultApiTokenScopes,
   ]);
+  const [expiresInDays, setExpiresInDays] = useState("");
   const [apiTokens, setApiTokens] = useState(initialApiTokens);
   const [message, setMessage] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
@@ -123,7 +133,11 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
 
     startTransition(async () => {
       const response = await fetch("/api/admin/api-tokens", {
-        body: JSON.stringify({ label: trimmedLabel, scopes }),
+        body: JSON.stringify({
+          label: trimmedLabel,
+          scopes,
+          ...(expiresInDays ? { expiresInDays: Number(expiresInDays) } : {}),
+        }),
         headers: {
           "Content-Type": "application/json",
         },
@@ -138,6 +152,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
 
       setLabel("");
       setSelectedScopes([...defaultApiTokenScopes]);
+      setExpiresInDays("");
       setMessage(body.message ?? "API token created.");
       setCreatedToken(body.token);
 
@@ -216,6 +231,21 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
               </div>
             </fieldset>
 
+            <Field htmlFor="api-token-expires" label="Expires">
+              <select
+                className="blueprint-control h-9 w-full rounded-md px-2 text-sm outline-none transition focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+                id="api-token-expires"
+                onChange={(event) => setExpiresInDays(event.target.value)}
+                value={expiresInDays}
+              >
+                {apiTokenExpiryOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
             <BlueprintButton
               className="w-full"
               disabled={isPending || !label.trim() || selectedScopes.length === 0}
@@ -272,6 +302,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
                 <th className="blueprint-eyebrow px-5 py-3">Token</th>
                 <th className="blueprint-eyebrow px-5 py-3">Status</th>
                 <th className="blueprint-eyebrow px-5 py-3">Last used</th>
+                <th className="blueprint-eyebrow px-5 py-3">Expires</th>
                 <th className="blueprint-eyebrow px-5 py-3">Created</th>
                 <th className="blueprint-eyebrow px-5 py-3 text-right">Action</th>
               </tr>
@@ -279,7 +310,7 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
             <tbody>
               {apiTokens.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-8 text-center text-text-muted" colSpan={7}>
+                  <td className="px-5 py-8 text-center text-text-muted" colSpan={8}>
                     No API tokens yet.
                   </td>
                 </tr>
@@ -313,6 +344,9 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
                     <td className="px-5 py-3 text-text-muted">
                       {token.lastUsedAt ? formatDate(token.lastUsedAt) : "Never"}
                     </td>
+                    <td className="px-5 py-3 text-text-muted">
+                      {token.expiresAt ? formatDate(token.expiresAt) : "Never"}
+                    </td>
                     <td className="px-5 py-3">
                       <div className="space-y-0.5">
                         <p className="text-text-muted">{formatDate(token.createdAt)}</p>
@@ -330,7 +364,9 @@ export function ApiTokensAdmin({ initialApiTokens }: ApiTokensAdminProps) {
                           Revoke
                         </BlueprintButton>
                       ) : (
-                        <span className="text-xs font-semibold text-text-muted">Revoked</span>
+                        <span className="text-xs font-semibold text-text-muted">
+                          {statusLabels[token.status]}
+                        </span>
                       )}
                     </td>
                   </tr>

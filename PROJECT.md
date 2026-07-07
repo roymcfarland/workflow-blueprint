@@ -138,13 +138,14 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **`#114`** | Agent access A4b — in-repo MCP server | `#114` | Implemented the in-repo MCP-over-HTTP server at `/api/external/v1/mcp`: tools map to the existing read/write operations, auth reuses the A1a per-user token resolver, every tool resolves to the token owner, scope-gates per tool, stays USER-only (no ADMIN), no-CORS/no-store/rate-limited, and never anonymous. Adds MCP dependencies, route/tool tests for owner isolation + scope rejection, and README documentation. **Completes the agent-access epic.** |
 | **`#115`** | README: agentic positioning refresh | `#115` | Documentation-only: led the README with the agent-access layer (per-user scoped tokens + read/write REST API + the in-repo MCP server) rather than the old single-consumer read-only framing; corrected `Q1–Q6`→`Q1–Q8` and the CI job list (three→six: `lint`/`audit`/`typecheck`/`build`/`test`/`smoke`); added the `#106`–`#114` agent-access epic to the informative entry points. `README.md` only. |
 | **#116** | API token expiry — backend (T1a) | `#116` | Added nullable `ApiToken.expiresAt` (migration `add_api_token_expiry`) and optional `expiresInDays` (1–365) on `adminApiTokenSchema`; expiry enforced at the single token choke point `findActiveApiTokenByRawToken` (expired ⇒ 403 like revoked, covering REST + MCP); `EXPIRED` status in the admin serializer + status chip. Legacy `EXTERNAL_API_KEY` path and external v1 response shapes unchanged (no OpenAPI change). Backend only — admin expiry UI is T1b. Validator/data/route tests per Q1. |
+| **#117** | API token expiry — admin UI (T1b) | `#117` | Added an "Expires" select (Never default / 30–365 days) to the admin token create form — `expiresInDays` is sent only when a duration is chosen — plus an "Expires" column in the token ledger (`formatDate(expiresAt)` / "Never"), and fixed the Action-cell fallback to use `statusLabels` so EXPIRED tokens no longer read "Revoked". Completes API token expiry (backend `#116`). UI-only; component tests. |
 
 ### Active phase
 
 **Token hygiene + dashboard parity.** Follow-up mini-roadmap after the agent-access epic (`#106`–`#115`): tighten API-token hygiene and close a deferred dashboard parity gap.
 
-- **T1a (this PR):** API token expiry — backend. Nullable `ApiToken.expiresAt` (migration `add_api_token_expiry`), optional `expiresInDays` (1–365) on the admin create schema, expiry enforced in `findActiveApiTokenByRawToken` (single choke point covering REST + MCP), `EXPIRED` serialized status. Admin expiry UI is T1b.
-- **T1b:** Admin token UI — expiry select on create (including "Never") + an Expires column in the token ledger.
+- **T1a (`#116`, shipped):** API token expiry — backend. Nullable `ApiToken.expiresAt` (migration `add_api_token_expiry`), optional `expiresInDays` (1–365) on the admin create schema, expiry enforced in `findActiveApiTokenByRawToken` (single choke point covering REST + MCP), `EXPIRED` serialized status. Admin expiry UI is T1b.
+- **T1b (`#117`, this PR):** Admin token UI — expiry select on create (including "Never") + an Expires column in the token ledger.
 - **T2:** Dashboard "In progress" subtask titles become click-to-edit (parity with the board subtask panel; deferred from `#74`), reusing `PATCH /api/subtasks/[id]`.
 
 ### Standing Builder guardrails (post-PR-1)
