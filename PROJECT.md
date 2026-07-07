@@ -143,13 +143,14 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#119** | Clear npm audit advisories (U1) | `#119` | Lockfile-only `npm audit fix`: cleared the prod-reachable `@opentelemetry/core` <2.8.0 advisory (GHSA-8988-4f7v-96qf, via `@sentry/nextjs`) and the dev-only `js-yaml` (GHSA-h67p-54hq-rp68) + `@babel/core` (GHSA-4x5r-pxfx-6jf8) advisories; `npm audit` and `npm audit --omit=dev` both report 0. All bumps within declared ranges — no `package.json` change; `esbuild`/`postcss` overrides untouched. First slice of the dependency-currency pass (U2 Node pin, U3 vite 8 follow). |
 | **#120** | Node pin to 22.23.x (U2) | `#120` | Bumped the Node pin within the 22 LTS line across all three Q3 pin sites — `package.json` `engines.node` `22.23.x`, `.nvmrc` `22.23`, CI unchanged (reads `.nvmrc`) — and updated the Q3/Stack prose to match (historical PR-1 row untouched). Deliberate minor bump per Q3; prerequisite for U3 (vite 8 requires Node ≥22.12). Owner confirmed the Vercel project Node setting (22.x) per Q3's warn. Config/docs-only. |
 | **#121** | vite 6 → 8 + @vitejs/plugin-react 4 → 6 (U3) | `#121` | Lifted the vite major deferred since `#92`/`#107`: `vite ^8.1.3` + `@vitejs/plugin-react ^6.0.3` (peer-locked to vite 8), single deduped vite under vitest 4 (whose range already allowed ^8), `vite-tsconfig-paths` and the `esbuild`/`postcss` overrides unchanged, audit clean at both levels. Zero `vitest.config.mts` changes needed. Test toolchain only — the app builds with Next/webpack. Completes the dependency-currency pass (U1 `#119`, U2 `#120`). |
+| **#122** | Drop vite-tsconfig-paths (M1) | `#122` | Removed the `vite-tsconfig-paths` devDependency and its `vitest.config.mts` plugin entry — vite 8 (`#121`) resolves the `tsconfig.json` `@/*` paths natively (enabled via `resolve.tsconfigPaths` per the vite docs). Full suite (32 files / 270 tests) + smoke green on the native resolution; audit clean; zero live config/manifest references remain outside the lockfile history. First of the post-U3 toolchain follow-ups (M2: Node 22→24). |
 
 ### Active phase
 
-**Dependency currency (U1–U3) complete as of `#121`.** U1 shipped in `#119`, U2 shipped in `#120`, and U3 ships the deferred vite major (parked since `#92`/`#107`) in this PR.
+**Toolchain follow-ups (M1–M2).** Post-U3 cleanup after the vite 8 upgrade in `#121`: M1 drops the redundant path-resolution plugin; M2 moves the Node pin from 22 to 24 LTS in the next PR.
 
-- **U2:** Node pin to 22.23.x (engines, `.nvmrc`, Q3/Stack prose; Vercel setting confirmed by the owner). Prerequisite: vite 8 requires Node ≥22.12.
-- **U3 (this PR):** vite 6 → 8 + `@vitejs/plugin-react` 4 → 6 (vitest 4 already supports vite 8; `esbuild` override retained).
+- **M1 (this PR):** Drop `vite-tsconfig-paths`; Vite 8 handles `tsconfig.json` `@/*` path resolution through native config.
+- **M2:** Node 22 → 24 LTS pin move (next PR).
 
 ### Standing Builder guardrails (post-PR-1)
 
