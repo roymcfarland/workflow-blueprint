@@ -141,13 +141,13 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#117** | API token expiry — admin UI (T1b) | `#117` | Added an "Expires" select (Never default / 30–365 days) to the admin token create form — `expiresInDays` is sent only when a duration is chosen — plus an "Expires" column in the token ledger (`formatDate(expiresAt)` / "Never"), and fixed the Action-cell fallback to use `statusLabels` so EXPIRED tokens no longer read "Revoked". Completes API token expiry (backend `#116`). UI-only; component tests. |
 | **#118** | Dashboard subtask titles click-to-edit (T2) | `#118` | Dashboard "In progress" subtask titles are now click-to-edit (Enter/blur commits, Escape cancels, empty or unchanged input reverts without a request), saving through the existing `PATCH /api/subtasks/[id]` with optimistic update + revert-on-error — closing the parity gap deferred in `#74`. UI-only; no API/validator/contract change. Component tests. Completes the token-hygiene + dashboard-parity mini-roadmap (`#116`, `#117`, this PR). |
 | **#119** | Clear npm audit advisories (U1) | `#119` | Lockfile-only `npm audit fix`: cleared the prod-reachable `@opentelemetry/core` <2.8.0 advisory (GHSA-8988-4f7v-96qf, via `@sentry/nextjs`) and the dev-only `js-yaml` (GHSA-h67p-54hq-rp68) + `@babel/core` (GHSA-4x5r-pxfx-6jf8) advisories; `npm audit` and `npm audit --omit=dev` both report 0. All bumps within declared ranges — no `package.json` change; `esbuild`/`postcss` overrides untouched. First slice of the dependency-currency pass (U2 Node pin, U3 vite 8 follow). |
+| **#120** | Node pin to 22.23.x (U2) | `#120` | Bumped the Node pin within the 22 LTS line across all three Q3 pin sites — `package.json` `engines.node` `22.23.x`, `.nvmrc` `22.23`, CI unchanged (reads `.nvmrc`) — and updated the Q3/Stack prose to match (historical PR-1 row untouched). Deliberate minor bump per Q3; prerequisite for U3 (vite 8 requires Node ≥22.12). Owner confirmed the Vercel project Node setting (22.x) per Q3's warn. Config/docs-only. |
 
 ### Active phase
 
-**Dependency currency (U1–U3).** Clear the open `npm audit` advisories, then lift the deferred vite major (parked since `#92`/`#107`).
+**Dependency currency (U2–U3).** U1 shipped in `#119`; next lift the Node pin, then the deferred vite major (parked since `#92`/`#107`).
 
-- **U1 (this PR):** lockfile-only `npm audit fix` — clears the prod-reachable `@opentelemetry/core` advisory (via `@sentry/nextjs`) plus the dev-only `js-yaml` and `@babel/core` advisories. No manifest changes.
-- **U2:** Node pin 22.11.x → 22.23.x (engines, `.nvmrc`, Q3/Stack prose; Vercel setting confirmed by the owner). Prerequisite: vite 8 requires Node ≥22.12.
+- **U2 (this PR):** Node pin to 22.23.x (engines, `.nvmrc`, Q3/Stack prose; Vercel setting confirmed by the owner). Prerequisite: vite 8 requires Node ≥22.12.
 - **U3:** vite 6 → 8 + `@vitejs/plugin-react` 4 → 6 (vitest 4 already supports vite 8; `esbuild` override retained).
 
 ### Standing Builder guardrails (post-PR-1)
@@ -178,7 +178,7 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 - Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, @dnd-kit drag-and-drop, and Recharts (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`).
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
-- Runtime versions: Node.js 22.11.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^20` (acceptable; types do not need to match runtime exactly) and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
+- Runtime versions: Node.js 22.23.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^20` (acceptable; types do not need to match runtime exactly) and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
 
 ---
 
@@ -273,13 +273,13 @@ Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration
 
 ### Q3. Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
 
-**Answer: Node 22.11.x, enforced across three pin sites.**
+**Answer: Node 22.23.x, enforced across three pin sites.**
 
-All contributors and all deploys run Node 22.11.x. Patches flow automatically; minor bumps require a deliberate PR.
+All contributors and all deploys run Node 22.23.x. Patches flow automatically; minor bumps require a deliberate PR.
 
 **Sequencing / required corrections:**
-- Add `"engines": { "node": "22.11.x" }` to `package.json`.
-- Add `.nvmrc` file at repo root containing `22.11`.
+- Add `"engines": { "node": "22.23.x" }` to `package.json`.
+- Add `.nvmrc` file at repo root containing `22.23`.
 - Ensure `.github/workflows/ci.yml` uses `node-version-file: '.nvmrc'`.
 
 **Verifier behavior:**
