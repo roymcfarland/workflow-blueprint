@@ -212,6 +212,7 @@ model ApiToken {
   scopes      ApiTokenScope[] @default([BOARDS_READ, TASKS_READ, SUBTASKS_READ])
   lastUsedAt  DateTime?
   revokedAt   DateTime?
+  expiresAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   createdBy   User      @relation("ApiTokenCreator", fields: [createdById], references: [id], onDelete: Cascade)

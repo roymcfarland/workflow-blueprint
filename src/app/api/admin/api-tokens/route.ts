@@ -48,6 +48,7 @@ export async function POST(request: Request) {
   try {
     const { apiToken, token } = await createApiToken({
       createdById: currentUser.data.id,
+      expiresInDays: payload.data.expiresInDays,
       label: payload.data.label,
       scopes: payload.data.scopes,
     });

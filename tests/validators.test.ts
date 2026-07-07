@@ -28,6 +28,7 @@ describe("src/lib/validators.ts", () => {
     }
     expect(result.data.label).toBe("External Consumer");
     expect(result.data.scopes).toEqual(["BOARDS_READ", "TASKS_READ"]);
+    expect(result.data.expiresInDays).toBeUndefined();
     expect(adminApiTokenSchema.safeParse({ label: "   ", scopes: ["BOARDS_READ"] }).success).toBe(
       false,
     );
@@ -40,6 +41,27 @@ describe("src/lib/validators.ts", () => {
     expect(
       adminApiTokenSchema.safeParse({ label: "External Consumer", scopes: ["ADMIN_READ"] }).success,
     ).toBe(false);
+  });
+
+  test("validates optional admin API token expiry windows", () => {
+    const basePayload = {
+      label: "External Consumer",
+      scopes: ["BOARDS_READ"],
+    };
+
+    expect(adminApiTokenSchema.safeParse(basePayload).success).toBe(true);
+    expect(adminApiTokenSchema.safeParse({ ...basePayload, expiresInDays: 30 }).success).toBe(
+      true,
+    );
+    expect(adminApiTokenSchema.safeParse({ ...basePayload, expiresInDays: 0 }).success).toBe(
+      false,
+    );
+    expect(adminApiTokenSchema.safeParse({ ...basePayload, expiresInDays: 366 }).success).toBe(
+      false,
+    );
+    expect(adminApiTokenSchema.safeParse({ ...basePayload, expiresInDays: 1.5 }).success).toBe(
+      false,
+    );
   });
 
   test("defaults task recurrence to none", () => {

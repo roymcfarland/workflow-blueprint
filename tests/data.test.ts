@@ -1589,6 +1589,7 @@ describe("src/lib/data.ts", () => {
       label: "External Consumer",
       prefix: token.slice(0, 12),
       scopes,
+      expiresAt: null,
       status: "ACTIVE",
     });
     expect(apiToken).not.toHaveProperty("tokenHash");
@@ -1603,7 +1604,32 @@ describe("src/lib/data.ts", () => {
     expect(row.tokenHash).toBe(sha256(token));
     expect(row.prefix).toBe(token.slice(0, 12));
     expect(row.scopes).toEqual(scopes);
+    expect(row.expiresAt).toBeNull();
     expect(rowValues).not.toContain(token);
+  });
+
+  test("creates API tokens with optional expiry dates", async () => {
+    const user = await createTestUser();
+    const startedAt = Date.now();
+    const { apiToken } = await createApiToken({
+      createdById: user.id,
+      expiresInDays: 30,
+      label: "Thirty-day consumer",
+      scopes: defaultReadApiTokenScopes,
+    });
+    const finishedAt = Date.now();
+    const expiryMs = new Date(apiToken.expiresAt ?? "").getTime();
+
+    expect(apiToken.status).toBe("ACTIVE");
+    expect(apiToken.expiresAt).toEqual(expect.any(String));
+    expect(expiryMs).toBeGreaterThanOrEqual(startedAt + 30 * 86_400_000);
+    expect(expiryMs).toBeLessThanOrEqual(finishedAt + 30 * 86_400_000 + 1_000);
+
+    const row = await prisma.apiToken.findUniqueOrThrow({
+      where: { id: apiToken.id },
+    });
+
+    expect(row.expiresAt?.getTime()).toBe(expiryMs);
   });
 
   test("findActiveApiTokenByRawToken returns token owner and scopes", async () => {
@@ -1619,6 +1645,56 @@ describe("src/lib/data.ts", () => {
       createdById: user.id,
       id: apiToken.id,
       scopes,
+    });
+  });
+
+  test("rejects expired API tokens and serializes expired status", async () => {
+    const user = await createTestUser();
+    const { apiToken, token } = await createApiToken({
+      createdById: user.id,
+      expiresInDays: 1,
+      label: "Expired consumer",
+      scopes: defaultReadApiTokenScopes,
+    });
+
+    await prisma.apiToken.update({
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+      where: { id: apiToken.id },
+    });
+
+    await expect(findActiveApiTokenByRawToken(token)).resolves.toBeNull();
+
+    const [listedToken] = await listApiTokens();
+    expect(listedToken).toMatchObject({
+      expiresAt: expect.any(String),
+      id: apiToken.id,
+      status: "EXPIRED",
+    });
+  });
+
+  test("reports revoked status when an API token is both revoked and expired", async () => {
+    const user = await createTestUser();
+    const { apiToken } = await createApiToken({
+      createdById: user.id,
+      expiresInDays: 1,
+      label: "Revoked expired consumer",
+      scopes: defaultReadApiTokenScopes,
+    });
+
+    await prisma.apiToken.update({
+      data: {
+        expiresAt: new Date(Date.now() - 1_000),
+        revokedAt: new Date(),
+      },
+      where: { id: apiToken.id },
+    });
+
+    const [listedToken] = await listApiTokens();
+    expect(listedToken).toMatchObject({
+      expiresAt: expect.any(String),
+      id: apiToken.id,
+      revokedAt: expect.any(String),
+      status: "REVOKED",
     });
   });
 

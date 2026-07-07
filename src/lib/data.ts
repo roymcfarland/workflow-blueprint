@@ -45,6 +45,8 @@ import type {
 export const MAX_BOARDS_PER_USER = 100;
 export const MAX_TASKS_PER_BOARD = 1000;
 
+const MILLISECONDS_PER_DAY = 86_400_000;
+
 const taskInclude = {
   attachments: {
     orderBy: {
@@ -100,6 +102,7 @@ const apiTokenListSelect = {
   scopes: true,
   lastUsedAt: true,
   revokedAt: true,
+  expiresAt: true,
   createdAt: true,
   createdBy: {
     select: {
@@ -225,7 +228,7 @@ export type DashboardSnapshot = {
 
 export type InvitationStatus = "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
 
-export type ApiTokenStatus = "ACTIVE" | "REVOKED";
+export type ApiTokenStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
 
 export type SerializedInvitation = {
   id: string;
@@ -253,6 +256,7 @@ export type SerializedApiToken = {
   status: ApiTokenStatus;
   lastUsedAt: string | null;
   revokedAt: string | null;
+  expiresAt: string | null;
   createdAt: string;
   createdBy: {
     email: string;
@@ -363,15 +367,31 @@ function serializeInvitation(invitation: DbInvitationListItem): SerializedInvita
   };
 }
 
+function apiTokenStatus(
+  token: Pick<DbApiTokenListItem, "expiresAt" | "revokedAt">,
+  now = new Date(),
+): ApiTokenStatus {
+  if (token.revokedAt) {
+    return "REVOKED";
+  }
+
+  if (token.expiresAt && token.expiresAt <= now) {
+    return "EXPIRED";
+  }
+
+  return "ACTIVE";
+}
+
 function serializeApiToken(token: DbApiTokenListItem): SerializedApiToken {
   return {
     id: token.id,
     label: token.label,
     prefix: token.prefix,
     scopes: token.scopes,
-    status: token.revokedAt ? "REVOKED" : "ACTIVE",
+    status: apiTokenStatus(token),
     lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
     revokedAt: token.revokedAt?.toISOString() ?? null,
+    expiresAt: token.expiresAt?.toISOString() ?? null,
     createdAt: token.createdAt.toISOString(),
     createdBy: token.createdBy,
   };
@@ -2315,10 +2335,12 @@ export async function revokeInvitation(invitationId: string) {
 
 export async function createApiToken({
   createdById,
+  expiresInDays,
   label,
   scopes,
 }: {
   createdById: string;
+  expiresInDays?: number;
   label: string;
   scopes: ApiTokenScope[];
 }) {
@@ -2332,6 +2354,9 @@ export async function createApiToken({
       prefix: rawToken.slice(0, 12),
       createdById,
       scopes,
+      expiresAt: expiresInDays
+        ? new Date(Date.now() + expiresInDays * MILLISECONDS_PER_DAY)
+        : null,
     },
     select: apiTokenListSelect,
   });
@@ -2362,6 +2387,7 @@ export async function findActiveApiTokenByRawToken(rawToken: string) {
     where: {
       revokedAt: null,
       tokenHash: hashToken(rawToken),
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
     },
     select: { id: true, createdById: true, scopes: true },
   });
