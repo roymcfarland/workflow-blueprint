@@ -125,12 +125,12 @@ Read endpoints support the legacy configured external key:
 Authorization: Bearer <EXTERNAL_API_KEY>
 ```
 
-Keys are compared with SHA-256 + `timingSafeEqual`. The legacy key resolves to `EXTERNAL_USER_ID` and remains read-only.
+Keys are compared with SHA-256 + `timingSafeEqual`. The legacy key resolves to `EXTERNAL_USER_ID`, remains read-only, and has no expiry.
 
-Per-user API tokens are issued inside the app and resolve to the token owner. They carry granular scopes (`BOARDS_READ`, `BOARDS_WRITE`, `TASKS_READ`, `TASKS_WRITE`, `SUBTASKS_READ`, `SUBTASKS_WRITE`). Write endpoints require the matching write scope. The MCP endpoint below requires a per-user scoped API token and does not accept the legacy `EXTERNAL_API_KEY`.
+Per-user API tokens are issued inside the app and resolve to the token owner. They carry granular scopes (`BOARDS_READ`, `BOARDS_WRITE`, `TASKS_READ`, `TASKS_WRITE`, `SUBTASKS_READ`, `SUBTASKS_WRITE`) and can be created with an optional 1-365 day expiry; tokens created without an expiry never expire. Admins can see each token's `Active`, `Expired`, or `Revoked` status plus its Expires value in the token ledger, and can revoke tokens at any time. Write endpoints require the matching write scope. The MCP endpoint below requires a per-user scoped API token and does not accept the legacy `EXTERNAL_API_KEY`.
 
 - Missing or malformed `Authorization` header → `401` JSON.
-- Wrong key → `403` JSON.
+- Wrong, revoked, or expired token → `403` JSON; callers cannot distinguish these cases.
 - Required key is unset → `503` JSON.
 
 Most external API errors use this shape:
