@@ -1,5 +1,7 @@
 # Night Mode Design Audit Handoff
 
+> **Status: RESOLVED — archived 2026-07-07.** The token-system refactor this audit prescribes shipped in the theming passes that followed it: `src/app/globals.css` now defines the full semantic token set (`--text-*`, `--line-*`, `--surface-*`, per-status accents) for both themes, component-level `dark:` patches were eliminated, and a live-pixel verification against production (2026-07-07) scored all six acceptance criteria below as passing. Residual polish (class-based `dark:` variant wiring, demo-banner night surface, hatched completion bar) shipped in `#125`. Kept for historical context; do not treat as open work.
+
 ## Summary
 
 Night mode is technically functional, but visually it feels like the day theme was tinted darker instead of redesigned. The main issue is not one component: the global tokens, blueprint paper effects, and repeated `dark:bg-paper-strong` overrides all push the UI toward a heavy blue-on-blue surface with low hierarchy and muddy contrast.

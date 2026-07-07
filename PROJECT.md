@@ -147,13 +147,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#123** | Node 24.18.x LTS + @types/node ^24 (M2) | `#123` | Moved the runtime to the active LTS line across all three Q3 pin sites — `engines.node` `24.18.x`, `.nvmrc` `24.18`, CI via `.nvmrc` — bumped `@types/node` `^20` → `^24` to track the runtime major, and updated the Q3/Stack prose (historical PR-1/#120 rows untouched). Owner flipped the Vercel Node setting to 24.x before merge per Q3's warn. All six CI jobs green on 24.18.x. Completes the M1–M2 toolchain follow-ups. |
 | **#124** | README: document API-token expiry (M3) | `#124` | Documentation-only: the README Authentication section now covers token expiry (`#116`/`#117`) — optional 1–365-day lifetime at creation, never-expires default, expired/revoked/wrong tokens all answered with the same `403`, admin ledger shows status + Expires. Legacy env key noted as expiry-free. No contract or behavior change; `docs/openapi.yaml` untouched. |
 | **#125** | Night-mode polish: dark-variant wiring + banner + bar (N1) | `#125` | Added `@custom-variant dark` so `dark:` utilities follow the app's `.dark` class instead of the OS media query (fixes the HIGH-priority badge ignoring the in-app toggle); demo banner gets a neutral raised surface in night mode (day unchanged); dashboard Completion Rate bar now uses the hatched `.blueprint-fill` matching the `#73` subtask bars. Presentational only; found by the 2026-07-07 live-pixel verification of the night-mode audit (archival is N2). No API/contract/test changes. |
+| **#126** | Archive resolved handoff docs (N2) | `#126` | Documentation-only: moved `night-mode-design-audit-handoff.md` (verified resolved by the 2026-07-07 live-pixel audit + `#125` polish) and `invite-only-auth-handoff.md` (shipped product behavior) to `docs/archive/` with status headers, so `docs/` carries no phantom backlog. Zero inbound references (pre-verified). Completes the night-mode closeout (N1 `#125`, this PR). |
 
 ### Active phase
 
-**Night-mode closeout (N1–N2).** N1 is this PR: polish from the 2026-07-07 live-pixel verification of the night-mode audit. N2 is the next PR: documentation-only archival of the resolved audit handoff.
-
-- **N1 (this PR):** Night-mode polish: class-based `dark:` variant wiring, demo banner neutral night surface, and dashboard Completion Rate bar parity.
-- **N2 (next PR):** Documentation-only archival of the resolved night-mode audit handoff.
+**No active phase.** Night-mode closeout (N1–N2) is complete: N1 shipped in `#125`, and N2 archives the resolved night-mode audit and invite-only auth handoffs so `docs/` now contains only live documents plus `docs/archive/` historical records. There are no further sequenced slices.
 
 ### Standing Builder guardrails (post-PR-1)
 

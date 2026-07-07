@@ -1,5 +1,7 @@
 # Invite-Only Auth Handoff
 
+> **Status: SHIPPED — archived 2026-07-07.** The invitation-gated sign-up this handoff designs is the live product: sign-up requires an admin-issued invitation token (see PROJECT.md's "Not open public self-service registration" non-goal), invitations are admin-managed with hashed tokens and atomic acceptance, and the ADMIN role exists. Kept for historical context; do not treat as open work.
+
 Date: 2026-04-25
 
 ## Goal
