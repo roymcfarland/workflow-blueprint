@@ -145,14 +145,17 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#121** | vite 6 → 8 + @vitejs/plugin-react 4 → 6 (U3) | `#121` | Lifted the vite major deferred since `#92`/`#107`: `vite ^8.1.3` + `@vitejs/plugin-react ^6.0.3` (peer-locked to vite 8), single deduped vite under vitest 4 (whose range already allowed ^8), `vite-tsconfig-paths` and the `esbuild`/`postcss` overrides unchanged, audit clean at both levels. Zero `vitest.config.mts` changes needed. Test toolchain only — the app builds with Next/webpack. Completes the dependency-currency pass (U1 `#119`, U2 `#120`). |
 | **#122** | Drop vite-tsconfig-paths (M1) | `#122` | Removed the `vite-tsconfig-paths` devDependency and its `vitest.config.mts` plugin entry — vite 8 (`#121`) resolves the `tsconfig.json` `@/*` paths natively (enabled via `resolve.tsconfigPaths` per the vite docs). Full suite (32 files / 270 tests) + smoke green on the native resolution; audit clean; zero live config/manifest references remain outside the lockfile history. First of the post-U3 toolchain follow-ups (M2: Node 22→24). |
 | **#123** | Node 24.18.x LTS + @types/node ^24 (M2) | `#123` | Moved the runtime to the active LTS line across all three Q3 pin sites — `engines.node` `24.18.x`, `.nvmrc` `24.18`, CI via `.nvmrc` — bumped `@types/node` `^20` → `^24` to track the runtime major, and updated the Q3/Stack prose (historical PR-1/#120 rows untouched). Owner flipped the Vercel Node setting to 24.x before merge per Q3's warn. All six CI jobs green on 24.18.x. Completes the M1–M2 toolchain follow-ups. |
+| **#124** | README: document API-token expiry (M3) | `#124` | Documentation-only: the README Authentication section now covers token expiry (`#116`/`#117`) — optional 1–365-day lifetime at creation, never-expires default, expired/revoked/wrong tokens all answered with the same `403`, admin ledger shows status + Expires. Legacy env key noted as expiry-free. No contract or behavior change; `docs/openapi.yaml` untouched. |
 
 ### Active phase
 
-**Toolchain follow-ups (M1–M2 complete; M3 queued).** Post-U3 cleanup after the vite 8 upgrade in `#121`: M1 dropped the redundant path-resolution plugin; M2 moves the Node pin to Node 24.18.x LTS in this PR. M3 updates the README token-expiry documentation next.
+**Toolchain follow-ups (M1–M2 complete; M3 in this PR).** Post-U3 cleanup after the vite 8 upgrade in `#121`: M1 dropped the redundant path-resolution plugin; M2 moved the Node pin to Node 24.18.x LTS in `#123`; M3 updates the README token-expiry documentation in this PR. M4 night-mode audit and M5 recon schedule remain pending owner decision.
 
 - **M1:** Drop `vite-tsconfig-paths`; Vite 8 handles `tsconfig.json` `@/*` path resolution through native config.
-- **M2 (this PR):** Node 24.18.x LTS pin move with `@types/node` `^24`.
-- **M3 (queued):** README token-expiry documentation.
+- **M2:** Node 24.18.x LTS pin move with `@types/node` `^24`.
+- **M3 (this PR):** README token-expiry documentation.
+- **M4 (pending owner decision):** Night-mode audit.
+- **M5 (pending owner decision):** Recon schedule.
 
 ### Standing Builder guardrails (post-PR-1)
 
