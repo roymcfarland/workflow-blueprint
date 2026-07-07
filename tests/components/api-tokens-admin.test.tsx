@@ -52,6 +52,13 @@ function submitButton() {
   return screen.getByRole("button", { name: /create token/i }) as HTMLButtonElement;
 }
 
+function formattedDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 describe("ApiTokensAdmin", () => {
   test("defaults the create form to the read scopes", () => {
     render(<ApiTokensAdmin initialApiTokens={[]} />);
@@ -80,7 +87,11 @@ describe("ApiTokensAdmin", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string) as { label: string; scopes: string[] };
+    const body = JSON.parse(init.body as string) as {
+      expiresInDays?: unknown;
+      label: string;
+      scopes: string[];
+    };
 
     expect(url).toBe("/api/admin/api-tokens");
     expect(init.method).toBe("POST");
@@ -89,6 +100,34 @@ describe("ApiTokensAdmin", () => {
     expect(body.scopes).toEqual(
       expect.arrayContaining(["BOARDS_READ", "TASKS_READ", "SUBTASKS_READ", "TASKS_WRITE"]),
     );
+    expect("expiresInDays" in body).toBe(false);
+  });
+
+  test("submits selected expiry duration as a number", async () => {
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ message: "API token created.", token: "wbp_secret" }))
+      .mockResolvedValueOnce(apiResponse({ apiTokens: [] }));
+
+    render(<ApiTokensAdmin initialApiTokens={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Label"), {
+      target: { value: "Thirty-day agent" },
+    });
+    fireEvent.change(screen.getByLabelText("Expires"), {
+      target: { value: "30" },
+    });
+    fireEvent.click(submitButton());
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      expiresInDays?: unknown;
+      label: string;
+      scopes: string[];
+    };
+
+    expect(body.expiresInDays).toBe(30);
   });
 
   test("disables submit when every scope is deselected", () => {
@@ -121,5 +160,56 @@ describe("ApiTokensAdmin", () => {
     expect(tokenRow).not.toBeNull();
     expect(within(tokenRow as HTMLElement).getByText("Boards read")).toBeDefined();
     expect(within(tokenRow as HTMLElement).getByText("Tasks write")).toBeDefined();
+  });
+
+  test("renders expiration dates in the ledger", () => {
+    const expiringAt = "2026-08-01T14:30:00.000Z";
+
+    render(
+      <ApiTokensAdmin
+        initialApiTokens={[
+          apiToken({
+            expiresAt: expiringAt,
+            id: "token-expiring",
+            label: "Expiring integration",
+            lastUsedAt: "2026-07-01T12:00:00.000Z",
+          }),
+          apiToken({
+            id: "token-never",
+            label: "Permanent integration",
+            lastUsedAt: "2026-07-02T12:00:00.000Z",
+          }),
+        ]}
+      />,
+    );
+
+    const expiringRow = screen.getByText("Expiring integration").closest("tr");
+    const permanentRow = screen.getByText("Permanent integration").closest("tr");
+
+    expect(expiringRow).not.toBeNull();
+    expect(permanentRow).not.toBeNull();
+    expect(within(expiringRow as HTMLElement).getByText(formattedDate(expiringAt))).toBeDefined();
+    expect(within(permanentRow as HTMLElement).getByText("Never")).toBeDefined();
+  });
+
+  test("renders expired tokens without revoke actions", () => {
+    render(
+      <ApiTokensAdmin
+        initialApiTokens={[
+          apiToken({
+            expiresAt: "2026-07-01T12:00:00.000Z",
+            id: "token-expired",
+            label: "Expired integration",
+            status: "EXPIRED",
+          }),
+        ]}
+      />,
+    );
+
+    const tokenRow = screen.getByText("Expired integration").closest("tr");
+
+    expect(tokenRow).not.toBeNull();
+    expect(within(tokenRow as HTMLElement).getAllByText("Expired")).toHaveLength(2);
+    expect(within(tokenRow as HTMLElement).queryByRole("button", { name: /revoke/i })).toBeNull();
   });
 });
