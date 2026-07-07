@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   closestCenter,
   DndContext,
@@ -489,6 +489,36 @@ function SortableInProgressRow({
     }
   }
 
+  async function renameSubtask(subtaskId: string, title: string) {
+    const previous = subtasks;
+    setSubtasks((current) =>
+      current.map((subtask) =>
+        subtask.id === subtaskId ? { ...subtask, title } : subtask,
+      ),
+    );
+    setSubtaskPending(true);
+    setSubtaskError(null);
+
+    try {
+      const response = await fetch(`/api/subtasks/${subtaskId}`, {
+        body: JSON.stringify({ title }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to update the subtask.");
+      }
+
+      router.refresh();
+    } catch (err) {
+      setSubtasks(previous);
+      setSubtaskError(err instanceof Error ? err.message : "Unable to update the subtask.");
+    } finally {
+      setSubtaskPending(false);
+    }
+  }
+
   async function deleteSubtask(subtaskId: string) {
     const previous = subtasks;
     setSubtasks((current) => current.filter((s) => s.id !== subtaskId));
@@ -635,6 +665,7 @@ function SortableInProgressRow({
                     key={subtask.id}
                     disabled={subtaskPending}
                     onDelete={deleteSubtask}
+                    onRename={renameSubtask}
                     onToggle={toggleSubtask}
                     subtask={subtask}
                   />
@@ -653,12 +684,17 @@ function SortableDashboardSubtaskRow({
   disabled,
   onToggle,
   onDelete,
+  onRename,
 }: {
   subtask: DashboardTaskSummary["subtasks"][number];
   disabled: boolean;
   onToggle: (subtaskId: string, isComplete: boolean) => void;
   onDelete: (subtaskId: string) => void;
+  onRename: (subtaskId: string, title: string) => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(subtask.title);
+  const editSettledRef = useRef(false);
   const {
     attributes,
     listeners,
@@ -668,6 +704,52 @@ function SortableDashboardSubtaskRow({
     transition,
     isDragging,
   } = useSortable({ id: subtask.id });
+
+  function startEditing() {
+    if (disabled) {
+      return;
+    }
+    editSettledRef.current = false;
+    setDraftTitle(subtask.title);
+    setIsEditing(true);
+  }
+
+  function commitEditing() {
+    if (editSettledRef.current) {
+      return;
+    }
+    editSettledRef.current = true;
+
+    const title = draftTitle.trim();
+    setIsEditing(false);
+
+    if (!title || title === subtask.title) {
+      setDraftTitle(subtask.title);
+      return;
+    }
+
+    setDraftTitle(title);
+    onRename(subtask.id, title);
+  }
+
+  function cancelEditing() {
+    if (editSettledRef.current) {
+      return;
+    }
+    editSettledRef.current = true;
+    setDraftTitle(subtask.title);
+    setIsEditing(false);
+  }
+
+  function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitEditing();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancelEditing();
+    }
+  }
 
   return (
     <div
@@ -686,14 +768,33 @@ function SortableDashboardSubtaskRow({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <span
-        className={cn(
-          "min-w-0 flex-1 text-text-primary",
-          subtask.isComplete && "text-text-muted line-through",
-        )}
-      >
-        {subtask.title}
-      </span>
+      {isEditing ? (
+        <input
+          aria-label={`Subtask title for ${subtask.title}`}
+          autoFocus
+          className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-sm text-text-primary outline-none transition focus:border-brand disabled:opacity-30"
+          disabled={disabled}
+          onBlur={commitEditing}
+          onChange={(event) => setDraftTitle(event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+          onKeyDown={handleInputKeyDown}
+          type="text"
+          value={draftTitle}
+        />
+      ) : (
+        <button
+          aria-label={`Edit subtask ${subtask.title}`}
+          className={cn(
+            "min-w-0 flex-1 text-left text-text-primary transition disabled:cursor-not-allowed disabled:opacity-30",
+            subtask.isComplete && "text-text-muted line-through",
+          )}
+          disabled={disabled}
+          onClick={startEditing}
+          type="button"
+        >
+          {subtask.title}
+        </button>
+      )}
       <button
         aria-label={subtask.isComplete ? "Mark subtask incomplete" : "Mark subtask complete"}
         aria-pressed={subtask.isComplete}
