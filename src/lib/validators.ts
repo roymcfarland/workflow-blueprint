@@ -116,6 +116,7 @@ export const adminApiTokenSchema = z.object({
       ]),
     )
     .min(1, "Select at least one scope."),
+  expiresInDays: z.number().int().min(1).max(365).optional(),
 });
 
 export const taskInputSchema = z

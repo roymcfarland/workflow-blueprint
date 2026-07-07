@@ -59,6 +59,7 @@ const scopeClassName =
 
 const statusLabels = {
   ACTIVE: "Active",
+  EXPIRED: "Expired",
   REVOKED: "Revoked",
 } as const;
 
@@ -73,6 +74,7 @@ function statusClassName(status: SerializedApiToken["status"]) {
   return cn(
     "inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold",
     status === "ACTIVE" && "border-success/30 bg-success/10 text-success",
+    status === "EXPIRED" && "border-line-soft bg-surface-control text-text-muted",
     status === "REVOKED" && "border-danger/30 bg-danger/10 text-danger",
   );
 }

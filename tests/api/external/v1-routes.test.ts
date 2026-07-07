@@ -498,6 +498,29 @@ describe("external v1 route contracts", () => {
       });
     });
 
+    test("GET /api/external/v1/dashboard rejects expired DB tokens", async () => {
+      const { apiToken, token } = await createApiToken({
+        createdById: demoUser.id,
+        expiresInDays: 1,
+        label: "Expired consumer",
+        scopes: defaultReadApiTokenScopes,
+      });
+      await prisma.apiToken.update({
+        data: { expiresAt: new Date(Date.now() - 1_000) },
+        where: { id: apiToken.id },
+      });
+
+      const response = await getDashboard(
+        externalGetRequest("/api/external/v1/dashboard", token),
+      );
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid API key.",
+        ok: false,
+      });
+    });
+
     test("GET /api/external/v1/dashboard still accepts the env API key", async () => {
       const response = await getDashboard(externalGetRequest("/api/external/v1/dashboard"));
 

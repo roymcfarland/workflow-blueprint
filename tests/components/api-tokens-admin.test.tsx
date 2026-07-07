@@ -35,6 +35,7 @@ function apiToken(overrides: Partial<SerializedApiToken> = {}): SerializedApiTok
     id: "token-1",
     label: "Reporting integration",
     lastUsedAt: null,
+    expiresAt: null,
     prefix: "wbp_1234",
     revokedAt: null,
     scopes: ["BOARDS_READ", "TASKS_READ", "SUBTASKS_READ"],
