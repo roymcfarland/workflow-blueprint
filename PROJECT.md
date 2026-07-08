@@ -150,10 +150,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#126** | Archive resolved handoff docs (N2) | `#126` | Documentation-only: moved `night-mode-design-audit-handoff.md` (verified resolved by the 2026-07-07 live-pixel audit + `#125` polish) and `invite-only-auth-handoff.md` (shipped product behavior) to `docs/archive/` with status headers, so `docs/` carries no phantom backlog. Zero inbound references (pre-verified). Completes the night-mode closeout (N1 `#125`, this PR). |
 | **#127** | Dependency drift sweep (D1) | `#127` | Refreshed npm lockfile drift within declared ranges and bumped the pinned framework patches to Next/eslint-config-next `16.2.10` and React/React DOM `19.2.7`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: `jsdom ^29`, `typescript ^6`, Prisma 7, and `@types/node 26`. |
 | **#128** | jsdom 26 -> 29 (D2) | `#128` | Bumped the dev-only Vitest jsdom environment from `^26.1.0` to `^29.1.1` and refreshed the npm lockfile; Node `24.18.x` satisfies the jsdom 29.1.1 engine range and Vitest 4.1.10 peers `jsdom: "*"`. Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: `typescript ^6`, Prisma 7, and `@types/node 26`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. |
+| **#129** | TypeScript 5 -> 6 (D3) | `#129` | Bumped the dev-only TypeScript compiler range from `^5` to `^6.0.3` and refreshed the npm lockfile; `typescript-eslint` 8.63.0 remains peer-compatible with TypeScript 6.0.3 (`>=4.8.4 <6.1.0`). Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: Prisma 7 and `@types/node 26`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. |
 
 ### Active phase
 
-**No active phase.** jsdom D2 is complete in `#128`: the dev-only test environment is on `^29.1.1` with the existing suite green. The remaining Q6 majors stay queued for later slices: `typescript ^6`, Prisma 7, and `@types/node 26`; `@modelcontextprotocol/sdk` remains held at `1.26.0` for `mcp-handler`.
+**No active phase.** TypeScript D3 is complete in `#129`: the dev-only compiler is on `^6.0.3` with the existing suite green. The remaining Q6 majors stay queued for later slices: Prisma 7 and `@types/node 26`; `@modelcontextprotocol/sdk` remains held at `1.26.0` for `mcp-handler`.
 
 ### Standing Builder guardrails (post-PR-1)
 
