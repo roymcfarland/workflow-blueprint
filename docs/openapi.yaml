@@ -4772,6 +4772,7 @@ components:
                       - NONE
                       - DAILY
                       - WEEKLY
+                      - BI_WEEKLY
                       - MONTHLY
                       - SEMI_ANNUALLY
                       - ANNUALLY
@@ -5058,6 +5059,7 @@ components:
             - NONE
             - DAILY
             - WEEKLY
+            - BI_WEEKLY
             - MONTHLY
             - SEMI_ANNUALLY
             - ANNUALLY
@@ -5110,6 +5112,7 @@ components:
             - NONE
             - DAILY
             - WEEKLY
+            - BI_WEEKLY
             - MONTHLY
             - SEMI_ANNUALLY
             - ANNUALLY
@@ -5197,6 +5200,7 @@ components:
                 - NONE
                 - DAILY
                 - WEEKLY
+                - BI_WEEKLY
                 - MONTHLY
                 - SEMI_ANNUALLY
                 - ANNUALLY
