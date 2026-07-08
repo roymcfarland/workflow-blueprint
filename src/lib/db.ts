@@ -1,7 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
-import { resolveDatabaseUrl } from "./database-url";
+import { resolveDatabaseUrl, withLibpqSslCompat } from "./database-url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -12,7 +12,7 @@ let prismaClient: PrismaClient | undefined;
 function createPrismaClient() {
   return new PrismaClient({
     adapter: new PrismaPg({
-      connectionString: resolveDatabaseUrl(),
+      connectionString: withLibpqSslCompat(resolveDatabaseUrl()),
       options: "-c timezone=UTC",
     }),
   });

@@ -78,6 +78,16 @@ export function hydrateDatabaseUrlEnv(options: DatabaseUrlOptions = {}) {
   }
 }
 
+/**
+ * Restores real libpq sslmode semantics (encrypt without full chain verification)
+ * for the pg driver, which now aliases sslmode=require/prefer/verify-ca to verify-full.
+ */
+export function withLibpqSslCompat(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("uselibpqcompat", "true");
+  return parsed.toString();
+}
+
 /** True for localhost / loopback / unix-socket (no host) connection strings. */
 export function isLocalDatabaseHost(url: string): boolean {
   try {

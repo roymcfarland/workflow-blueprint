@@ -5,6 +5,8 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
+import { withLibpqSslCompat } from "@/lib/database-url";
+
 const envFilePath = join(process.cwd(), ".vitest", "env.json");
 const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 const { loadEnvConfig } = nextEnv;
@@ -78,7 +80,7 @@ export default async function setup() {
   const testDatabaseUrl = databaseUrlFor(baseUrl, databaseName);
   const admin = new PrismaClient({
     adapter: new PrismaPg({
-      connectionString: baseUrl,
+      connectionString: withLibpqSslCompat(baseUrl),
       options: "-c timezone=UTC",
     }),
   });
