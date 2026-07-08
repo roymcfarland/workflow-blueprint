@@ -27,7 +27,7 @@ A short, honest retrospective. Three things I would change if I were starting th
 ## Stack
 
 - Next.js 16 App Router and React 19
-- Prisma 6 with PostgreSQL persistence (currently hosted on Supabase)
+- Prisma 7 with PostgreSQL persistence (currently hosted on Supabase)
 - Tailwind CSS 4 with custom blueprint design tokens
 - Zod validation on all API payloads
 - Signed HTTP-only session cookies with `jose`

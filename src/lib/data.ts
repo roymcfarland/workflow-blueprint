@@ -5,7 +5,7 @@ import {
   RecurrencePattern as PrismaRecurrencePattern,
   TaskStatus as PrismaTaskStatus,
   ThemePreference as PrismaThemePreference,
-} from "@prisma/client";
+} from "@/generated/prisma/client";
 import { hash } from "bcryptjs";
 import { addDays, addMonths, addWeeks, addYears, subDays } from "date-fns";
 import { createHash, randomBytes, randomUUID } from "node:crypto";

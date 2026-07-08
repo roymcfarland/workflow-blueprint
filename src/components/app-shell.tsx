@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { UserRole } from "@prisma/client";
+import type { UserRole } from "@/generated/prisma/client";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronDown,

@@ -1,4 +1,7 @@
-import { TaskStatus as PrismaTaskStatus, ThemePreference as PrismaThemePreference } from "@prisma/client";
+import {
+  TaskStatus as PrismaTaskStatus,
+  ThemePreference as PrismaThemePreference,
+} from "../src/generated/prisma/client";
 import { hash } from "bcryptjs";
 import { addDays, subDays } from "date-fns";
 

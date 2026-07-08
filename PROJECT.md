@@ -151,10 +151,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#127** | Dependency drift sweep (D1) | `#127` | Refreshed npm lockfile drift within declared ranges and bumped the pinned framework patches to Next/eslint-config-next `16.2.10` and React/React DOM `19.2.7`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: `jsdom ^29`, `typescript ^6`, Prisma 7, and `@types/node 26`. |
 | **#128** | jsdom 26 -> 29 (D2) | `#128` | Bumped the dev-only Vitest jsdom environment from `^26.1.0` to `^29.1.1` and refreshed the npm lockfile; Node `24.18.x` satisfies the jsdom 29.1.1 engine range and Vitest 4.1.10 peers `jsdom: "*"`. Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: `typescript ^6`, Prisma 7, and `@types/node 26`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. |
 | **#129** | TypeScript 5 -> 6 (D3) | `#129` | Bumped the dev-only TypeScript compiler range from `^5` to `^6.0.3` and refreshed the npm lockfile; `typescript-eslint` 8.63.0 remains peer-compatible with TypeScript 6.0.3 (`>=4.8.4 <6.1.0`). Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: Prisma 7 and `@types/node 26`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. |
+| **#130** | Prisma 6 -> 7 (D4) | `#130` | Migrated Prisma to `7.8.0` with the `prisma-client` generator at `src/generated/prisma`, removed the schema datasource URL in favor of `prisma.config.ts`, added the `@prisma/adapter-pg` driver adapter, swept imports to the generated client, and overrode `@hono/node-server` to patched `1.19.13` while Prisma's dev server dependency catches up. Audit, lint, typecheck, build, DB suite (32 files / 270 tests), smoke (5 tests), and local seed are green. Deferred per Q6: `@types/node 26`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. |
 
 ### Active phase
 
-**No active phase.** TypeScript D3 is complete in `#129`: the dev-only compiler is on `^6.0.3` with the existing suite green. The remaining Q6 majors stay queued for later slices: Prisma 7 and `@types/node 26`; `@modelcontextprotocol/sdk` remains held at `1.26.0` for `mcp-handler`.
+**No active phase.** Prisma D4 is complete in `#130`: the ORM is on `7.8.0` with the generated-client output path and pg driver adapter in place. The remaining Q6 major stays queued for a later slice: `@types/node 26`; `@modelcontextprotocol/sdk` remains held at `1.26.0` for `mcp-handler`.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -181,7 +182,7 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 - Language: TypeScript/TSX with strict TypeScript settings (`tsconfig.json`).
 - Framework: Next.js 16.2.10 App Router and React 19.2.7 (`package.json`, `src/app/layout.tsx`).
 - Package manager: npm with `package-lock.json`.
-- Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
+- Database/ORM: Prisma 7 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, @dnd-kit drag-and-drop, and Recharts (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`).
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
 - Runtime versions: Node.js 24.18.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^24` to match the runtime major and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).

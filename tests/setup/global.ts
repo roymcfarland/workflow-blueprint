@@ -1,8 +1,11 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/generated/prisma/client";
 import nextEnv from "@next/env";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+
+import { withLibpqSslCompat } from "@/lib/database-url";
 
 const envFilePath = join(process.cwd(), ".vitest", "env.json");
 const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -75,7 +78,12 @@ export default async function setup() {
   const baseUrl = requireDatabaseUrl();
   const databaseName = `workflow_blueprint_test_${process.pid}_${Date.now()}`;
   const testDatabaseUrl = databaseUrlFor(baseUrl, databaseName);
-  const admin = new PrismaClient({ datasourceUrl: baseUrl });
+  const admin = new PrismaClient({
+    adapter: new PrismaPg({
+      connectionString: withLibpqSslCompat(baseUrl),
+      options: "-c timezone=UTC",
+    }),
+  });
   let databaseCreated = false;
 
   try {

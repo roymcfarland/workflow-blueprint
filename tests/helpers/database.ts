@@ -2,7 +2,7 @@ import {
   ItemPriority as PrismaItemPriority,
   TaskStatus as PrismaTaskStatus,
   ThemePreference as PrismaThemePreference,
-} from "@prisma/client";
+} from "@/generated/prisma/client";
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";

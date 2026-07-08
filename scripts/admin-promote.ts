@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
-import { UserRole } from "@prisma/client";
+import { UserRole } from "../src/generated/prisma/client";
 
 import { hydrateDatabaseUrlEnv } from "../src/lib/database-url";
 import { prisma } from "../src/lib/db";

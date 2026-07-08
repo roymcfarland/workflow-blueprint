@@ -3,7 +3,7 @@ import {
   ItemPriority as PrismaItemPriority,
   RecurrencePattern as PrismaRecurrencePattern,
   TaskStatus as PrismaTaskStatus,
-} from "@prisma/client";
+} from "@/generated/prisma/client";
 import { addMonths, subDays } from "date-fns";
 import { createHash, randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, test, vi } from "vitest";

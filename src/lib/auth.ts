@@ -1,4 +1,4 @@
-import { ThemePreference as PrismaThemePreference } from "@prisma/client";
+import { ThemePreference as PrismaThemePreference } from "@/generated/prisma/client";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
