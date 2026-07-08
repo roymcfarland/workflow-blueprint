@@ -148,10 +148,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#124** | README: document API-token expiry (M3) | `#124` | Documentation-only: the README Authentication section now covers token expiry (`#116`/`#117`) — optional 1–365-day lifetime at creation, never-expires default, expired/revoked/wrong tokens all answered with the same `403`, admin ledger shows status + Expires. Legacy env key noted as expiry-free. No contract or behavior change; `docs/openapi.yaml` untouched. |
 | **#125** | Night-mode polish: dark-variant wiring + banner + bar (N1) | `#125` | Added `@custom-variant dark` so `dark:` utilities follow the app's `.dark` class instead of the OS media query (fixes the HIGH-priority badge ignoring the in-app toggle); demo banner gets a neutral raised surface in night mode (day unchanged); dashboard Completion Rate bar now uses the hatched `.blueprint-fill` matching the `#73` subtask bars. Presentational only; found by the 2026-07-07 live-pixel verification of the night-mode audit (archival is N2). No API/contract/test changes. |
 | **#126** | Archive resolved handoff docs (N2) | `#126` | Documentation-only: moved `night-mode-design-audit-handoff.md` (verified resolved by the 2026-07-07 live-pixel audit + `#125` polish) and `invite-only-auth-handoff.md` (shipped product behavior) to `docs/archive/` with status headers, so `docs/` carries no phantom backlog. Zero inbound references (pre-verified). Completes the night-mode closeout (N1 `#125`, this PR). |
+| **#127** | Dependency drift sweep (D1) | `#127` | Refreshed npm lockfile drift within declared ranges and bumped the pinned framework patches to Next/eslint-config-next `16.2.10` and React/React DOM `19.2.7`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: `jsdom ^29`, `typescript ^6`, Prisma 7, and `@types/node 26`. |
 
 ### Active phase
 
-**No active phase.** Night-mode closeout (N1–N2) is complete: N1 shipped in `#125`, and N2 archives the resolved night-mode audit and invite-only auth handoffs so `docs/` now contains only live documents plus `docs/archive/` historical records. There are no further sequenced slices.
+**No active phase.** Dependency drift sweep D1 is complete in `#127`: in-range minors/patches are refreshed, the pinned framework patches are current, and the deferred majors remain queued for later slices. There are no further sequenced slices.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -176,7 +177,7 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 ## Stack
 
 - Language: TypeScript/TSX with strict TypeScript settings (`tsconfig.json`).
-- Framework: Next.js 16.2.4 App Router and React 19.2.4 (`package.json`, `src/app/layout.tsx`).
+- Framework: Next.js 16.2.10 App Router and React 19.2.7 (`package.json`, `src/app/layout.tsx`).
 - Package manager: npm with `package-lock.json`.
 - Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, @dnd-kit drag-and-drop, and Recharts (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`).
