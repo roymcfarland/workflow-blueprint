@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import {
   ApiTokenScope,
   type TaskStatus as PrismaTaskStatus,
-} from "@prisma/client";
+} from "@/generated/prisma/client";
 import { subDays } from "date-fns";
 import { NextResponse } from "next/server";
 import type { ZodType } from "zod";

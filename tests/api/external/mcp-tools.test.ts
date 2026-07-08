@@ -2,7 +2,7 @@ import {
   ApiTokenScope,
   ItemPriority as PrismaItemPriority,
   TaskStatus as PrismaTaskStatus,
-} from "@prisma/client";
+} from "@/generated/prisma/client";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, test } from "vitest";

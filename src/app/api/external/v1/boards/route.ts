@@ -1,4 +1,4 @@
-import { ApiTokenScope } from "@prisma/client";
+import { ApiTokenScope } from "@/generated/prisma/client";
 
 import { createBoardForUser, getBoardSummaries } from "@/lib/data";
 import {

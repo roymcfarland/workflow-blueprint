@@ -181,7 +181,7 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 - Language: TypeScript/TSX with strict TypeScript settings (`tsconfig.json`).
 - Framework: Next.js 16.2.10 App Router and React 19.2.7 (`package.json`, `src/app/layout.tsx`).
 - Package manager: npm with `package-lock.json`.
-- Database/ORM: Prisma 6 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
+- Database/ORM: Prisma 7 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, @dnd-kit drag-and-drop, and Recharts (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`).
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
 - Runtime versions: Node.js 24.18.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^24` to match the runtime major and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).

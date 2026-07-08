@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/generated/prisma/client";
 import nextEnv from "@next/env";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -75,7 +76,12 @@ export default async function setup() {
   const baseUrl = requireDatabaseUrl();
   const databaseName = `workflow_blueprint_test_${process.pid}_${Date.now()}`;
   const testDatabaseUrl = databaseUrlFor(baseUrl, databaseName);
-  const admin = new PrismaClient({ datasourceUrl: baseUrl });
+  const admin = new PrismaClient({
+    adapter: new PrismaPg({
+      connectionString: baseUrl,
+      options: "-c timezone=UTC",
+    }),
+  });
   let databaseCreated = false;
 
   try {

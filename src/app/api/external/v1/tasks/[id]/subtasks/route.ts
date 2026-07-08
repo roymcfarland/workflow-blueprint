@@ -1,4 +1,4 @@
-import { ApiTokenScope } from "@prisma/client";
+import { ApiTokenScope } from "@/generated/prisma/client";
 
 import { createSubtaskForUser } from "@/lib/data";
 import {

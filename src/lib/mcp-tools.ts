@@ -1,4 +1,4 @@
-import { ApiTokenScope } from "@prisma/client";
+import { ApiTokenScope } from "@/generated/prisma/client";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";

@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@/generated/prisma/client";
 
 import { resolveDatabaseUrl } from "./database-url";
 
@@ -10,7 +11,10 @@ let prismaClient: PrismaClient | undefined;
 
 function createPrismaClient() {
   return new PrismaClient({
-    datasourceUrl: resolveDatabaseUrl(),
+    adapter: new PrismaPg({
+      connectionString: resolveDatabaseUrl(),
+      options: "-c timezone=UTC",
+    }),
   });
 }
 

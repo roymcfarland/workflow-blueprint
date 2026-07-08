@@ -43,5 +43,6 @@ prisma/*.db
 .vercel
 
 # typescript
+src/generated/
 *.tsbuildinfo
 next-env.d.ts
