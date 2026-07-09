@@ -7,7 +7,7 @@ import {
   ThemePreference as PrismaThemePreference,
 } from "@/generated/prisma/client";
 import { hash } from "bcryptjs";
-import { addDays, addMonths, addWeeks, addYears, subDays } from "date-fns";
+import { addDays, subDays } from "date-fns";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
@@ -46,6 +46,12 @@ export const MAX_BOARDS_PER_USER = 100;
 export const MAX_TASKS_PER_BOARD = 1000;
 
 const MILLISECONDS_PER_DAY = 86_400_000;
+
+type UtcCalendarOffset = {
+  days?: number;
+  months?: number;
+  years?: number;
+};
 
 const taskInclude = {
   attachments: {
@@ -432,75 +438,40 @@ async function nextSortOrderForStatus(
   return (current?.sortOrder ?? -1) + 1;
 }
 
-function advanceDueDate(base: Date, recurrence: PrismaRecurrencePattern): Date {
+function addUtcCalendarTime(
+  base: Date,
+  { days = 0, months = 0, years = 0 }: UtcCalendarOffset,
+): Date {
+  return new Date(
+    Date.UTC(
+      base.getUTCFullYear() + years,
+      base.getUTCMonth() + months,
+      base.getUTCDate() + days,
+      base.getUTCHours(),
+      base.getUTCMinutes(),
+      base.getUTCSeconds(),
+      base.getUTCMilliseconds(),
+    ),
+  );
+}
+
+export function advanceDueDate(base: Date, recurrence: PrismaRecurrencePattern): Date {
   switch (recurrence) {
     case PrismaRecurrencePattern.DAILY:
-      return addDays(base, 1);
+      return addUtcCalendarTime(base, { days: 1 });
     case PrismaRecurrencePattern.WEEKLY:
-      return addWeeks(base, 1);
+      return addUtcCalendarTime(base, { days: 7 });
+    case PrismaRecurrencePattern.BI_WEEKLY:
+      return addUtcCalendarTime(base, { days: 14 });
     case PrismaRecurrencePattern.MONTHLY:
-      return addMonths(base, 1);
+      return addUtcCalendarTime(base, { months: 1 });
     case PrismaRecurrencePattern.SEMI_ANNUALLY:
-      return addMonths(base, 6);
+      return addUtcCalendarTime(base, { months: 6 });
     case PrismaRecurrencePattern.ANNUALLY:
-      return addYears(base, 1);
+      return addUtcCalendarTime(base, { years: 1 });
     default:
       return base;
   }
-}
-
-async function spawnNextRecurrence(
-  tx: DbClient,
-  source: {
-    boardId: string;
-    title: string;
-    description: string | null;
-    priority: PrismaItemPriority;
-    status: PrismaTaskStatus;
-    recurrence: PrismaRecurrencePattern;
-    dueDate: Date | null;
-    subtaskTitles: string[];
-  },
-  completedAt: Date,
-): Promise<void> {
-  if (source.recurrence === PrismaRecurrencePattern.NONE) {
-    return;
-  }
-
-  const sortOrder = await nextSortOrderForStatus(
-    tx,
-    source.boardId,
-    PrismaTaskStatus.IN_PROGRESS,
-  );
-  const nextDueDate = advanceDueDate(source.dueDate ?? completedAt, source.recurrence);
-  // Hide the next occurrence until 3 days before it's due; a source task with no
-  // due date has nothing to hide until, so it's visible immediately.
-  const visibleAt = source.dueDate ? subDays(nextDueDate, 3) : null;
-
-  await tx.task.create({
-    data: {
-      id: randomUUID(),
-      boardId: source.boardId,
-      title: source.title,
-      description: source.description,
-      status: PrismaTaskStatus.IN_PROGRESS,
-      priority: source.priority,
-      recurrence: source.recurrence,
-      sortOrder,
-      dueDate: nextDueDate,
-      visibleAt,
-      completedAt: null,
-      archivedAt: null,
-      subtasks: {
-        create: source.subtaskTitles.map((title, index) => ({
-          id: randomUUID(),
-          title,
-          isComplete: false,
-          sortOrder: index,
-        })),
-      },
-    },
-  });
 }
 
 function statusDates(status: TaskStatus, existing?: { completedAt: Date | null; archivedAt: Date | null }) {
@@ -841,23 +812,6 @@ export async function markTaskDoneForUser(userId: string, taskId: string) {
         },
       });
 
-      if (!wasDone && task.recurrence !== PrismaRecurrencePattern.NONE) {
-        await spawnNextRecurrence(
-          tx,
-          {
-            boardId: task.boardId,
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-            status: task.status,
-            recurrence: task.recurrence,
-            dueDate: task.dueDate,
-            subtaskTitles: task.subtasks.map((subtask) => subtask.title),
-          },
-          completedAt ?? new Date(),
-        );
-      }
-
       return updatedTask;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -980,7 +934,6 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
       }
 
       const nextStatus = input.status as PrismaTaskStatus;
-      const wasDone = task.status === PrismaTaskStatus.DONE;
       const sortOrder =
         task.status === nextStatus
           ? task.sortOrder
@@ -1040,27 +993,6 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
         },
         include: taskInclude,
       });
-
-      if (
-        !wasDone &&
-        nextStatus === PrismaTaskStatus.DONE &&
-        (input.recurrence as PrismaRecurrencePattern) !== PrismaRecurrencePattern.NONE
-      ) {
-        await spawnNextRecurrence(
-          tx,
-          {
-            boardId: task.boardId,
-            title: input.title,
-            description: input.description,
-            priority: input.priority as PrismaItemPriority,
-            status: task.status,
-            recurrence: input.recurrence as PrismaRecurrencePattern,
-            dueDate: parseDueDate(input.dueDate),
-            subtaskTitles: input.subtasks.map((subtask) => subtask.title),
-          },
-          completedAt ?? new Date(),
-        );
-      }
 
       return serializeTask(updatedTask);
     },

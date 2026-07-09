@@ -297,7 +297,7 @@ type ExternalBoardResponse = {
       dueDate: string | null;
       completedAt: string | null;
       archivedAt: string | null;
-      recurrence: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY" | "SEMI_ANNUALLY" | "ANNUALLY";
+      recurrence: "NONE" | "DAILY" | "WEEKLY" | "BI_WEEKLY" | "MONTHLY" | "SEMI_ANNUALLY" | "ANNUALLY";
       subtasks: Array<{
         id: string;
         title: string;
