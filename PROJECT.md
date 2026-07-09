@@ -153,10 +153,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#129** | TypeScript 5 -> 6 (D3) | `#129` | Bumped the dev-only TypeScript compiler range from `^5` to `^6.0.3` and refreshed the npm lockfile; `typescript-eslint` 8.63.0 remains peer-compatible with TypeScript 6.0.3 (`>=4.8.4 <6.1.0`). Audit, lint, typecheck, build, DB suite (32 files / 270 tests), and smoke (5 tests) are green. Deferred per Q6: Prisma 7 and `@types/node 26`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. |
 | **#130** | Prisma 6 -> 7 (D4) | `#130` | Migrated Prisma to `7.8.0` with the `prisma-client` generator at `src/generated/prisma`, removed the schema datasource URL in favor of `prisma.config.ts`, added the `@prisma/adapter-pg` driver adapter, swept imports to the generated client, and overrode `@hono/node-server` to patched `1.19.13` while Prisma's dev server dependency catches up. Audit, lint, typecheck, build, DB suite (32 files / 270 tests), smoke (5 tests), and local seed are green. Deferred per Q6: `@types/node 26`; `@modelcontextprotocol/sdk` stays held at `1.26.0` for `mcp-handler`. |
 | **#131** | Recurrence R1 — bi-weekly cadence + remove on-complete spawn | `#131` | Adds `BI_WEEKLY` (`Every 2 weeks`) across Prisma, domain constants, README, and generated OpenAPI; exports `advanceDueDate` with UTC calendar arithmetic for R2 reuse. Deletes the buggy `spawnNextRecurrence` behavior shipped in `#77` and revised in `#97`, so completing a recurring task no longer creates a second row anchored to a stale due date. The `visibleAt` read-path infra remains, but its write path is dormant until the separate R2 nightly rollover cron. Audit, lint, typecheck, build, DB suite (32 files / 269 tests), and smoke (5 tests) are green. |
+| **#132** | Recurrence R2 — nightly rollover cron | `#132` | Adds a Vercel Cron schedule plus `/api/cron/recurring-tasks`, authenticated with `CRON_SECRET`, that finds recurring tasks whose full interval has elapsed via `advanceDueDate(dueDate, recurrence) <= today` and resets them in place to due-today `IN_PROGRESS` with cleared completion/archive timestamps and incomplete subtasks. System maintenance scope across all users/boards per Q9; no schema or external API changes. Completes the recurrence epic (`#131` + `#132`). Audit, lint, typecheck, build, DB suite (33 files / 282 tests), and smoke (5 tests) are green. |
 
 ### Active phase
 
-R1 (bi-weekly + spawn removal) ships in `#131`. R2 (nightly recurrence rollover cron) is next — do not start it until R1 merges.
+No active phase.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -392,6 +393,14 @@ Rules for this model:
 - **Hard-fail** any **write** tool that does not require a write-scoped token, or any tool that exposes an ADMIN-only operation / grants ADMIN.
 - **Hard-fail** an MCP endpoint outside `/api/external/v{N}/`, adding CORS to it, or allowing anonymous (token-less) tool calls.
 - **Warn** if a new tool lacks a per-user-isolation test.
+
+### Q9. How are background/cron endpoints authenticated and scoped?
+
+**Answer: Background/cron endpoints are secret-bearer-authenticated system endpoints.** Routes such as `/api/cron/recurring-tasks` use `CRON_SECRET` via `Authorization: Bearer <CRON_SECRET>` and operate as system maintenance across all users and boards. They are not user-session routes and are distinct from the per-user external API token model in Q7.
+
+**Verifier behavior:**
+- **Hard-fail** any background/cron endpoint that uses user-session auth, per-user API tokens, or the legacy `EXTERNAL_API_KEY` in place of a dedicated system secret.
+- **Hard-fail** treating system maintenance work as per-user scoped unless the PR explicitly changes this governance rule.
 
 ---
 
