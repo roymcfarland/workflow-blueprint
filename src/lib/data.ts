@@ -474,6 +474,61 @@ export function advanceDueDate(base: Date, recurrence: PrismaRecurrencePattern):
   }
 }
 
+function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+export async function rolloverDueRecurringTasks(referenceDate: Date = new Date()) {
+  const today = startOfUtcDay(referenceDate);
+
+  return prisma.$transaction(async (tx) => {
+    const candidates = await tx.task.findMany({
+      where: {
+        dueDate: { not: null },
+        recurrence: { not: PrismaRecurrencePattern.NONE },
+      },
+      select: {
+        boardId: true,
+        dueDate: true,
+        id: true,
+        recurrence: true,
+        sortOrder: true,
+        status: true,
+      },
+    });
+
+    const due = candidates.filter(
+      (task) => task.dueDate !== null && advanceDueDate(task.dueDate, task.recurrence) <= today,
+    );
+
+    for (const task of due) {
+      const sortOrder =
+        task.status === PrismaTaskStatus.IN_PROGRESS
+          ? task.sortOrder
+          : await nextSortOrderForStatus(tx, task.boardId, PrismaTaskStatus.IN_PROGRESS);
+
+      await tx.task.update({
+        data: {
+          archivedAt: null,
+          completedAt: null,
+          dueDate: today,
+          sortOrder,
+          status: PrismaTaskStatus.IN_PROGRESS,
+          visibleAt: null,
+        },
+        where: { id: task.id },
+      });
+
+      await tx.subtask.updateMany({
+        data: { isComplete: false },
+        where: { taskId: task.id },
+      });
+    }
+
+    return { rolledOverTaskIds: due.map((task) => task.id) };
+  });
+}
+
 function statusDates(status: TaskStatus, existing?: { completedAt: Date | null; archivedAt: Date | null }) {
   const now = new Date();
 

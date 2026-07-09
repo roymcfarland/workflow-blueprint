@@ -41,6 +41,7 @@ import {
   purgeExpiredDemoUsers,
   reorderDashboardInProgressForUser,
   reorderTasksForUser,
+  rolloverDueRecurringTasks,
   updateBoardForUser,
   updateChecklistItemForUser,
   revokeApiToken,
@@ -172,6 +173,62 @@ function createDataTask({
   });
 }
 
+const rolloverReferenceDate = new Date("2026-07-08T00:00:00.000Z");
+
+function utcDate(date: string) {
+  return new Date(`${date}T00:00:00.000Z`);
+}
+
+function createRolloverTask({
+  archivedAt = null,
+  boardId,
+  completedAt = null,
+  dueDate,
+  recurrence,
+  sortOrder = 0,
+  status,
+  subtasks = [],
+  title = "Recurring task",
+  visibleAt = null,
+}: {
+  archivedAt?: Date | null;
+  boardId: string;
+  completedAt?: Date | null;
+  dueDate: Date | null;
+  recurrence: PrismaRecurrencePattern;
+  sortOrder?: number;
+  status: PrismaTaskStatus;
+  subtasks?: Array<{ isComplete: boolean; title: string }>;
+  title?: string;
+  visibleAt?: Date | null;
+}) {
+  return prisma.task.create({
+    data: {
+      archivedAt,
+      boardId,
+      completedAt,
+      description: null,
+      dueDate,
+      id: randomUUID(),
+      priority: PrismaItemPriority.NONE,
+      recurrence,
+      sortOrder,
+      status,
+      title,
+      visibleAt,
+      subtasks: {
+        create: subtasks.map((subtask, index) => ({
+          id: randomUUID(),
+          isComplete: subtask.isComplete,
+          sortOrder: index,
+          title: subtask.title,
+        })),
+      },
+    },
+    include: taskSubtasksInclude,
+  });
+}
+
 describe("src/lib/data.ts", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -273,6 +330,276 @@ describe("src/lib/data.ts", () => {
     expect(advanceDueDate(base, PrismaRecurrencePattern.MONTHLY).toISOString()).toBe("2026-02-01T00:00:00.000Z");
     expect(advanceDueDate(base, PrismaRecurrencePattern.SEMI_ANNUALLY).toISOString()).toBe("2026-07-01T00:00:00.000Z");
     expect(advanceDueDate(base, PrismaRecurrencePattern.ANNUALLY).toISOString()).toBe("2027-01-01T00:00:00.000Z");
+  });
+
+  test("rolls over a stale daily in-progress recurring task", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      boardId: board.id,
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.DAILY,
+      sortOrder: 3,
+      status: PrismaTaskStatus.IN_PROGRESS,
+    });
+
+    const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(result.rolledOverTaskIds).toEqual([task.id]);
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { dueDate: true, sortOrder: true, status: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({
+      dueDate: rolloverReferenceDate,
+      sortOrder: 3,
+      status: PrismaTaskStatus.IN_PROGRESS,
+    });
+  });
+
+  test("revives a completed weekly recurring task when its cycle has elapsed", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      boardId: board.id,
+      completedAt: utcDate("2026-07-02"),
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.WEEKLY,
+      status: PrismaTaskStatus.DONE,
+    });
+
+    const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(result.rolledOverTaskIds).toEqual([task.id]);
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { completedAt: true, dueDate: true, status: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({
+      completedAt: null,
+      dueDate: rolloverReferenceDate,
+      status: PrismaTaskStatus.IN_PROGRESS,
+    });
+  });
+
+  test("revives an archived monthly recurring task when its cycle has elapsed", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      archivedAt: utcDate("2026-05-09"),
+      boardId: board.id,
+      dueDate: utcDate("2026-05-08"),
+      recurrence: PrismaRecurrencePattern.MONTHLY,
+      status: PrismaTaskStatus.ARCHIVED,
+    });
+
+    const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(result.rolledOverTaskIds).toEqual([task.id]);
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { archivedAt: true, dueDate: true, status: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({
+      archivedAt: null,
+      dueDate: rolloverReferenceDate,
+      status: PrismaTaskStatus.IN_PROGRESS,
+    });
+  });
+
+  test("leaves a monthly recurring task untouched until the next monthly cycle is due", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      completedAt: utcDate("2026-07-01"),
+      boardId: board.id,
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.MONTHLY,
+      status: PrismaTaskStatus.DONE,
+    });
+
+    const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(result.rolledOverTaskIds).toEqual([]);
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { dueDate: true, status: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({
+      dueDate: utcDate("2026-07-01"),
+      status: PrismaTaskStatus.DONE,
+    });
+  });
+
+  test("leaves non-recurring stale tasks untouched", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      completedAt: utcDate("2026-01-02"),
+      boardId: board.id,
+      dueDate: utcDate("2026-01-01"),
+      recurrence: PrismaRecurrencePattern.NONE,
+      status: PrismaTaskStatus.DONE,
+    });
+
+    const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(result.rolledOverTaskIds).toEqual([]);
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { completedAt: true, dueDate: true, status: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({
+      completedAt: utcDate("2026-01-02"),
+      dueDate: utcDate("2026-01-01"),
+      status: PrismaTaskStatus.DONE,
+    });
+  });
+
+  test("leaves recurring tasks without a due date untouched", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      boardId: board.id,
+      dueDate: null,
+      recurrence: PrismaRecurrencePattern.DAILY,
+      status: PrismaTaskStatus.DONE,
+    });
+
+    const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(result.rolledOverTaskIds).toEqual([]);
+    await expect(
+      prisma.task.findUniqueOrThrow({
+        select: { dueDate: true, status: true },
+        where: { id: task.id },
+      }),
+    ).resolves.toEqual({
+      dueDate: null,
+      status: PrismaTaskStatus.DONE,
+    });
+  });
+
+  test("resets all subtasks for rolled-over recurring tasks", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      boardId: board.id,
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.DAILY,
+      status: PrismaTaskStatus.DONE,
+      subtasks: [
+        { isComplete: true, title: "Already complete" },
+        { isComplete: false, title: "Still open" },
+      ],
+    });
+
+    await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    await expect(
+      prisma.subtask.findMany({
+        orderBy: { sortOrder: "asc" },
+        select: { isComplete: true },
+        where: { taskId: task.id },
+      }),
+    ).resolves.toEqual([{ isComplete: false }, { isComplete: false }]);
+  });
+
+  test("appends rolled-over tasks to the in-progress sort order without collisions", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    await createRolloverTask({
+      boardId: board.id,
+      dueDate: null,
+      recurrence: PrismaRecurrencePattern.NONE,
+      sortOrder: 4,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Existing in progress",
+    });
+    const first = await createRolloverTask({
+      boardId: board.id,
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.DAILY,
+      sortOrder: 0,
+      status: PrismaTaskStatus.DONE,
+      title: "First due task",
+    });
+    const second = await createRolloverTask({
+      archivedAt: utcDate("2026-07-02"),
+      boardId: board.id,
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.DAILY,
+      sortOrder: 1,
+      status: PrismaTaskStatus.ARCHIVED,
+      title: "Second due task",
+    });
+
+    await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    const updated = await prisma.task.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, sortOrder: true, status: true },
+      where: { id: { in: [first.id, second.id] } },
+    });
+
+    expect(updated.map((task) => task.status)).toEqual([
+      PrismaTaskStatus.IN_PROGRESS,
+      PrismaTaskStatus.IN_PROGRESS,
+    ]);
+    expect(updated.map((task) => task.sortOrder)).toEqual([5, 6]);
+  });
+
+  test("rolloverDueRecurringTasks is idempotent for the same reference date", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const task = await createRolloverTask({
+      boardId: board.id,
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.DAILY,
+      status: PrismaTaskStatus.DONE,
+    });
+
+    const first = await rolloverDueRecurringTasks(rolloverReferenceDate);
+    const second = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(first.rolledOverTaskIds).toEqual([task.id]);
+    expect(second.rolledOverTaskIds).toEqual([]);
+  });
+
+  test("rolls over due recurring tasks across users and boards", async () => {
+    const firstUser = await createTestUser({ email: "first@example.test" });
+    const firstBoard = await createTestBoard(firstUser.id);
+    const secondUser = await createTestUser({ email: "second@example.test" });
+    const secondBoard = await createTestBoard(secondUser.id);
+    const firstTask = await createRolloverTask({
+      boardId: firstBoard.id,
+      dueDate: utcDate("2026-07-01"),
+      recurrence: PrismaRecurrencePattern.DAILY,
+      status: PrismaTaskStatus.DONE,
+    });
+    const secondTask = await createRolloverTask({
+      boardId: secondBoard.id,
+      dueDate: utcDate("2026-06-24"),
+      recurrence: PrismaRecurrencePattern.WEEKLY,
+      status: PrismaTaskStatus.ARCHIVED,
+    });
+
+    const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
+
+    expect(new Set(result.rolledOverTaskIds)).toEqual(new Set([firstTask.id, secondTask.id]));
+    await expect(
+      prisma.task.count({
+        where: {
+          id: { in: [firstTask.id, secondTask.id] },
+          status: PrismaTaskStatus.IN_PROGRESS,
+        },
+      }),
+    ).resolves.toBe(2);
   });
 
   test("updates task recurrence", async () => {

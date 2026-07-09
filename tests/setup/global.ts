@@ -91,6 +91,7 @@ export default async function setup() {
     databaseCreated = true;
     process.env.DATABASE_URL = testDatabaseUrl;
     process.env.AUTH_SECRET ??= "workflow-blueprint-test-auth-secret";
+    process.env.CRON_SECRET ??= "test-cron-secret";
     process.env.EXTERNAL_API_KEY ??= "test-external-api-key";
     process.env.EXTERNAL_USER_ID ??= "user_demo_alex_blue";
     process.env.NEXT_PUBLIC_SITE_URL ??= "http://127.0.0.1:3000";
@@ -100,6 +101,7 @@ export default async function setup() {
       envFilePath,
       JSON.stringify({
         AUTH_SECRET: process.env.AUTH_SECRET,
+        CRON_SECRET: process.env.CRON_SECRET,
         DATABASE_URL: testDatabaseUrl,
         EXTERNAL_API_KEY: process.env.EXTERNAL_API_KEY,
         EXTERNAL_USER_ID: process.env.EXTERNAL_USER_ID,
