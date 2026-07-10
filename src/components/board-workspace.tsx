@@ -2399,6 +2399,7 @@ function TaskDetailModal({
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete task.");
+    } finally {
       setSaving(false);
     }
   };
