@@ -4,7 +4,26 @@ import Link from "next/link";
 import type { UserRole } from "@/generated/prisma/client";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ChevronDown,
+  GripVertical,
   KeyRound,
   LogOut,
   Menu,
@@ -69,6 +88,8 @@ type BoardAccentStyle = CSSProperties & {
   "--board-accent"?: string;
 };
 
+type BoardSidebarNavItem = Extract<SidebarNavItem, { kind: "board" }> & { slug: string };
+
 function readStoredSidebarCollapsed() {
   if (typeof window === "undefined") {
     return false;
@@ -125,6 +146,94 @@ function getNavItemStyle(item: SidebarNavItem, isActive: boolean): BoardAccentSt
   };
 }
 
+function SidebarNavigationLink({
+  item,
+  isActive,
+  navLinkClassName,
+  onNavigate,
+  showFullSidebarContent,
+}: {
+  item: SidebarNavItem;
+  isActive: boolean;
+  navLinkClassName: string;
+  onNavigate: () => void;
+  showFullSidebarContent: boolean;
+}) {
+  const navItemStyle = getNavItemStyle(item, isActive);
+
+  return (
+    <Link
+      aria-label={item.label}
+      className={cn(
+        navLinkClassName,
+        isActive && item.kind === "dashboard" && "blueprint-fill border-brand text-white",
+        isActive && item.kind === "board" && "blueprint-hatch text-white",
+        !isActive && "border-transparent text-text-primary hover:bg-surface-control-hover",
+      )}
+      href={item.href}
+      onClick={onNavigate}
+      style={navItemStyle}
+    >
+      <BoardIcon
+        className={cn(
+          "h-5 w-5 shrink-0",
+          item.kind === "board" && !isActive && "text-[var(--board-accent)]",
+        )}
+        iconKey={item.iconKey}
+      />
+      {showFullSidebarContent ? <span className="truncate">{item.label}</span> : null}
+    </Link>
+  );
+}
+
+function SortableBoardNavigationLink({
+  item,
+  isActive,
+  navLinkClassName,
+  onNavigate,
+}: {
+  item: BoardSidebarNavItem;
+  isActive: boolean;
+  navLinkClassName: string;
+  onNavigate: () => void;
+}) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: item.slug });
+
+  return (
+    <div
+      className={cn("relative", isDragging && "opacity-60")}
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <SidebarNavigationLink
+        isActive={isActive}
+        item={item}
+        navLinkClassName={cn(navLinkClassName, "pr-9")}
+        onNavigate={onNavigate}
+        showFullSidebarContent
+      />
+      <button
+        aria-label={`Reorder ${item.label}`}
+        className="absolute right-2.5 top-1/2 z-10 -translate-y-1/2 cursor-grab text-text-muted transition hover:text-text-primary active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+        ref={setActivatorNodeRef}
+        type="button"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 export function AppShell({ boards, children, user }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -134,18 +243,25 @@ export function AppShell({ boards, children, user }: AppShellProps) {
   const [sidebarTransitionsEnabled, setSidebarTransitionsEnabled] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(user.themePreference);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [boardOrder, setBoardOrder] = useState(boards);
+  const [boardReorderError, setBoardReorderError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const isAdmin = user.role === "ADMIN";
-  const navItems: SidebarNavItem[] = [
-    { href: "/dashboard", iconKey: "dashboard", kind: "dashboard", label: "Dashboard" },
-    ...boards.map((board) => ({
-      accentColor: board.accentColor ?? getBoardAccentColor(board.slug),
-      href: `/boards/${board.slug}`,
-      iconKey: board.iconKey,
-      kind: "board" as const,
-      label: board.name,
-    })),
-  ];
+  const boardSlugSignature = boards.map((board) => board.slug).join("|");
+  const dashboardNavItem: SidebarNavItem = {
+    href: "/dashboard",
+    iconKey: "dashboard",
+    kind: "dashboard",
+    label: "Dashboard",
+  };
+  const boardNavItems: BoardSidebarNavItem[] = boardOrder.map((board) => ({
+    accentColor: board.accentColor ?? getBoardAccentColor(board.slug),
+    href: `/boards/${board.slug}`,
+    iconKey: board.iconKey,
+    kind: "board",
+    label: board.name,
+    slug: board.slug,
+  }));
   const sidebarExpanded = !collapsed;
   const showFullSidebarContent = sidebarExpanded || mobileOpen;
   const sidebarWidthClass = sidebarExpanded ? "lg:w-[15.5rem]" : "lg:w-14";
@@ -156,6 +272,25 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     "flex h-10 items-center gap-3 rounded-lg border px-2.5 py-2 text-sm font-semibold transition",
     sidebarExpanded ? "lg:justify-start" : "lg:justify-center lg:px-0",
   );
+  const boardReorderSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    queueMicrotask(() => {
+      if (mounted) {
+        setBoardOrder(boards);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [boardSlugSignature, boards]);
 
   useEffect(() => {
     let mounted = true;
@@ -234,6 +369,46 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     });
   };
 
+  async function persistBoardOrder(next: BoardNavItem[]) {
+    const previous = boardOrder;
+    setBoardOrder(next);
+    setBoardReorderError(null);
+
+    try {
+      const response = await fetch("/api/boards/reorder", {
+        body: JSON.stringify({ boardSlugs: next.map((board) => board.slug) }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to save the new order.");
+      }
+    } catch (error) {
+      setBoardOrder(previous);
+      setBoardReorderError(
+        error instanceof Error ? error.message : "Unable to save the new order.",
+      );
+    }
+  }
+
+  function handleBoardDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = boardNavItems.findIndex((item) => item.slug === active.id);
+    const newIndex = boardNavItems.findIndex((item) => item.slug === over.id);
+
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+
+    void persistBoardOrder(arrayMove(boardOrder, oldIndex, newIndex));
+  }
+
   const Sidebar = (
     <aside
       aria-label="Primary navigation"
@@ -306,37 +481,50 @@ export function AppShell({ boards, children, user }: AppShellProps) {
         </div>
 
         <nav aria-label="Workspace" className="space-y-1 pt-3">
-          {navItems.map((item) => {
-            const isActive = isActiveNavItem(pathname, item);
-            const navItemStyle = getNavItemStyle(item, isActive);
-
-            return (
-              <Link
-                aria-label={item.label}
-                key={item.href}
-                className={cn(
-                  navLinkClassName,
-                  isActive &&
-                    item.kind === "dashboard" &&
-                    "blueprint-fill border-brand text-white",
-                  isActive && item.kind === "board" && "blueprint-hatch text-white",
-                  !isActive && "border-transparent text-text-primary hover:bg-surface-control-hover",
-                )}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                style={navItemStyle}
+          <SidebarNavigationLink
+            isActive={isActiveNavItem(pathname, dashboardNavItem)}
+            item={dashboardNavItem}
+            navLinkClassName={navLinkClassName}
+            onNavigate={() => setMobileOpen(false)}
+            showFullSidebarContent={showFullSidebarContent}
+          />
+          {showFullSidebarContent ? (
+            <DndContext
+              collisionDetection={closestCenter}
+              id="sidebar-boards"
+              onDragEnd={handleBoardDragEnd}
+              sensors={boardReorderSensors}
+            >
+              <SortableContext
+                items={boardNavItems.map((item) => item.slug)}
+                strategy={verticalListSortingStrategy}
               >
-                <BoardIcon
-                  className={cn(
-                    "h-5 w-5 shrink-0",
-                    item.kind === "board" && !isActive && "text-[var(--board-accent)]",
-                  )}
-                  iconKey={item.iconKey}
-                />
-                {showFullSidebarContent ? <span className="truncate">{item.label}</span> : null}
-              </Link>
-            );
-          })}
+                <div className="space-y-1">
+                  {boardNavItems.map((item) => (
+                    <SortableBoardNavigationLink
+                      isActive={isActiveNavItem(pathname, item)}
+                      item={item}
+                      key={item.href}
+                      navLinkClassName={navLinkClassName}
+                      onNavigate={() => setMobileOpen(false)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            boardNavItems.map((item) => (
+              <SidebarNavigationLink
+                isActive={isActiveNavItem(pathname, item)}
+                item={item}
+                key={item.href}
+                navLinkClassName={navLinkClassName}
+                onNavigate={() => setMobileOpen(false)}
+                showFullSidebarContent={false}
+              />
+            ))
+          )}
+          {boardReorderError ? <p className="text-sm text-danger">{boardReorderError}</p> : null}
         </nav>
 
         {showFullSidebarContent ? (

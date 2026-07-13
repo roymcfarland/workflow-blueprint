@@ -297,6 +297,26 @@ export const dashboardReorderSchema = z
     });
   });
 
+export const boardReorderSchema = z
+  .object({
+    boardSlugs: z.array(z.string().trim().min(1)).min(1).max(100),
+  })
+  .superRefine((value, context) => {
+    const seen = new Set<string>();
+
+    value.boardSlugs.forEach((slug, index) => {
+      if (seen.has(slug)) {
+        context.addIssue({
+          code: "custom",
+          message: "Reorder payload contains duplicate board slugs.",
+          path: ["boardSlugs", index],
+        });
+      }
+
+      seen.add(slug);
+    });
+  });
+
 export const noteSchema = z.object({
   content: z
     .string()
@@ -393,6 +413,7 @@ export type AdminApiTokenInput = z.infer<typeof adminApiTokenSchema>;
 export type TaskInput = z.infer<typeof taskInputSchema>;
 export type TaskReorderInput = z.infer<typeof taskReorderSchema>;
 export type DashboardReorderInput = z.infer<typeof dashboardReorderSchema>;
+export type BoardReorderInput = z.infer<typeof boardReorderSchema>;
 export type SubtaskCreateInput = z.infer<typeof subtaskCreateSchema>;
 export type SubtaskUpdateInput = z.infer<typeof subtaskUpdateSchema>;
 export type SubtaskReorderInput = z.infer<typeof subtaskReorderSchema>;
