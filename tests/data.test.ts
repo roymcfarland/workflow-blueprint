@@ -1604,6 +1604,25 @@ describe("src/lib/data.ts", () => {
     ]);
   });
 
+  test("ignores duplicate slugs and assigns a contiguous order", async () => {
+    const user = await createTestUser();
+    const [firstBoard, secondBoard] = boardRows(user.id, 2);
+    await prisma.board.createMany({ data: [firstBoard, secondBoard] });
+
+    await reorderBoardsForUser(user.id, [secondBoard.slug, firstBoard.slug, secondBoard.slug]);
+
+    const boards = await prisma.board.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { slug: true, sortOrder: true },
+      where: { userId: user.id },
+    });
+
+    expect(boards).toEqual([
+      { slug: secondBoard.slug, sortOrder: 0 },
+      { slug: firstBoard.slug, sortOrder: 1 },
+    ]);
+  });
+
   test("rejects reordering boards for another user or an unknown slug", async () => {
     const owner = await createTestUser({ email: "owner-boards@example.test" });
     const otherUser = await createTestUser({ email: "other-boards@example.test" });

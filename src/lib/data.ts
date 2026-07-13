@@ -1898,9 +1898,9 @@ export async function reorderBoardsForUser(userId: string, boardSlugs: string[])
         throw new Error("One or more boards could not be found.");
       }
 
-      for (let index = 0; index < boardSlugs.length; index += 1) {
+      for (let index = 0; index < uniqueSlugs.length; index += 1) {
         await tx.board.update({
-          where: { userId_slug: { userId, slug: boardSlugs[index] } },
+          where: { userId_slug: { userId, slug: uniqueSlugs[index] } },
           data: { sortOrder: index },
         });
       }
