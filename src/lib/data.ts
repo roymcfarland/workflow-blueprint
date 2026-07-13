@@ -807,10 +807,10 @@ export async function reorderDashboardInProgressForUser(userId: string, taskIds:
         throw new Error("One or more tasks could not be found.");
       }
 
-      for (let index = 0; index < taskIds.length; index += 1) {
+      for (let index = 0; index < uniqueIds.length; index += 1) {
         await tx.task.update({
           where: {
-            id: taskIds[index],
+            id: uniqueIds[index],
             board: {
               userId,
             },

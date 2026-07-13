@@ -1548,6 +1548,53 @@ describe("src/lib/data.ts", () => {
     });
   });
 
+  test("ignores duplicate task ids when reordering dashboard in-progress tasks", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const firstTaskId = randomUUID();
+    const secondTaskId = randomUUID();
+
+    await createDataTask({
+      boardId: board.id,
+      id: firstTaskId,
+      sortOrder: 1,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "First task",
+    });
+    await createDataTask({
+      boardId: board.id,
+      id: secondTaskId,
+      sortOrder: 2,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Second task",
+    });
+
+    await reorderDashboardInProgressForUser(user.id, [
+      secondTaskId,
+      firstTaskId,
+      secondTaskId,
+    ]);
+
+    const tasks = await prisma.task.findMany({
+      select: {
+        dashboardSortOrder: true,
+        id: true,
+      },
+      where: {
+        id: {
+          in: [firstTaskId, secondTaskId],
+        },
+      },
+    });
+
+    expect(new Map(tasks.map((task) => [task.id, task]))).toEqual(
+      new Map([
+        [firstTaskId, { dashboardSortOrder: 1, id: firstTaskId }],
+        [secondTaskId, { dashboardSortOrder: 0, id: secondTaskId }],
+      ]),
+    );
+  });
+
   test("rejects dashboard reordering for another user or non-in-progress tasks", async () => {
     const owner = await createTestUser({ email: "owner-dashboard@example.test" });
     const otherUser = await createTestUser({ email: "other-dashboard@example.test" });
