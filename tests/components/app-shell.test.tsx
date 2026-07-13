@@ -43,6 +43,7 @@ vi.mock("@/components/providers/theme-provider", () => ({
 
 const boards: BoardNavItem[] = [
   { iconKey: "briefcase", name: "Launch Plan", slug: "launch-plan" },
+  { iconKey: "calendar", name: "Release Plan", slug: "release-plan" },
 ];
 
 const user = {
@@ -153,6 +154,31 @@ describe("AppShell collapsible sidebar", () => {
 
     expectWordmarkVisible();
     expect(screen.getByRole("button", { name: "Close navigation overlay" })).toBeDefined();
+  });
+});
+
+describe("AppShell board reordering", () => {
+  test("shows reorder controls while expanded and removes them when collapsed", () => {
+    renderShell();
+
+    expect(screen.getByRole("button", { name: "Reorder Launch Plan" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Reorder Release Plan" })).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    expect(screen.queryByRole("button", { name: "Reorder Launch Plan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reorder Release Plan" })).toBeNull();
+  });
+
+  test("keeps board links pointed at their boards", () => {
+    renderShell();
+
+    expect(screen.getByRole("link", { name: "Launch Plan" }).getAttribute("href")).toBe(
+      "/boards/launch-plan",
+    );
+    expect(screen.getByRole("link", { name: "Release Plan" }).getAttribute("href")).toBe(
+      "/boards/release-plan",
+    );
   });
 });
 

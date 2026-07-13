@@ -39,6 +39,7 @@ import {
   MAX_TASKS_PER_BOARD,
   provisionDemoUser,
   purgeExpiredDemoUsers,
+  reorderBoardsForUser,
   reorderDashboardInProgressForUser,
   reorderTasksForUser,
   rolloverDueRecurringTasks,
@@ -1581,6 +1582,49 @@ describe("src/lib/data.ts", () => {
         where: { id: ownerTaskId },
       }),
     ).resolves.toEqual({ dashboardSortOrder: null });
+  });
+
+  test("reorders boards for a user by slug", async () => {
+    const user = await createTestUser();
+    const [firstBoard, secondBoard, thirdBoard] = boardRows(user.id, 3);
+    await prisma.board.createMany({ data: [firstBoard, secondBoard, thirdBoard] });
+
+    await reorderBoardsForUser(user.id, [thirdBoard.slug, firstBoard.slug, secondBoard.slug]);
+
+    const boards = await prisma.board.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { slug: true, sortOrder: true },
+      where: { userId: user.id },
+    });
+
+    expect(boards).toEqual([
+      { slug: thirdBoard.slug, sortOrder: 0 },
+      { slug: firstBoard.slug, sortOrder: 1 },
+      { slug: secondBoard.slug, sortOrder: 2 },
+    ]);
+  });
+
+  test("rejects reordering boards for another user or an unknown slug", async () => {
+    const owner = await createTestUser({ email: "owner-boards@example.test" });
+    const otherUser = await createTestUser({ email: "other-boards@example.test" });
+    const [ownerBoard] = boardRows(owner.id, 1);
+    const [otherBoard] = boardRows(otherUser.id, 1);
+    otherBoard.slug = "other-user-board";
+    await prisma.board.createMany({ data: [ownerBoard, otherBoard] });
+
+    await expect(reorderBoardsForUser(owner.id, [otherBoard.slug])).rejects.toThrow(
+      "One or more boards could not be found.",
+    );
+    await expect(
+      reorderBoardsForUser(owner.id, [ownerBoard.slug, "not-a-real-slug"]),
+    ).rejects.toThrow("One or more boards could not be found.");
+
+    await expect(
+      prisma.board.findUniqueOrThrow({
+        select: { sortOrder: true },
+        where: { id: ownerBoard.id },
+      }),
+    ).resolves.toEqual({ sortOrder: ownerBoard.sortOrder });
   });
 
   test("marks a task done at the end of its board done column", async () => {

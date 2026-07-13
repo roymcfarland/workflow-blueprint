@@ -1881,6 +1881,34 @@ function avatarLabelFor(name: string, email: string) {
   return initials || email[0]?.toUpperCase() || null;
 }
 
+export async function reorderBoardsForUser(userId: string, boardSlugs: string[]) {
+  const uniqueSlugs = [...new Set(boardSlugs)];
+
+  await prisma.$transaction(
+    async (tx) => {
+      const boards = await tx.board.findMany({
+        where: {
+          slug: { in: uniqueSlugs },
+          userId,
+        },
+        select: { id: true },
+      });
+
+      if (boards.length !== uniqueSlugs.length) {
+        throw new Error("One or more boards could not be found.");
+      }
+
+      for (let index = 0; index < boardSlugs.length; index += 1) {
+        await tx.board.update({
+          where: { userId_slug: { userId, slug: boardSlugs[index] } },
+          data: { sortOrder: index },
+        });
+      }
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
 export async function createBoardForUser(userId: string, input: CreateBoardInput) {
   const slug = slugify(input.name);
 
