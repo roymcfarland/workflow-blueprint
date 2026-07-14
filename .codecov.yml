@@ -1,0 +1,21 @@
+comment:
+  layout: "header, diff, flags, components"
+
+component_management:
+  individual_components:
+    - component_id: lib
+      name: "Business logic (src/lib)"
+      paths:
+        - "src/lib/**"
+    - component_id: components
+      name: "UI components (src/components)"
+      paths:
+        - "src/components/**"
+    - component_id: app
+      name: "Routes & pages (src/app)"
+      paths:
+        - "src/app/**"
+    - component_id: app_api
+      name: "API route handlers (src/app/api)"
+      paths:
+        - "src/app/api/**"

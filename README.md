@@ -1,5 +1,7 @@
 # Workflow Blueprint
 
+[![codecov](https://codecov.io/gh/roymcfarland/workflow-blueprint/branch/main/graph/badge.svg)](https://codecov.io/gh/roymcfarland/workflow-blueprint)
+
 Workflow Blueprint is an invite-gated Next.js App Router task-planning workspace — board-based tasks, subtasks, recurring work, notes, profile settings, Resend-backed transactional email, and a per-visitor demo sandbox — with a first-class **agent-access layer**: per-user scoped API tokens, a full read/write external REST API (`/api/external/v1/*`), and an in-repo **MCP server** (`/api/external/v1/mcp`) so a user's AI agents can run their own boards, tasks, and subtasks headlessly.
 
 The live deployment is at [https://www.workflowblueprint.io](https://www.workflowblueprint.io).
