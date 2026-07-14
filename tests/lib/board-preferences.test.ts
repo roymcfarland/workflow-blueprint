@@ -142,7 +142,11 @@ describe("board preferences", () => {
   });
 
   test("DASHBOARD_SECTION_ORDER_DEFAULT contains the dashboard sections in default order", () => {
-    expect(DASHBOARD_SECTION_ORDER_DEFAULT).toEqual(["snapshot", "in-progress"]);
+    expect(DASHBOARD_SECTION_ORDER_DEFAULT).toEqual([
+      "snapshot",
+      "in-progress",
+      "overdue-due-soon",
+    ]);
   });
 
   test("readDashboardSectionOrder returns null when localStorage is empty", () => {
@@ -150,9 +154,19 @@ describe("board preferences", () => {
   });
 
   test("readDashboardSectionOrder returns a written dashboard section order", () => {
-    writeDashboardSectionOrder(["in-progress", "snapshot"]);
+    writeDashboardSectionOrder(["in-progress", "snapshot", "overdue-due-soon"]);
 
-    expect(readDashboardSectionOrder()).toEqual(["in-progress", "snapshot"]);
+    expect(readDashboardSectionOrder()).toEqual([
+      "in-progress",
+      "snapshot",
+      "overdue-due-soon",
+    ]);
+  });
+
+  test("readDashboardSectionOrder falls back to the default when a stored order predates a new section", () => {
+    localStorage.setItem("wb.dashboard.section-order", JSON.stringify(["in-progress", "snapshot"]));
+
+    expect(readDashboardSectionOrder()).toBeNull();
   });
 
   test("readDashboardSectionOrder returns null for garbage dashboard section values", () => {

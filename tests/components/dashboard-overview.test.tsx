@@ -411,3 +411,104 @@ describe("DashboardOverview snapshot ring", () => {
     expect(screen.getByRole("img", { name: "0% of active work is done" })).toBeDefined();
   });
 });
+
+describe("DashboardOverview overdue and due soon panel", () => {
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    navigationMock.refresh.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  test("renders overdue tasks with a due date and an upbeat empty state for due soon", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          overdueTasks: [
+            taskSummary({
+              dueDate: "2026-01-01T00:00:00.000Z",
+              id: "task-overdue",
+              title: "Renew SSL certificate",
+            }),
+          ],
+          upcomingTasks: [],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Renew SSL certificate")).toBeDefined();
+    expect(screen.getByText("Jan 1")).toBeDefined();
+    expect(screen.getByText("Nothing due in the next 7 days.")).toBeDefined();
+  });
+
+  test("renders due-soon tasks and an upbeat empty state for overdue", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          overdueTasks: [],
+          upcomingTasks: [
+            taskSummary({
+              dueDate: "2026-07-20T00:00:00.000Z",
+              id: "task-upcoming",
+              title: "Renew domain",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Renew domain")).toBeDefined();
+    expect(screen.getByText("Nothing overdue — nice work.")).toBeDefined();
+  });
+
+  test("marks an overdue task done and removes it from the list", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          overdueTasks: [taskSummary({ id: "task-overdue", title: "Renew SSL certificate" })],
+          upcomingTasks: [],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Renew SSL certificate done" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/task-overdue/done",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText("Renew SSL certificate")).toBeNull());
+  });
+
+  test("marks a due-soon task done and removes it from the list", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          overdueTasks: [],
+          upcomingTasks: [taskSummary({ id: "task-upcoming", title: "Renew domain" })],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Renew domain done" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/task-upcoming/done",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText("Renew domain")).toBeNull());
+  });
+});
