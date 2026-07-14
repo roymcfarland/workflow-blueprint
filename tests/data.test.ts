@@ -140,6 +140,7 @@ function createDataTask({
   completedAt = null,
   visibleAt = null,
   createdAt,
+  updatedAt,
   dashboardSortOrder,
   description = null,
   id = randomUUID(),
@@ -151,6 +152,7 @@ function createDataTask({
   completedAt?: Date | null;
   visibleAt?: Date | null;
   createdAt?: Date;
+  updatedAt?: Date;
   dashboardSortOrder?: number | null;
   description?: string | null;
   id?: string;
@@ -166,6 +168,7 @@ function createDataTask({
       dashboardSortOrder,
       description,
       ...(createdAt ? { createdAt } : {}),
+      ...(updatedAt ? { updatedAt } : {}),
       id,
       sortOrder,
       status,
@@ -781,6 +784,47 @@ describe("src/lib/data.ts", () => {
     expect(
       snapshot.inProgressTasks.find((task) => task.boardSlug === fallbackBoard.slug),
     ).toMatchObject({ boardAccentColor: null });
+  });
+
+  test("includes stale open tasks untouched for 14+ days, most stale first", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const now = new Date();
+    const veryStaleTaskId = randomUUID();
+    const staleTaskId = randomUUID();
+    const freshTaskId = randomUUID();
+
+    await createDataTask({
+      boardId: board.id,
+      id: veryStaleTaskId,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Untouched for a month",
+      updatedAt: subDays(now, 30),
+    });
+    await createDataTask({
+      boardId: board.id,
+      id: staleTaskId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Untouched for two weeks",
+      updatedAt: subDays(now, 15),
+    });
+    await createDataTask({
+      boardId: board.id,
+      id: freshTaskId,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Touched yesterday",
+      updatedAt: subDays(now, 1),
+    });
+    await createDataTask({
+      boardId: board.id,
+      status: PrismaTaskStatus.DONE,
+      title: "Done and untouched for ages",
+      updatedAt: subDays(now, 60),
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.staleTasks.map((task) => task.id)).toEqual([veryStaleTaskId, staleTaskId]);
   });
 
   test("hides tasks with a future visibleAt from the board snapshot", async () => {

@@ -210,6 +210,7 @@ export type DashboardTaskSummary = {
   boardIconKey: string;
   boardAccentColor: string | null;
   completedAt: string | null;
+  updatedAt: string;
   subtasks: DashboardSubtaskSummary[];
 };
 
@@ -232,6 +233,7 @@ export type DashboardSnapshot = {
   overdueTasks: DashboardTaskSummary[];
   upcomingTasks: DashboardTaskSummary[];
   recentlyCompletedTasks: DashboardTaskSummary[];
+  staleTasks: DashboardTaskSummary[];
 };
 
 export type InvitationStatus = "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
@@ -711,6 +713,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       boardIconKey: task.boardIconKey,
       boardAccentColor: task.boardAccentColor,
       completedAt: task.completedAt?.toISOString() ?? null,
+      updatedAt: task.updatedAt.toISOString(),
       subtasks: task.subtasks.map((subtask) => ({
         id: subtask.id,
         title: subtask.title,
@@ -750,6 +753,14 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
         task.completedAt >= subDays(new Date(), 7),
     )
     .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0))
+    .slice(0, 6)
+    .map(summarize);
+
+  const staleTasks = allTasks
+    .filter(
+      (task) => openStatuses.includes(task.status) && task.updatedAt < subDays(new Date(), 14),
+    )
+    .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
     .slice(0, 6)
     .map(summarize);
 
@@ -795,6 +806,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     overdueTasks,
     upcomingTasks,
     recentlyCompletedTasks,
+    staleTasks,
   };
 }
 

@@ -64,6 +64,7 @@ function getTaskListKey(tasks: DashboardTaskSummary[]) {
         task.status,
         task.priority,
         task.dueDate ?? "",
+        task.updatedAt,
         task.boardSlug,
         task.boardName,
         task.boardIconKey,
@@ -912,6 +913,113 @@ function RecentlyCompletedPanel({
   );
 }
 
+function StaleTaskRow({
+  onDone,
+  pending,
+  task,
+}: {
+  onDone: (taskId: string) => void;
+  pending: boolean;
+  task: DashboardTaskSummary;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5">
+      <BoardIcon
+        className="h-4 w-4 shrink-0"
+        iconKey={task.boardIconKey}
+        style={{ color: task.boardAccentColor ?? getBoardAccentColor(task.boardSlug) }}
+      />
+      <div className="min-w-0 flex-1">
+        <Link
+          className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+          href={`/boards/${task.boardSlug}`}
+        >
+          {task.title}
+        </Link>
+        <p className="truncate text-xs text-text-muted">
+          {task.boardName} · Last touched {formatShortDate(task.updatedAt)}
+        </p>
+      </div>
+      <button
+        aria-label={`Mark ${task.title} done`}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong transition disabled:opacity-30"
+        disabled={pending}
+        onClick={() => onDone(task.id)}
+        style={{ color: "var(--status-done)" }}
+        type="button"
+      >
+        <Check className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function NeedsAttentionPanel({
+  dragHandle,
+  tasks,
+}: {
+  dragHandle?: ReactNode;
+  tasks: DashboardTaskSummary[];
+}) {
+  const router = useRouter();
+  const [items, setItems] = useState(tasks);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function markDone(taskId: string) {
+    const previous = items;
+    setItems((current) => current.filter((task) => task.id !== taskId));
+    setPending(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/done`, {
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to mark the task done.");
+      }
+
+      router.refresh();
+    } catch (err) {
+      setItems(previous);
+      setError(err instanceof Error ? err.message : "Unable to mark the task done.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <BlueprintCard className="p-5 lg:p-6" surface="flat">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {dragHandle}
+            <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
+              Needs Attention
+            </h2>
+          </div>
+          <span className="blueprint-eyebrow">14+ days untouched</span>
+        </div>
+        {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {items.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+            Nothing&apos;s been sitting untouched — you&apos;re on top of it.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((task) => (
+              <StaleTaskRow key={task.id} onDone={markDone} pending={pending} task={task} />
+            ))}
+          </div>
+        )}
+      </div>
+    </BlueprintCard>
+  );
+}
+
 function OverdueDueSoonPanel({
   dragHandle,
   overdueTasks,
@@ -1145,6 +1253,7 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
   const [order, setOrder] = useState<DashboardSectionId[]>(DASHBOARD_SECTION_ORDER_DEFAULT);
   const inProgressPanelKey = getTaskListKey(data.inProgressTasks);
   const overdueDueSoonPanelKey = getTaskListKey([...data.overdueTasks, ...data.upcomingTasks]);
+  const staleTasksPanelKey = getTaskListKey(data.staleTasks);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
@@ -1233,6 +1342,20 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
                     <RecentlyCompletedPanel
                       dragHandle={handle}
                       tasks={data.recentlyCompletedTasks}
+                    />
+                  )}
+                </SortableSection>
+              );
+            }
+
+            if (id === "needs-attention") {
+              return (
+                <SortableSection id="needs-attention" key="needs-attention" label="Needs Attention">
+                  {(handle) => (
+                    <NeedsAttentionPanel
+                      dragHandle={handle}
+                      key={staleTasksPanelKey}
+                      tasks={data.staleTasks}
                     />
                   )}
                 </SortableSection>
