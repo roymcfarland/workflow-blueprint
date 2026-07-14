@@ -146,16 +146,3 @@ export function BoardManagement() {
     </div>
   );
 }
-
-export function CreateBoardButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line-soft px-3 py-2 text-sm font-semibold text-text-muted transition hover:border-brand hover:text-brand"
-      onClick={onClick}
-      type="button"
-    >
-      <Plus className="h-4 w-4" />
-      New Board
-    </button>
-  );
-}
