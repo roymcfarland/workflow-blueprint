@@ -232,6 +232,14 @@ export type DashboardSnapshot = {
     openCount: number;
     overdueCount: number;
   }>;
+  activeTokens: Array<{
+    id: string;
+    label: string;
+    scopes: ApiTokenScope[];
+    lastUsedAt: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+  }>;
   completionRate: number;
   doneCount: number;
   activeTaskCount: number;
@@ -673,18 +681,35 @@ export async function getBoardSummaries(userId: string): Promise<BoardSummary[]>
 
 export async function getDashboardSnapshot(userId: string): Promise<DashboardSnapshot> {
   const now = new Date();
-  const boards = await prisma.board.findMany({
-    where: { userId },
-    orderBy: {
-      sortOrder: "asc",
-    },
-    include: {
-      tasks: {
-        where: { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] },
-        include: taskInclude,
+  const [boards, tokens] = await Promise.all([
+    prisma.board.findMany({
+      where: { userId },
+      orderBy: {
+        sortOrder: "asc",
       },
-    },
-  });
+      include: {
+        tasks: {
+          where: { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] },
+          include: taskInclude,
+        },
+      },
+    }),
+    prisma.apiToken.findMany({
+      where: {
+        createdById: userId,
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: {
+        id: true,
+        label: true,
+        scopes: true,
+        lastUsedAt: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+    }),
+  ]);
 
   const allTasks = boards.flatMap((board) =>
     board.tasks.map((task) => ({
@@ -803,6 +828,18 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     })
     .map(summarize);
 
+  const activeTokens = tokens
+    .sort((a, b) => (b.lastUsedAt?.getTime() ?? 0) - (a.lastUsedAt?.getTime() ?? 0))
+    .slice(0, 6)
+    .map((token) => ({
+      id: token.id,
+      label: token.label,
+      scopes: token.scopes,
+      lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
+      expiresAt: token.expiresAt?.toISOString() ?? null,
+      createdAt: token.createdAt.toISOString(),
+    }));
+
   return {
     boardBreakdown: boards.map((board) => ({
       slug: board.slug,
@@ -845,6 +882,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     recentlyCompletedTasks,
     staleTasks,
     onDeckTasks,
+    activeTokens,
   };
 }
 

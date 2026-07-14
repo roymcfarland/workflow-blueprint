@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 
 import { BoardIcon } from "@/components/board-icon";
+import { apiTokenScopeLabels, scopeClassName } from "@/components/admin/api-tokens-admin";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
@@ -967,6 +968,64 @@ function BoardHealthPanel({
   );
 }
 
+function ActiveTokenRow({ token }: { token: DashboardSnapshot["activeTokens"][number] }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5">
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <p className="truncate text-sm font-semibold text-text-primary">{token.label}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {token.scopes.map((scope) => (
+            <span className={scopeClassName} key={scope}>
+              {apiTokenScopeLabels[scope]}
+            </span>
+          ))}
+        </div>
+      </div>
+      <p className="shrink-0 text-xs font-semibold text-text-muted">
+        {token.lastUsedAt ? `Used ${formatShortDate(token.lastUsedAt)}` : "Never used"}
+      </p>
+    </div>
+  );
+}
+
+function ActiveTokensPanel({
+  dragHandle,
+  tokens,
+}: {
+  dragHandle?: ReactNode;
+  tokens: DashboardSnapshot["activeTokens"];
+}) {
+  return (
+    <BlueprintCard className="p-5 lg:p-6" surface="flat">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {dragHandle}
+            <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">Active Tokens</h2>
+          </div>
+          <Link
+            className="text-xs font-semibold text-brand transition hover:text-brand-strong"
+            href="/admin/api-tokens"
+          >
+            Manage
+          </Link>
+        </div>
+        {tokens.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+            No active API tokens yet.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {tokens.map((token) => (
+              <ActiveTokenRow key={token.id} token={token} />
+            ))}
+          </div>
+        )}
+      </div>
+    </BlueprintCard>
+  );
+}
+
 function StaleTaskRow({
   onDone,
   pending,
@@ -1405,7 +1464,7 @@ function SortableSection({
   );
 }
 
-function DashboardSections({ data }: { data: DashboardSnapshot }) {
+function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin: boolean }) {
   const [order, setOrder] = useState<DashboardSectionId[]>(DASHBOARD_SECTION_ORDER_DEFAULT);
   const inProgressPanelKey = getTaskListKey(data.inProgressTasks);
   const overdueDueSoonPanelKey = getTaskListKey([...data.overdueTasks, ...data.upcomingTasks]);
@@ -1537,6 +1596,18 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
               );
             }
 
+            if (id === "active-tokens") {
+              if (!isAdmin) {
+                return null;
+              }
+
+              return (
+                <SortableSection id="active-tokens" key="active-tokens" label="Active Tokens">
+                  {(handle) => <ActiveTokensPanel dragHandle={handle} tokens={data.activeTokens} />}
+                </SortableSection>
+              );
+            }
+
             if (id === "in-progress") {
               return (
                 <SortableSection id="in-progress" key="in-progress" label="In Progress">
@@ -1559,7 +1630,13 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
   );
 }
 
-export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
+export function DashboardOverview({
+  data,
+  isAdmin = false,
+}: {
+  data: DashboardSnapshot;
+  isAdmin?: boolean;
+}) {
   const isEmpty = data.totalTaskCount === 0;
 
   return (
@@ -1589,7 +1666,7 @@ export function DashboardOverview({ data }: { data: DashboardSnapshot }) {
           </div>
         </BlueprintCard>
       ) : (
-        <DashboardSections data={data} />
+        <DashboardSections data={data} isAdmin={isAdmin} />
       )}
     </div>
   );
