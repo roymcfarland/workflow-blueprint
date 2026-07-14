@@ -85,14 +85,15 @@ export function writeNotesOpen(boardSlug: string, value: boolean): void {
 const DASHBOARD_PREF_NAMESPACE = "wb.dashboard" as const;
 const DASHBOARD_SECTION_ORDER_KEY = `${DASHBOARD_PREF_NAMESPACE}.section-order`;
 
-export type DashboardSectionId = "snapshot" | "in-progress";
+export type DashboardSectionId = "snapshot" | "in-progress" | "overdue-due-soon";
 export const DASHBOARD_SECTION_ORDER_DEFAULT: DashboardSectionId[] = [
   "snapshot",
   "in-progress",
+  "overdue-due-soon",
 ];
 
 const isDashboardSectionId = (value: unknown): value is DashboardSectionId =>
-  value === "snapshot" || value === "in-progress";
+  value === "snapshot" || value === "in-progress" || value === "overdue-due-soon";
 
 export function readDashboardSectionOrder(): DashboardSectionId[] | null {
   if (typeof window === "undefined") {
