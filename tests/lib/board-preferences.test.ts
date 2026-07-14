@@ -149,6 +149,7 @@ describe("board preferences", () => {
       "this-week",
       "recently-completed",
       "needs-attention",
+      "on-deck",
     ]);
   });
 
@@ -164,6 +165,7 @@ describe("board preferences", () => {
       "this-week",
       "recently-completed",
       "needs-attention",
+      "on-deck",
     ]);
 
     expect(readDashboardSectionOrder()).toEqual([
@@ -173,6 +175,7 @@ describe("board preferences", () => {
       "this-week",
       "recently-completed",
       "needs-attention",
+      "on-deck",
     ]);
   });
 
@@ -204,6 +207,22 @@ describe("board preferences", () => {
     localStorage.setItem(
       "wb.dashboard.section-order",
       JSON.stringify([
+        "recently-completed",
+        "this-week",
+        "overdue-due-soon",
+        "in-progress",
+        "snapshot",
+      ]),
+    );
+
+    expect(readDashboardSectionOrder()).toBeNull();
+  });
+
+  test("readDashboardSectionOrder falls back to the default when a stored order predates on-deck", () => {
+    localStorage.setItem(
+      "wb.dashboard.section-order",
+      JSON.stringify([
+        "needs-attention",
         "recently-completed",
         "this-week",
         "overdue-due-soon",
