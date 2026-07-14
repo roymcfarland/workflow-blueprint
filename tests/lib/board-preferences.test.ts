@@ -151,6 +151,7 @@ describe("board preferences", () => {
       "needs-attention",
       "on-deck",
       "board-health",
+      "active-tokens",
     ]);
   });
 
@@ -168,6 +169,7 @@ describe("board preferences", () => {
       "needs-attention",
       "on-deck",
       "board-health",
+      "active-tokens",
     ]);
 
     expect(readDashboardSectionOrder()).toEqual([
@@ -179,11 +181,30 @@ describe("board preferences", () => {
       "needs-attention",
       "on-deck",
       "board-health",
+      "active-tokens",
     ]);
   });
 
   test("readDashboardSectionOrder falls back to the default when a stored order predates a new section", () => {
     localStorage.setItem("wb.dashboard.section-order", JSON.stringify(["in-progress", "snapshot"]));
+
+    expect(readDashboardSectionOrder()).toBeNull();
+  });
+
+  test("readDashboardSectionOrder falls back to the default when a stored order predates active-tokens", () => {
+    localStorage.setItem(
+      "wb.dashboard.section-order",
+      JSON.stringify([
+        "board-health",
+        "on-deck",
+        "needs-attention",
+        "recently-completed",
+        "this-week",
+        "overdue-due-soon",
+        "in-progress",
+        "snapshot",
+      ]),
+    );
 
     expect(readDashboardSectionOrder()).toBeNull();
   });

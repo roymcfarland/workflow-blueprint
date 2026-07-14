@@ -6,5 +6,5 @@ export default async function DashboardPage() {
   const user = await requireCurrentUser();
   const data = await getDashboardSnapshot(user.id);
 
-  return <DashboardOverview data={data} />;
+  return <DashboardOverview data={data} isAdmin={user.role === "ADMIN"} />;
 }

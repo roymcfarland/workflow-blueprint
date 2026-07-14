@@ -65,6 +65,7 @@ function dashboardSnapshot(overrides: Partial<DashboardSnapshot> = {}): Dashboar
 
   return {
     activeTaskCount: 3,
+    activeTokens: [],
     boardBreakdown: [
       {
         iconKey: "briefcase",
@@ -762,5 +763,82 @@ describe("DashboardOverview on deck panel", () => {
       ),
     );
     await waitFor(() => expect(screen.queryByText("Design the onboarding flow")).toBeNull());
+  });
+});
+
+describe("DashboardOverview active tokens panel", () => {
+  test("does not render the section for a non-admin, even with tokens present", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          activeTokens: [
+            {
+              createdAt: "2026-06-01T00:00:00.000Z",
+              expiresAt: null,
+              id: "token-1",
+              label: "My Agent",
+              lastUsedAt: "2026-07-10T00:00:00.000Z",
+              scopes: ["TASKS_READ"],
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.queryByText("Active Tokens")).toBeNull();
+    expect(screen.queryByText("My Agent")).toBeNull();
+  });
+
+  test("renders tokens with scopes and last-used freshness for an admin", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          activeTokens: [
+            {
+              createdAt: "2026-06-01T00:00:00.000Z",
+              expiresAt: null,
+              id: "token-1",
+              label: "My Agent",
+              lastUsedAt: "2026-07-10T00:00:00.000Z",
+              scopes: ["TASKS_READ"],
+            },
+          ],
+        })}
+        isAdmin
+      />,
+    );
+
+    expect(screen.getByText("Active Tokens")).toBeDefined();
+    expect(screen.getByText("My Agent")).toBeDefined();
+    expect(screen.getByText("Tasks read")).toBeDefined();
+    expect(screen.getByText(/Used Jul 10/)).toBeDefined();
+  });
+
+  test("shows never-used tokens distinctly and an empty state when there are none", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          activeTokens: [
+            {
+              createdAt: "2026-06-01T00:00:00.000Z",
+              expiresAt: null,
+              id: "token-1",
+              label: "Fresh Token",
+              lastUsedAt: null,
+              scopes: ["BOARDS_READ"],
+            },
+          ],
+        })}
+        isAdmin
+      />,
+    );
+
+    expect(screen.getByText("Never used")).toBeDefined();
+
+    cleanup();
+
+    render(<DashboardOverview data={dashboardSnapshot({ activeTokens: [] })} isAdmin />);
+
+    expect(screen.getByText("No active API tokens yet.")).toBeDefined();
   });
 });

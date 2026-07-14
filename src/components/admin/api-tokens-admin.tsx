@@ -54,7 +54,7 @@ const apiTokenExpiryOptions = [
   { value: "365", label: "365 days" },
 ] as const;
 
-const apiTokenScopeLabels = {
+export const apiTokenScopeLabels = {
   BOARDS_READ: "Boards read",
   BOARDS_WRITE: "Boards write",
   TASKS_READ: "Tasks read",
@@ -63,7 +63,7 @@ const apiTokenScopeLabels = {
   SUBTASKS_WRITE: "Subtasks write",
 } satisfies Record<ApiTokenScopeValue, string>;
 
-const scopeClassName =
+export const scopeClassName =
   "inline-flex rounded-md border border-line-soft bg-surface-control px-2 py-0.5 text-xs font-semibold text-text-muted";
 
 const statusLabels = {

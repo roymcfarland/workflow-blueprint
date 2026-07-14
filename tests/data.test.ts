@@ -745,6 +745,73 @@ describe("src/lib/data.ts", () => {
     ).toMatchObject({ accentColor: null });
   });
 
+  test("includes the caller's own active tokens, most-recently-used first, excluding revoked and expired", async () => {
+    const user = await createTestUser();
+    const otherUser = await createTestUser({ email: "other-tokens@example.test" });
+    const now = new Date();
+
+    await prisma.apiToken.create({
+      data: {
+        createdById: user.id,
+        id: randomUUID(),
+        label: "Recently used",
+        lastUsedAt: subDays(now, 1),
+        prefix: "wbat_recent",
+        scopes: [ApiTokenScope.TASKS_READ],
+        tokenHash: sha256("recent-token"),
+      },
+    });
+    await prisma.apiToken.create({
+      data: {
+        createdById: user.id,
+        id: randomUUID(),
+        label: "Never used",
+        prefix: "wbat_unused",
+        scopes: [ApiTokenScope.BOARDS_READ],
+        tokenHash: sha256("unused-token"),
+      },
+    });
+    await prisma.apiToken.create({
+      data: {
+        createdById: user.id,
+        id: randomUUID(),
+        label: "Revoked",
+        prefix: "wbat_revoked",
+        revokedAt: now,
+        scopes: [ApiTokenScope.TASKS_READ],
+        tokenHash: sha256("revoked-token"),
+      },
+    });
+    await prisma.apiToken.create({
+      data: {
+        createdById: user.id,
+        expiresAt: subDays(now, 1),
+        id: randomUUID(),
+        label: "Expired",
+        prefix: "wbat_expired",
+        scopes: [ApiTokenScope.TASKS_READ],
+        tokenHash: sha256("expired-token"),
+      },
+    });
+    await prisma.apiToken.create({
+      data: {
+        createdById: otherUser.id,
+        id: randomUUID(),
+        label: "Someone else's token",
+        prefix: "wbat_other",
+        scopes: [ApiTokenScope.TASKS_READ],
+        tokenHash: sha256("other-user-token"),
+      },
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.activeTokens.map((token) => token.label)).toEqual([
+      "Recently used",
+      "Never used",
+    ]);
+  });
+
   test("ranks board health by overdue count then open count, excluding caught-up boards", async () => {
     const user = await createTestUser();
     const [busyBoard, quietBoard, caughtUpBoard] = boardRows(user.id, 3);
