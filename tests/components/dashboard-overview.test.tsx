@@ -44,6 +44,7 @@ function taskSummary(overrides: Partial<DashboardTaskSummary>): DashboardTaskSum
     status: "IN_PROGRESS",
     subtasks: [],
     title: "Draft launch checklist",
+    updatedAt: "2026-07-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -86,6 +87,7 @@ function dashboardSnapshot(overrides: Partial<DashboardSnapshot> = {}): Dashboar
     inProgressTasks,
     overdueTasks: [],
     recentlyCompletedTasks: [],
+    staleTasks: [],
     totalTaskCount: 3,
     upcomingTasks: [],
     ...overrides,
@@ -576,5 +578,68 @@ describe("DashboardOverview recently completed panel", () => {
     render(<DashboardOverview data={dashboardSnapshot({ recentlyCompletedTasks: [] })} />);
 
     expect(screen.getByText("Nothing completed in the last 7 days yet.")).toBeDefined();
+  });
+});
+
+describe("DashboardOverview needs attention panel", () => {
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    navigationMock.refresh.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  test("renders stale tasks with a last-touched date", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          staleTasks: [
+            taskSummary({
+              id: "task-stale",
+              title: "Forgotten migration doc",
+              updatedAt: "2026-06-01T00:00:00.000Z",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Forgotten migration doc")).toBeDefined();
+    expect(screen.getByText(/Last touched Jun 1/)).toBeDefined();
+  });
+
+  test("shows an upbeat empty state when nothing is stale", () => {
+    render(<DashboardOverview data={dashboardSnapshot({ staleTasks: [] })} />);
+
+    expect(
+      screen.getByText("Nothing's been sitting untouched — you're on top of it."),
+    ).toBeDefined();
+  });
+
+  test("marks a stale task done and removes it from the list", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          staleTasks: [taskSummary({ id: "task-stale", title: "Forgotten migration doc" })],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Forgotten migration doc done" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/task-stale/done",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText("Forgotten migration doc")).toBeNull());
   });
 });
