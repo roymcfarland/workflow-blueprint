@@ -7,6 +7,12 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   test: {
+    coverage: {
+      exclude: ["src/generated/**"],
+      include: ["src/**"],
+      provider: "v8",
+      reporter: ["text", "lcov"],
+    },
     environment: "node",
     fileParallelism: false,
     globalSetup: ["./tests/setup/global.ts"],
