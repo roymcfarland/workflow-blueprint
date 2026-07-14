@@ -373,3 +373,41 @@ describe("DashboardOverview in-progress panel", () => {
     expect(screen.getByRole("button", { name: "Mark Draft launch checklist done" })).toBeDefined();
   });
 });
+
+describe("DashboardOverview snapshot ring", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  test("the ring reflects completion rate, not total task volume", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          activeTaskCount: 4,
+          completionRate: 40,
+          doneCount: 2,
+          totalTaskCount: 20,
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "40% of active work is done" })).toBeDefined();
+    expect(screen.queryByText("20")).toBeNull();
+    expect(screen.queryByRole("img", { name: /task breakdown/i })).toBeNull();
+  });
+
+  test("shows 0% when every task is archived and none are active", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          activeTaskCount: 0,
+          completionRate: 0,
+          doneCount: 0,
+          inProgressTasks: [],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("img", { name: "0% of active work is done" })).toBeDefined();
+  });
+});
