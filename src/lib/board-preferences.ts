@@ -92,7 +92,8 @@ export type DashboardSectionId =
   | "this-week"
   | "recently-completed"
   | "needs-attention"
-  | "on-deck";
+  | "on-deck"
+  | "board-health";
 export const DASHBOARD_SECTION_ORDER_DEFAULT: DashboardSectionId[] = [
   "snapshot",
   "in-progress",
@@ -101,6 +102,7 @@ export const DASHBOARD_SECTION_ORDER_DEFAULT: DashboardSectionId[] = [
   "recently-completed",
   "needs-attention",
   "on-deck",
+  "board-health",
 ];
 
 const isDashboardSectionId = (value: unknown): value is DashboardSectionId =>
@@ -110,7 +112,8 @@ const isDashboardSectionId = (value: unknown): value is DashboardSectionId =>
   value === "this-week" ||
   value === "recently-completed" ||
   value === "needs-attention" ||
-  value === "on-deck";
+  value === "on-deck" ||
+  value === "board-health";
 
 export function readDashboardSectionOrder(): DashboardSectionId[] | null {
   if (typeof window === "undefined") {

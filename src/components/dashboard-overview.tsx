@@ -913,6 +913,60 @@ function RecentlyCompletedPanel({
   );
 }
 
+function BoardHealthRow({ board }: { board: DashboardSnapshot["boardHealth"][number] }) {
+  return (
+    <Link
+      className="flex items-center justify-between gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5 transition hover:border-line-strong hover:bg-surface-control-hover focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+      href={`/boards/${board.slug}`}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <BoardIcon
+          className="h-4 w-4 shrink-0"
+          iconKey={board.iconKey}
+          style={{ color: board.accentColor ?? getBoardAccentColor(board.slug) }}
+        />
+        <p className="truncate text-sm font-semibold text-text-primary">{board.name}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3 text-xs font-semibold text-text-muted">
+        {board.overdueCount > 0 ? (
+          <span className="text-danger">{board.overdueCount} overdue</span>
+        ) : null}
+        <span>{board.openCount} open</span>
+      </div>
+    </Link>
+  );
+}
+
+function BoardHealthPanel({
+  boards,
+  dragHandle,
+}: {
+  boards: DashboardSnapshot["boardHealth"];
+  dragHandle?: ReactNode;
+}) {
+  return (
+    <BlueprintCard className="p-5 lg:p-6" surface="flat">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          {dragHandle}
+          <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">Board Health</h2>
+        </div>
+        {boards.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+            Every board is caught up.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {boards.map((board) => (
+              <BoardHealthRow board={board} key={board.slug} />
+            ))}
+          </div>
+        )}
+      </div>
+    </BlueprintCard>
+  );
+}
+
 function StaleTaskRow({
   onDone,
   pending,
@@ -1471,6 +1525,14 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
                   {(handle) => (
                     <OnDeckPanel dragHandle={handle} key={onDeckPanelKey} tasks={data.onDeckTasks} />
                   )}
+                </SortableSection>
+              );
+            }
+
+            if (id === "board-health") {
+              return (
+                <SortableSection id="board-health" key="board-health" label="Board Health">
+                  {(handle) => <BoardHealthPanel boards={data.boardHealth} dragHandle={handle} />}
                 </SortableSection>
               );
             }
