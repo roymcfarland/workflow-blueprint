@@ -54,28 +54,6 @@ const chartRadius = 108;
 const chartStrokeWidth = 38;
 const chartCircumference = 2 * Math.PI * chartRadius;
 
-function getChartSegments(segments: DashboardSnapshot["boardBreakdown"], totalTasks: number) {
-  if (totalTasks === 0) {
-    return [];
-  }
-
-  let offset = 0;
-
-  return segments.map((segment) => {
-    const length = (segment.totalTasks / totalTasks) * chartCircumference;
-    const chartSegment = {
-      color: segment.accentColor ?? getBoardAccentColor(segment.slug),
-      dashArray: `${length} ${chartCircumference - length}`,
-      dashOffset: -offset,
-      slug: segment.slug,
-    };
-
-    offset += length;
-
-    return chartSegment;
-  });
-}
-
 function getTaskListKey(tasks: DashboardTaskSummary[]) {
   return tasks
     .map((task) =>
@@ -149,8 +127,7 @@ function SnapshotPanel({
   data: DashboardSnapshot;
   dragHandle?: ReactNode;
 }) {
-  const totalTasks = data.boardBreakdown.reduce((sum, segment) => sum + segment.totalTasks, 0);
-  const chartSegments = getChartSegments(data.boardBreakdown, totalTasks);
+  const completionArcLength = (data.completionRate / 100) * chartCircumference;
   const completionTooltip = "Done ÷ (Up Next + In Progress + Done)";
 
   return (
@@ -164,13 +141,13 @@ function SnapshotPanel({
                 Snapshot
               </h2>
             </div>
-            <p className="blueprint-eyebrow">% of total tasks</p>
+            <p className="blueprint-eyebrow">of active work</p>
           </div>
 
           <div className="grid items-center gap-5 sm:grid-cols-[auto_minmax(0,1fr)]">
             <div className="mx-auto flex aspect-square w-44 items-center justify-center sm:w-52">
               <svg
-                aria-label="Task breakdown by board"
+                aria-label={`${data.completionRate}% of active work is done`}
                 className="h-full w-full"
                 role="img"
                 viewBox="0 0 320 320"
@@ -183,20 +160,17 @@ function SnapshotPanel({
                   stroke="var(--brand-soft)"
                   strokeWidth={chartStrokeWidth}
                 />
-                {chartSegments.map((segment) => (
-                  <circle
-                    cx={chartCenter}
-                    cy={chartCenter}
-                    fill="none"
-                    key={segment.slug}
-                    r={chartRadius}
-                    stroke={segment.color}
-                    strokeDasharray={segment.dashArray}
-                    strokeDashoffset={segment.dashOffset}
-                    strokeWidth={chartStrokeWidth}
-                    transform={`rotate(-90 ${chartCenter} ${chartCenter})`}
-                  />
-                ))}
+                <circle
+                  cx={chartCenter}
+                  cy={chartCenter}
+                  fill="none"
+                  r={chartRadius}
+                  stroke="var(--brand-fill)"
+                  strokeDasharray={`${completionArcLength} ${chartCircumference - completionArcLength}`}
+                  strokeLinecap="round"
+                  strokeWidth={chartStrokeWidth}
+                  transform={`rotate(-90 ${chartCenter} ${chartCenter})`}
+                />
                 <text
                   fill="var(--text-primary)"
                   fontSize="58"
@@ -205,7 +179,7 @@ function SnapshotPanel({
                   x={chartCenter}
                   y={chartCenter + 4}
                 >
-                  {data.totalTaskCount}
+                  {data.completionRate}%
                 </text>
                 <text
                   fill="var(--text-muted)"
@@ -215,7 +189,7 @@ function SnapshotPanel({
                   x={chartCenter}
                   y={chartCenter + 32}
                 >
-                  TASKS
+                  DONE
                 </text>
               </svg>
             </div>
