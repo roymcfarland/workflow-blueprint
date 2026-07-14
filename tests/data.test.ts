@@ -1422,6 +1422,49 @@ describe("src/lib/data.ts", () => {
     ]);
   });
 
+  test("includes recently completed tasks within the last seven days, sorted newest first", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const now = new Date();
+    const recentTaskId = randomUUID();
+    const olderRecentTaskId = randomUUID();
+    const staleTaskId = randomUUID();
+
+    await createDataTask({
+      boardId: board.id,
+      completedAt: subDays(now, 1),
+      id: recentTaskId,
+      status: PrismaTaskStatus.DONE,
+      title: "Completed yesterday",
+    });
+    await createDataTask({
+      boardId: board.id,
+      completedAt: subDays(now, 5),
+      id: olderRecentTaskId,
+      status: PrismaTaskStatus.DONE,
+      title: "Completed five days ago",
+    });
+    await createDataTask({
+      boardId: board.id,
+      completedAt: subDays(now, 10),
+      id: staleTaskId,
+      status: PrismaTaskStatus.DONE,
+      title: "Completed ten days ago",
+    });
+    await createDataTask({
+      boardId: board.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Still in progress",
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.recentlyCompletedTasks.map((task) => task.id)).toEqual([
+      recentTaskId,
+      olderRecentTaskId,
+    ]);
+  });
+
   test("includes ordered subtasks on dashboard in-progress task summaries", async () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);

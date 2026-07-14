@@ -37,6 +37,7 @@ function taskSummary(overrides: Partial<DashboardTaskSummary>): DashboardTaskSum
     boardIconKey: "briefcase",
     boardName: "Launch Plan",
     boardSlug: "launch-plan",
+    completedAt: null,
     dueDate: null,
     id: "task-launch",
     priority: "NONE",
@@ -84,6 +85,7 @@ function dashboardSnapshot(overrides: Partial<DashboardSnapshot> = {}): Dashboar
     inProgressCount: inProgressTasks.length,
     inProgressTasks,
     overdueTasks: [],
+    recentlyCompletedTasks: [],
     totalTaskCount: 3,
     upcomingTasks: [],
     ...overrides,
@@ -546,5 +548,33 @@ describe("DashboardOverview this week panel", () => {
     render(<DashboardOverview data={dashboardSnapshot({ upcomingTasks: [] })} />);
 
     expect(screen.getByText("Nothing on the calendar this week.")).toBeDefined();
+  });
+});
+
+describe("DashboardOverview recently completed panel", () => {
+  test("renders completed tasks with a completion date", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          recentlyCompletedTasks: [
+            taskSummary({
+              completedAt: "2026-07-12T00:00:00.000Z",
+              id: "task-done",
+              status: "DONE",
+              title: "Ship the release notes",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Ship the release notes")).toBeDefined();
+    expect(screen.getByText("Jul 12")).toBeDefined();
+  });
+
+  test("shows an empty state when nothing has been completed recently", () => {
+    render(<DashboardOverview data={dashboardSnapshot({ recentlyCompletedTasks: [] })} />);
+
+    expect(screen.getByText("Nothing completed in the last 7 days yet.")).toBeDefined();
   });
 });

@@ -849,6 +849,69 @@ function DueTaskRow({
   );
 }
 
+function RecentlyCompletedRow({ task }: { task: DashboardTaskSummary }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5">
+      <BoardIcon
+        className="h-4 w-4 shrink-0"
+        iconKey={task.boardIconKey}
+        style={{ color: task.boardAccentColor ?? getBoardAccentColor(task.boardSlug) }}
+      />
+      <div className="min-w-0 flex-1">
+        <Link
+          className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+          href={`/boards/${task.boardSlug}`}
+        >
+          {task.title}
+        </Link>
+        <p className="truncate text-xs text-text-muted">{task.boardName}</p>
+      </div>
+      {task.completedAt ? (
+        <span
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold"
+          style={{ borderColor: "var(--status-done)", color: "var(--status-done)" }}
+        >
+          <CircleCheck className="h-3.5 w-3.5" />
+          {formatShortDate(task.completedAt)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function RecentlyCompletedPanel({
+  dragHandle,
+  tasks,
+}: {
+  dragHandle?: ReactNode;
+  tasks: DashboardTaskSummary[];
+}) {
+  return (
+    <BlueprintCard className="p-5 lg:p-6" surface="flat">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          {dragHandle}
+          <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">
+            Recently Completed
+          </h2>
+        </div>
+
+        {tasks.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+            Nothing completed in the last 7 days yet.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {tasks.map((task) => (
+              <RecentlyCompletedRow key={task.id} task={task} />
+            ))}
+          </div>
+        )}
+      </div>
+    </BlueprintCard>
+  );
+}
+
 function OverdueDueSoonPanel({
   dragHandle,
   overdueTasks,
@@ -1155,6 +1218,23 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
               return (
                 <SortableSection id="this-week" key="this-week" label="This Week">
                   {(handle) => <ThisWeekPanel dragHandle={handle} upcomingTasks={data.upcomingTasks} />}
+                </SortableSection>
+              );
+            }
+
+            if (id === "recently-completed") {
+              return (
+                <SortableSection
+                  id="recently-completed"
+                  key="recently-completed"
+                  label="Recently Completed"
+                >
+                  {(handle) => (
+                    <RecentlyCompletedPanel
+                      dragHandle={handle}
+                      tasks={data.recentlyCompletedTasks}
+                    />
+                  )}
                 </SortableSection>
               );
             }
