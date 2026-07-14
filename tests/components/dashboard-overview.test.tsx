@@ -512,3 +512,39 @@ describe("DashboardOverview overdue and due soon panel", () => {
     await waitFor(() => expect(screen.queryByText("Renew domain")).toBeNull());
   });
 });
+
+describe("DashboardOverview this week panel", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-14T12:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  test("buckets upcoming tasks by due day and labels today", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          upcomingTasks: [
+            taskSummary({ id: "task-today", dueDate: "2026-07-14T00:00:00.000Z" }),
+            taskSummary({ id: "task-today-2", dueDate: "2026-07-14T00:00:00.000Z" }),
+            taskSummary({ id: "task-thursday", dueDate: "2026-07-16T00:00:00.000Z" }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByLabelText("Today: 2 due")).toBeDefined();
+    expect(screen.getByLabelText("Thu: 1 due")).toBeDefined();
+    expect(screen.getByLabelText("Wed: 0 due")).toBeDefined();
+  });
+
+  test("shows an empty state when nothing is due this week", () => {
+    render(<DashboardOverview data={dashboardSnapshot({ upcomingTasks: [] })} />);
+
+    expect(screen.getByText("Nothing on the calendar this week.")).toBeDefined();
+  });
+});

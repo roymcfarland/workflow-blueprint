@@ -951,6 +951,90 @@ function OverdueDueSoonPanel({
   );
 }
 
+const dayInMs = 24 * 60 * 60 * 1000;
+
+function startOfUtcDay(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function ThisWeekPanel({
+  dragHandle,
+  upcomingTasks,
+}: {
+  dragHandle?: ReactNode;
+  upcomingTasks: DashboardTaskSummary[];
+}) {
+  const today = startOfUtcDay(new Date());
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today.getTime() + index * dayInMs);
+    const count = upcomingTasks.filter((task) => {
+      if (!task.dueDate) {
+        return false;
+      }
+
+      return startOfUtcDay(new Date(task.dueDate)).getTime() === date.getTime();
+    }).length;
+
+    return { date, count };
+  });
+  const maxCount = Math.max(1, ...days.map((day) => day.count));
+  const hasAnyDue = days.some((day) => day.count > 0);
+
+  return (
+    <BlueprintCard className="p-5 lg:p-6" surface="flat">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          {dragHandle}
+          <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">This Week</h2>
+        </div>
+
+        {hasAnyDue ? (
+          <div className="grid grid-cols-7 gap-2">
+            {days.map((day, index) => {
+              const label =
+                index === 0
+                  ? "Today"
+                  : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(
+                      day.date,
+                    );
+
+              return (
+                <div
+                  aria-label={`${label}: ${day.count} due`}
+                  className="flex flex-col items-center gap-1.5"
+                  key={day.date.toISOString()}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                    {label}
+                  </span>
+                  <div
+                    className={cn(
+                      "flex h-16 w-full items-end justify-center rounded-md border bg-surface-control",
+                      index === 0 ? "border-brand" : "border-line-soft",
+                    )}
+                  >
+                    {day.count > 0 ? (
+                      <div
+                        className="blueprint-fill w-full rounded-md"
+                        style={{ height: `${Math.max((day.count / maxCount) * 100, 18)}%` }}
+                      />
+                    ) : null}
+                  </div>
+                  <span className="text-sm font-semibold text-text-primary">{day.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+            Nothing on the calendar this week.
+          </p>
+        )}
+      </div>
+    </BlueprintCard>
+  );
+}
+
 function SortableSection({
   id,
   label,
@@ -1067,17 +1151,29 @@ function DashboardSections({ data }: { data: DashboardSnapshot }) {
               );
             }
 
-            return (
-              <SortableSection id="in-progress" key="in-progress" label="In Progress">
-                {(handle) => (
-                  <InProgressPanel
-                    dragHandle={handle}
-                    key={inProgressPanelKey}
-                    tasks={data.inProgressTasks}
-                  />
-                )}
-              </SortableSection>
-            );
+            if (id === "this-week") {
+              return (
+                <SortableSection id="this-week" key="this-week" label="This Week">
+                  {(handle) => <ThisWeekPanel dragHandle={handle} upcomingTasks={data.upcomingTasks} />}
+                </SortableSection>
+              );
+            }
+
+            if (id === "in-progress") {
+              return (
+                <SortableSection id="in-progress" key="in-progress" label="In Progress">
+                  {(handle) => (
+                    <InProgressPanel
+                      dragHandle={handle}
+                      key={inProgressPanelKey}
+                      tasks={data.inProgressTasks}
+                    />
+                  )}
+                </SortableSection>
+              );
+            }
+
+            return null;
           })}
         </div>
       </SortableContext>
