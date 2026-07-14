@@ -81,6 +81,7 @@ function dashboardSnapshot(overrides: Partial<DashboardSnapshot> = {}): Dashboar
         totalTasks: 1,
       },
     ],
+    boardHealth: [],
     closedLastSevenDays: 1,
     completionRate: 33,
     doneCount: 1,
@@ -377,6 +378,62 @@ describe("DashboardOverview in-progress panel", () => {
       screen.queryByRole("button", { name: "Show subtasks for Draft launch checklist" }),
     ).toBeNull();
     expect(screen.getByRole("button", { name: "Mark Draft launch checklist done" })).toBeDefined();
+  });
+});
+
+describe("DashboardOverview board health panel", () => {
+  test("renders boards with open and overdue counts", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          boardHealth: [
+            {
+              accentColor: null,
+              iconKey: "briefcase",
+              name: "Launch Plan",
+              openCount: 3,
+              overdueCount: 1,
+              slug: "launch-plan",
+            },
+          ],
+        })}
+      />,
+    );
+
+    const boardHealthLink = screen.getByText("1 overdue").closest("a");
+
+    expect(boardHealthLink?.getAttribute("href")).toBe("/boards/launch-plan");
+    expect(boardHealthLink?.textContent).toContain("Launch Plan");
+    expect(screen.getByText("1 overdue")).toBeDefined();
+    expect(screen.getByText("3 open")).toBeDefined();
+  });
+
+  test("omits the overdue count when a board has none", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          boardHealth: [
+            {
+              accentColor: null,
+              iconKey: "briefcase",
+              name: "Launch Plan",
+              openCount: 2,
+              overdueCount: 0,
+              slug: "launch-plan",
+            },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.queryByText("0 overdue")).toBeNull();
+    expect(screen.getByText("2 open")).toBeDefined();
+  });
+
+  test("shows an all-caught-up empty state when no board has open work", () => {
+    render(<DashboardOverview data={dashboardSnapshot({ boardHealth: [] })} />);
+
+    expect(screen.getByText("Every board is caught up.")).toBeDefined();
   });
 });
 

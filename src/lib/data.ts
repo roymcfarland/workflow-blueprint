@@ -224,6 +224,14 @@ export type DashboardSnapshot = {
     totalTasks: number;
     percentage: number;
   }>;
+  boardHealth: Array<{
+    slug: string;
+    name: string;
+    iconKey: string;
+    accentColor: string | null;
+    openCount: number;
+    overdueCount: number;
+  }>;
   completionRate: number;
   doneCount: number;
   activeTaskCount: number;
@@ -804,6 +812,26 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       totalTasks: board.tasks.length,
       percentage: totalTaskCount === 0 ? 0 : Math.round((board.tasks.length / totalTaskCount) * 100),
     })),
+    boardHealth: boards
+      .map((board) => {
+        const openCount = board.tasks.filter((task) => openStatuses.includes(task.status)).length;
+        const overdueCount = board.tasks.filter(
+          (task) =>
+            openStatuses.includes(task.status) && task.dueDate !== null && task.dueDate < today,
+        ).length;
+
+        return {
+          slug: board.slug,
+          name: board.name,
+          iconKey: board.iconKey,
+          accentColor: board.accentColor,
+          openCount,
+          overdueCount,
+        };
+      })
+      .filter((board) => board.openCount > 0)
+      .sort((a, b) => b.overdueCount - a.overdueCount || b.openCount - a.openCount)
+      .slice(0, 6),
     completionRate:
       activeTasks.length === 0 ? 0 : Math.round((doneCount / activeTasks.length) * 100),
     doneCount,

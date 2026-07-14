@@ -138,6 +138,7 @@ function boardTasksWithSubtasks(boardId: string) {
 function createDataTask({
   boardId,
   completedAt = null,
+  dueDate,
   visibleAt = null,
   createdAt,
   updatedAt,
@@ -150,6 +151,7 @@ function createDataTask({
 }: {
   boardId: string;
   completedAt?: Date | null;
+  dueDate?: Date | null;
   visibleAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -164,6 +166,7 @@ function createDataTask({
     data: {
       boardId,
       completedAt,
+      ...(dueDate ? { dueDate } : {}),
       visibleAt,
       dashboardSortOrder,
       description,
@@ -740,6 +743,48 @@ describe("src/lib/data.ts", () => {
     expect(
       snapshot.boardBreakdown.find((board) => board.slug === fallbackBoard.slug),
     ).toMatchObject({ accentColor: null });
+  });
+
+  test("ranks board health by overdue count then open count, excluding caught-up boards", async () => {
+    const user = await createTestUser();
+    const [busyBoard, quietBoard, caughtUpBoard] = boardRows(user.id, 3);
+    await prisma.board.createMany({ data: [busyBoard, quietBoard, caughtUpBoard] });
+
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+
+    await createDataTask({
+      boardId: busyBoard.id,
+      dueDate: yesterday,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Overdue in busy board",
+    });
+    await createDataTask({
+      boardId: busyBoard.id,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Open in busy board",
+    });
+    await createDataTask({
+      boardId: quietBoard.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Open in quiet board",
+    });
+    await createDataTask({
+      boardId: caughtUpBoard.id,
+      status: PrismaTaskStatus.DONE,
+      title: "Already done",
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.boardHealth.map((board) => board.slug)).toEqual([
+      busyBoard.slug,
+      quietBoard.slug,
+    ]);
+    expect(snapshot.boardHealth.find((board) => board.slug === busyBoard.slug)).toMatchObject({
+      openCount: 2,
+      overdueCount: 1,
+    });
   });
 
   test("includes board accent colors on dashboard in-progress task summaries", async () => {
