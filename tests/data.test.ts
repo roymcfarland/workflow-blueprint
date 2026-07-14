@@ -827,6 +827,37 @@ describe("src/lib/data.ts", () => {
     expect(snapshot.staleTasks.map((task) => task.id)).toEqual([veryStaleTaskId, staleTaskId]);
   });
 
+  test("includes on-deck tasks ordered oldest-queued first", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const oldestTaskId = randomUUID();
+    const newerTaskId = randomUUID();
+
+    await createDataTask({
+      boardId: board.id,
+      createdAt: new Date("2026-06-01T00:00:00.000Z"),
+      id: oldestTaskId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Queued first",
+    });
+    await createDataTask({
+      boardId: board.id,
+      createdAt: new Date("2026-07-01T00:00:00.000Z"),
+      id: newerTaskId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Queued later",
+    });
+    await createDataTask({
+      boardId: board.id,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Not on deck",
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.onDeckTasks.map((task) => task.id)).toEqual([oldestTaskId, newerTaskId]);
+  });
+
   test("hides tasks with a future visibleAt from the board snapshot", async () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);

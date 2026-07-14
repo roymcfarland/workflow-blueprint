@@ -45,6 +45,7 @@ function taskSummary(overrides: Partial<DashboardTaskSummary>): DashboardTaskSum
     subtasks: [],
     title: "Draft launch checklist",
     updatedAt: "2026-07-01T00:00:00.000Z",
+    createdAt: "2026-07-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -88,6 +89,7 @@ function dashboardSnapshot(overrides: Partial<DashboardSnapshot> = {}): Dashboar
     overdueTasks: [],
     recentlyCompletedTasks: [],
     staleTasks: [],
+    onDeckTasks: [],
     totalTaskCount: 3,
     upcomingTasks: [],
     ...overrides,
@@ -641,5 +643,67 @@ describe("DashboardOverview needs attention panel", () => {
       ),
     );
     await waitFor(() => expect(screen.queryByText("Forgotten migration doc")).toBeNull());
+  });
+});
+
+describe("DashboardOverview on deck panel", () => {
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    navigationMock.refresh.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  test("renders on-deck tasks with a queued date", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          onDeckTasks: [
+            taskSummary({
+              createdAt: "2026-06-15T00:00:00.000Z",
+              id: "task-on-deck",
+              status: "ON_DECK",
+              title: "Design the onboarding flow",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Design the onboarding flow")).toBeDefined();
+    expect(screen.getByText(/Queued Jun 15/)).toBeDefined();
+  });
+
+  test("shows an empty state when nothing is queued", () => {
+    render(<DashboardOverview data={dashboardSnapshot({ onDeckTasks: [] })} />);
+
+    expect(screen.getByText("Nothing queued up right now.")).toBeDefined();
+  });
+
+  test("marks an on-deck task done and removes it from the list", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          onDeckTasks: [taskSummary({ id: "task-on-deck", title: "Design the onboarding flow" })],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Design the onboarding flow done" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/task-on-deck/done",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText("Design the onboarding flow")).toBeNull());
   });
 });

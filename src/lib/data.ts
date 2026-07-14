@@ -211,6 +211,7 @@ export type DashboardTaskSummary = {
   boardAccentColor: string | null;
   completedAt: string | null;
   updatedAt: string;
+  createdAt: string;
   subtasks: DashboardSubtaskSummary[];
 };
 
@@ -234,6 +235,7 @@ export type DashboardSnapshot = {
   upcomingTasks: DashboardTaskSummary[];
   recentlyCompletedTasks: DashboardTaskSummary[];
   staleTasks: DashboardTaskSummary[];
+  onDeckTasks: DashboardTaskSummary[];
 };
 
 export type InvitationStatus = "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
@@ -714,6 +716,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       boardAccentColor: task.boardAccentColor,
       completedAt: task.completedAt?.toISOString() ?? null,
       updatedAt: task.updatedAt.toISOString(),
+      createdAt: task.createdAt.toISOString(),
       subtasks: task.subtasks.map((subtask) => ({
         id: subtask.id,
         title: subtask.title,
@@ -764,6 +767,12 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     .slice(0, 6)
     .map(summarize);
 
+  const onDeckTasks = allTasks
+    .filter((task) => task.status === "ON_DECK")
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .slice(0, 6)
+    .map(summarize);
+
   const inProgressTasks = allTasks
     .filter((task) => task.status === "IN_PROGRESS")
     .sort((a, b) => {
@@ -807,6 +816,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     upcomingTasks,
     recentlyCompletedTasks,
     staleTasks,
+    onDeckTasks,
   };
 }
 
