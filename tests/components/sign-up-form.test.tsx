@@ -63,6 +63,19 @@ describe("SignUpForm", () => {
     expect(screen.getByLabelText("Confirm password")).toBeTruthy();
   });
 
+  test("toggles each password field independently", () => {
+    render(<SignUpForm {...formProps} />);
+    const password = screen.getByLabelText("Password") as HTMLInputElement;
+    const confirmation = screen.getByLabelText("Confirm password") as HTMLInputElement;
+
+    fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+    expect(password.getAttribute("type")).toBe("text");
+    expect(confirmation.getAttribute("type")).toBe("password");
+    fireEvent.click(screen.getByRole("button", { name: "Show confirmation password" }));
+    expect(password.getAttribute("type")).toBe("text");
+    expect(confirmation.getAttribute("type")).toBe("text");
+  });
+
   test("validates the fields that are not prefilled by the invitation", async () => {
     const { container } = render(<SignUpForm {...formProps} />);
 
