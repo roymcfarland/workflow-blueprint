@@ -53,6 +53,53 @@ describe("smoke routes", () => {
     expect(response.status).toBe(200);
   });
 
+  test("sign-up without an invitation returns the invite-only message", async () => {
+    const response = await fetch(server.url("/sign-up"));
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain(
+      "New Workflow Blueprint accounts require an invitation from an admin.",
+    );
+  });
+
+  test("sign-up with an invalid invitation returns the unavailable message", async () => {
+    const response = await fetch(server.url("/sign-up?invite=not-a-real-token"));
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain(
+      "This invitation link is invalid, expired, revoked, or already accepted.",
+    );
+  });
+
+  test("reset-password without a token returns 404", async () => {
+    const response = await fetch(server.url("/reset-password"));
+
+    expect(response.status).toBe(404);
+  });
+
+  test("reset-password with a token renders the reset form", async () => {
+    const response = await fetch(server.url("/reset-password?token=whatever"));
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain("Choose a new password");
+  });
+
+  test("forgot-password renders the reset-access page", async () => {
+    const response = await fetch(server.url("/forgot-password"));
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain("Reset access");
+  });
+
+  test("dashboard redirects unauthenticated visitors to the landing page", async () => {
+    const response = await fetch(server.url("/dashboard"), { redirect: "manual" });
+    const location = response.headers.get("location");
+
+    expect(response.status).toBe(307);
+    expect(location).toBeTruthy();
+    expect(new URL(location!, server.url("/")).pathname).toBe("/");
+  });
+
   test.each(externalSmokeCases)(
     "$path returns 200 with a valid EXTERNAL_API_KEY",
     async ({ path, schema }) => {
