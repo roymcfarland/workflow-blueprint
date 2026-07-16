@@ -10,7 +10,7 @@ The live deployment is at [https://www.workflowblueprint.io](https://www.workflo
 
 This repository is published as a **showcase of a multi-agent development workflow with PR-level guardrails**, not just as a working product. The artifacts of that workflow are checked in alongside the code:
 
-- **Strategic source of truth.** [`PROJECT.md`](./PROJECT.md) defines the product's purpose, non-goals, and the resolved open questions (Q1–Q8) that act as durable Verifier rules. Any PR that violates these rules is an automatic reject.
+- **Strategic source of truth.** [`PROJECT.md`](./PROJECT.md) defines the product's purpose, non-goals, and the resolved open questions (Q1–Q9) that act as durable Verifier rules. Any PR that violates these rules is an automatic reject.
 - **Tactical agent runbook.** [`AGENTS.md`](./AGENTS.md) is the operational quickstart that Builder agents (OpenAI Codex) read before writing code, plus dev-environment gotchas.
 - **Walked-through case study.** [`CASE_STUDY.md`](./CASE_STUDY.md) traces a single PR (`#13`) end-to-end: the Builder prompt, the diff Codex returned, the Verifier rule it triggered (the Q6 scope-discipline rule), and how the rule itself was born from that PR.
 - **Machine-readable API contract with CI drift detection.** [`docs/openapi.yaml`](./docs/openapi.yaml) is generated from Zod schemas in [`src/lib/external-contract.ts`](./src/lib/external-contract.ts); a CI test (`tests/api/external/openapi.test.ts`) fails any PR where the committed spec diverges from the schemas.
@@ -369,14 +369,19 @@ Daily-summary task ids are stable 48-bit hashes of the underlying UUIDs. `summar
 ## Scripts
 
 ```bash
-npm run dev          # start the local Next.js server
-npm run build        # local production build and type check (no migrations)
-npm run vercel-build # Vercel uses this: applies Prisma migrations, then builds
-npm run lint         # ESLint / Next core web vitals checks
-npm run db:deploy    # apply checked-in Prisma migrations
-npm run db:migrate   # create and apply a development migration
-npm run db:push      # push schema directly for non-migration development
-npm run db:seed      # seed the demo account and boards
+npm run dev            # start the local Next.js server
+npm run build          # local production build and type check (no migrations)
+npm run vercel-build   # Vercel uses this: applies Prisma migrations, then builds
+npm run lint           # ESLint / Next core web vitals checks
+npm run typecheck      # tsc --noEmit
+npm run test           # Vitest: data-layer, API-route, and component tests (ephemeral Postgres)
+npm run test:smoke     # Vitest: boots a real Next.js server and hits real routes
+npm run test:coverage  # npm run test with v8 coverage instrumentation (uploaded to Codecov in CI)
+npm run generate:openapi # regenerate docs/openapi.yaml from src/lib/external-contract.ts
+npm run db:deploy      # apply checked-in Prisma migrations
+npm run db:migrate     # create and apply a development migration
+npm run db:push        # push schema directly for non-migration development
+npm run db:seed        # seed the demo account and boards
 ```
 
 Vercel automatically runs `vercel-build` instead of `build` when it is present, so each production deployment applies any pending Prisma migrations before the new code starts handling requests. Local `npm run build` deliberately does not migrate so it cannot accidentally touch a remote database.
