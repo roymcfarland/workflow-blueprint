@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "src/generated/**",
     "next-env.d.ts",
+    // Generated coverage report (gitignored, but not auto-excluded by ESLint's flat config).
+    "coverage/**",
   ]),
 ]);
 
