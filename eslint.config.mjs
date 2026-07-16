@@ -15,6 +15,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated coverage report (gitignored, but not auto-excluded by ESLint's flat config).
     "coverage/**",
+    // Claude Code local session state, including nested worktrees with their own
+    // build output (e.g. .claude/worktrees/<name>/.next/**) — the top-level
+    // ".next/**" ignore above doesn't reach into nested copies like this one.
+    ".claude/**",
   ]),
 ]);
 
