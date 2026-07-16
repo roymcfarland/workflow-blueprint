@@ -46,3 +46,6 @@ prisma/*.db
 src/generated/
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code local session state (worktrees, launch config, local settings)
+/.claude/
