@@ -67,6 +67,14 @@ EXTERNAL_API_KEY="replace-with-the-shared-external-api-key"
 EXTERNAL_USER_ID="user_demo_alex_blue"
 ```
 
+Optional, for task attachments (Supabase Storage only — see [Q4 of PROJECT.md](./PROJECT.md) for the scoped storage exception; the database itself stays plain PostgreSQL):
+
+```bash
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="replace-with-the-service-role-key-from-supabase-settings"
+SUPABASE_STORAGE_BUCKET="task-attachments"
+```
+
 When the project is linked in Vercel, you can pull local secrets without printing them:
 
 ```bash
@@ -81,6 +89,7 @@ Use a durable PostgreSQL 14+ database for production account creation.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
 `EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to the seeded demo user.
 `CRON_SECRET` secures `/api/cron/recurring-tasks`. It is required in Vercel production for the scheduled rollover job, but local development can omit it unless you are manually testing the route. When `CRON_SECRET` is set on the Vercel project, Vercel cron invocations automatically send it as an `Authorization: Bearer <CRON_SECRET>` header; the endpoint returns `401` without the matching bearer token.
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` enable task attachments (`src/lib/storage.ts`). Local development can omit them unless you are testing that feature; the storage helper throws a clear error rather than failing silently when they're missing.
 
 Optional server-side Sentry settings:
 
@@ -372,16 +381,22 @@ Daily-summary task ids are stable 48-bit hashes of the underlying UUIDs. `summar
 npm run dev            # start the local Next.js server
 npm run build          # local production build and type check (no migrations)
 npm run vercel-build   # Vercel uses this: applies Prisma migrations, then builds
+npm run start          # serve a local production build (run after npm run build)
 npm run lint           # ESLint / Next core web vitals checks
 npm run typecheck      # tsc --noEmit
 npm run test           # Vitest: data-layer, API-route, and component tests (ephemeral Postgres)
+npm run test:watch     # Vitest in watch mode
 npm run test:smoke     # Vitest: boots a real Next.js server and hits real routes
 npm run test:coverage  # npm run test with v8 coverage instrumentation (uploaded to Codecov in CI)
 npm run generate:openapi # regenerate docs/openapi.yaml from src/lib/external-contract.ts
+npm run postinstall    # runs automatically after npm install: prisma generate
 npm run db:deploy      # apply checked-in Prisma migrations
 npm run db:migrate     # create and apply a development migration
 npm run db:push        # push schema directly for non-migration development
 npm run db:seed        # seed the demo account and boards
+npm run db:setup       # db:deploy then db:seed, in one step
+npm run admin:bootstrap # promote a user to ADMIN by email (see scripts/admin-promote.ts)
+npm run admin:promote  # alias for admin:bootstrap
 ```
 
 Vercel automatically runs `vercel-build` instead of `build` when it is present, so each production deployment applies any pending Prisma migrations before the new code starts handling requests. Local `npm run build` deliberately does not migrate so it cannot accidentally touch a remote database.
