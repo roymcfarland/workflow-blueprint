@@ -116,4 +116,21 @@ describe("smoke routes", () => {
     },
   );
 
+  test("robots.txt returns 200 and disallows the authenticated app", async () => {
+    const response = await fetch(server.url("/robots.txt"));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain("Disallow: /dashboard");
+    expect(body).toContain(`Sitemap: ${server.url("/sitemap.xml")}`);
+  });
+
+  test("sitemap.xml returns 200 and lists only the public landing page", async () => {
+    const response = await fetch(server.url("/sitemap.xml"));
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(body).toContain(`<loc>${server.url("/")}</loc>`);
+    expect(body).not.toContain("/dashboard");
+  });
 });

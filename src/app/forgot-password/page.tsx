@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
@@ -6,6 +7,13 @@ import { BlueprintCard } from "@/components/blueprint/card";
 // Required so the nonce-based CSP set by src/proxy.ts is honored on every
 // request. Static prerenders cannot have per-request nonces.
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function ForgotPasswordPage() {
   return (
