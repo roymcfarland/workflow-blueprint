@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-import SignUpPage from "@/app/sign-up/page";
+import SignUpPage, { metadata } from "@/app/sign-up/page";
 import { getCurrentUser } from "@/lib/auth";
 import { getInvitationPreviewByToken } from "@/lib/data";
 
@@ -36,6 +36,10 @@ afterEach(() => {
 });
 
 describe("SignUpPage", () => {
+  test("is marked noindex", () => {
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+
   test("redirects to /dashboard when already signed in", async () => {
     vi.mocked(getCurrentUser).mockResolvedValueOnce({ id: "user-1" } as never);
 

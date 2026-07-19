@@ -10,13 +10,17 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-import ResetPasswordPage from "@/app/reset-password/page";
+import ResetPasswordPage, { metadata } from "@/app/reset-password/page";
 
 afterEach(() => {
   cleanup();
 });
 
 describe("ResetPasswordPage", () => {
+  test("is marked noindex", () => {
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+
   test("calls notFound when the token is missing", async () => {
     await expect(ResetPasswordPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
       "NEXT_NOT_FOUND",

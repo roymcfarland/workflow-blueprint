@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -5,6 +6,13 @@ import { SignUpForm } from "@/components/auth/sign-up-form";
 import { BlueprintCard } from "@/components/blueprint/card";
 import { getCurrentUser } from "@/lib/auth";
 import { getInvitationPreviewByToken } from "@/lib/data";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 type SignUpPageProps = {
   searchParams: Promise<{

@@ -1,7 +1,15 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 import { BlueprintCard } from "@/components/blueprint/card";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function ResetPasswordPage({
   searchParams,
