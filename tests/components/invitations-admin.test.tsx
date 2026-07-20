@@ -171,4 +171,31 @@ describe("InvitationsAdmin", () => {
     expect(screen.getByText("Invitation revoked.")).toBeDefined();
     expect(screen.getByText("Revoked")).toBeDefined();
   });
+
+  test("shows an error and does not refresh when revoking fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Invitation already revoked." }, 400));
+
+    render(<InvitationsAdmin initialInvitations={[invitation()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Invitation already revoked.")).toBeDefined(),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeDefined();
+  });
+
+  test("shows an error when the post-revoke ledger refresh fails", async () => {
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ message: "Revoked by admin." }))
+      .mockResolvedValueOnce(apiResponse({ message: "Refresh unavailable." }, 500));
+
+    render(<InvitationsAdmin initialInvitations={[invitation()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText("Refresh unavailable.")).toBeDefined());
+  });
 });
