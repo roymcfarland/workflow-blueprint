@@ -106,6 +106,16 @@ describe("ThemeProvider", () => {
     expect(screen.getByTestId("theme").textContent).toBe("day");
   });
 
+  test("falls back to day when reading storage throws", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+
+    renderProvider();
+
+    expect(screen.getByTestId("theme").textContent).toBe("day");
+  });
+
   test("sets, applies, and persists a night theme", () => {
     renderProvider();
 
