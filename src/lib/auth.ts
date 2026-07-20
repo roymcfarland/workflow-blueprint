@@ -135,20 +135,6 @@ async function readSessionPayload(): Promise<SessionPayload | null> {
   }
 }
 
-export async function readSession() {
-  const payload = await readSessionPayload();
-
-  if (!payload) {
-    return null;
-  }
-
-  return {
-    userId: payload.userId,
-    email: payload.email,
-    name: payload.name,
-  };
-}
-
 export async function getCurrentUser() {
   const session = await readSessionPayload();
 
