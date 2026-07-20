@@ -283,6 +283,7 @@ describe("TaskDetailModal remaining CRUD", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
     const textarea = screen.getByLabelText("Description");
     fireEvent.change(textarea, { target: { value: "Ship by Friday." } });
+    expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.blur(textarea);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
