@@ -131,16 +131,36 @@ describe("SubtasksCardPanel remove and reorder", () => {
 
   test("reverts a failed subtask removal and shows an error", async () => {
     const initialTask = task();
-    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Subtask removal failed." }, 500));
+    let resolveDelete!: (response: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
 
     render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    expect(screen.getByDisplayValue("Draft outline")).toBeDefined();
+    const { act } = await import("@testing-library/react");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
     fireEvent.click(screen.getByRole("button", { name: "Remove subtask" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/subtasks/subtask-1");
     expect(init.method).toBe("DELETE");
+
+    // The optimistic removal must be genuinely visible while the request is
+    // still in flight — this is what proves the rollback below is a REAL
+    // revert, not just "the row was never removed in the first place."
+    await waitFor(() => expect(screen.queryByDisplayValue("Draft outline")).toBeNull());
+
+    resolveDelete(apiResponse({ message: "Subtask removal failed." }, 500));
+
     await waitFor(() => expect(screen.getByDisplayValue("Draft outline")).toBeDefined());
     expect(screen.getByRole("alert").textContent).toBe("Subtask removal failed.");
   });
