@@ -161,6 +161,21 @@ describe("DashboardOverview in-progress panel", () => {
     await waitFor(() => expect(screen.queryByText("Draft launch checklist")).toBeNull());
   });
 
+  test("shows an error and restores the task when marking it done fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Draft launch checklist done" }));
+
+    expect(screen.queryByText("Draft launch checklist")).toBeNull();
+
+    await waitFor(() =>
+      expect(screen.getByText("Unable to mark the task done.")).toBeDefined(),
+    );
+    expect(screen.getByText("Draft launch checklist")).toBeDefined();
+  });
+
   test("expands and hides subtasks from the in-progress row caret", () => {
     render(
       <DashboardOverview
@@ -553,6 +568,28 @@ describe("DashboardOverview overdue and due soon panel", () => {
     await waitFor(() => expect(screen.queryByText("Renew SSL certificate")).toBeNull());
   });
 
+  test("shows an error and restores the task when marking it done fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          overdueTasks: [taskSummary({ id: "task-overdue", title: "Renew SSL certificate" })],
+          upcomingTasks: [],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Renew SSL certificate done" }));
+
+    expect(screen.queryByText("Renew SSL certificate")).toBeNull();
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Unable to mark the task done.")).toHaveLength(1),
+    );
+    expect(screen.getByText("Renew SSL certificate")).toBeDefined();
+  });
+
   test("marks a due-soon task done and removes it from the list", async () => {
     fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
 
@@ -702,6 +739,27 @@ describe("DashboardOverview needs attention panel", () => {
     );
     await waitFor(() => expect(screen.queryByText("Forgotten migration doc")).toBeNull());
   });
+
+  test("shows an error and restores the task when marking it done fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          staleTasks: [taskSummary({ id: "task-stale", title: "Forgotten migration doc" })],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Forgotten migration doc done" }));
+
+    expect(screen.queryByText("Forgotten migration doc")).toBeNull();
+
+    await waitFor(() =>
+      expect(screen.getByText("Unable to mark the task done.")).toBeDefined(),
+    );
+    expect(screen.getByText("Forgotten migration doc")).toBeDefined();
+  });
 });
 
 describe("DashboardOverview on deck panel", () => {
@@ -763,6 +821,33 @@ describe("DashboardOverview on deck panel", () => {
       ),
     );
     await waitFor(() => expect(screen.queryByText("Design the onboarding flow")).toBeNull());
+  });
+
+  test("shows an error and restores the task when marking it done fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          onDeckTasks: [
+            taskSummary({
+              id: "task-on-deck",
+              status: "ON_DECK",
+              title: "Design the onboarding flow",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Design the onboarding flow done" }));
+
+    expect(screen.queryByText("Design the onboarding flow")).toBeNull();
+
+    await waitFor(() =>
+      expect(screen.getByText("Unable to mark the task done.")).toBeDefined(),
+    );
+    expect(screen.getByText("Design the onboarding flow")).toBeDefined();
   });
 });
 
