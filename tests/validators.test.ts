@@ -5,11 +5,14 @@ import {
   adminApiTokenSchema,
   attachmentMetaSchema,
   attachmentRecordSchema,
+  boardReorderSchema,
   checklistCreateSchema,
   checklistUpdateSchema,
   createBoardSchema,
   dashboardReorderSchema,
   labelCreateSchema,
+  profileSchema,
+  subtaskReorderSchema,
   taskInputSchema,
   taskReorderSchema,
   updateBoardSchema,
@@ -229,6 +232,170 @@ describe("src/lib/validators.ts", () => {
       expect.objectContaining({
         message: "Reorder payload contains duplicate task ids.",
         path: ["taskIds", 2],
+      }),
+    ]);
+  });
+});
+
+describe("task input validation", () => {
+  const validTaskPayload = {
+    description: null,
+    dueDate: null,
+    priority: "NONE",
+    status: "ON_DECK",
+    subtasks: [],
+    title: "Validate task input",
+  };
+
+  test("accepts a valid calendar due date", () => {
+    const result = taskInputSchema.safeParse({ ...validTaskPayload, dueDate: "2026-07-21" });
+
+    expect(result.success).toBe(true);
+  });
+
+  test.each(["2026-02-30", "not-a-date"])("rejects invalid due date %s", (dueDate) => {
+    const result = taskInputSchema.safeParse({ ...validTaskPayload, dueDate });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error("Expected invalid due date to be rejected.");
+    }
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        message: "Enter a valid due date.",
+        path: ["dueDate"],
+      }),
+    ]);
+  });
+
+  test.each([
+    { dueDate: 12345, label: "non-string" },
+    { dueDate: "   ", label: "whitespace-only" },
+  ])("coerces a $label due date to null", ({ dueDate }) => {
+    const result = taskInputSchema.safeParse({ ...validTaskPayload, dueDate });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error("Expected due date to be coerced to null.");
+    }
+    expect(result.data.dueDate).toBeNull();
+  });
+
+  test("rejects duplicate subtask ids", () => {
+    const result = taskInputSchema.safeParse({
+      ...validTaskPayload,
+      subtasks: [
+        { id: "subtask_1", title: "First subtask" },
+        { id: "subtask_1", title: "Second subtask" },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error("Expected duplicate subtask ids to be rejected.");
+    }
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        message: "Task payload contains duplicate subtasks.",
+        path: ["subtasks", 1, "id"],
+      }),
+    ]);
+  });
+
+  test.each([
+    {
+      label: "different ids",
+      subtasks: [
+        { id: "subtask_1", title: "First subtask" },
+        { id: "subtask_2", title: "Second subtask" },
+      ],
+    },
+    {
+      label: "no ids",
+      subtasks: [{ title: "First subtask" }, { title: "Second subtask" }],
+    },
+  ])("accepts subtasks with $label", ({ subtasks }) => {
+    expect(taskInputSchema.safeParse({ ...validTaskPayload, subtasks }).success).toBe(true);
+  });
+});
+
+describe("reorder payload validation", () => {
+  test("rejects duplicate subtask ids", () => {
+    const result = subtaskReorderSchema.safeParse({
+      subtaskIds: ["subtask_1", "subtask_1"],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error("Expected duplicate subtask ids to be rejected.");
+    }
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        message: "Reorder payload contains duplicate subtask ids.",
+        path: ["subtaskIds", 1],
+      }),
+    ]);
+  });
+
+  test("rejects duplicate board slugs", () => {
+    const result = boardReorderSchema.safeParse({
+      boardSlugs: ["launch", "launch"],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error("Expected duplicate board slugs to be rejected.");
+    }
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        message: "Reorder payload contains duplicate board slugs.",
+        path: ["boardSlugs", 1],
+      }),
+    ]);
+  });
+});
+
+describe("profile password validation", () => {
+  const validProfilePayload = {
+    email: "alex@example.com",
+    name: "Alex Morgan",
+    themePreference: "system",
+  };
+
+  test("rejects a new password shorter than eight characters", () => {
+    const result = profileSchema.safeParse({
+      ...validProfilePayload,
+      confirmPassword: "short",
+      newPassword: "short",
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error("Expected a short new password to be rejected.");
+    }
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        message: "New password must be at least 8 characters.",
+        path: ["newPassword"],
+      }),
+    ]);
+  });
+
+  test("rejects mismatched new passwords", () => {
+    const result = profileSchema.safeParse({
+      ...validProfilePayload,
+      confirmPassword: "password-two",
+      newPassword: "password-one",
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error("Expected mismatched passwords to be rejected.");
+    }
+    expect(result.error.issues).toEqual([
+      expect.objectContaining({
+        message: "Passwords must match.",
+        path: ["confirmPassword"],
       }),
     ]);
   });
