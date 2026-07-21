@@ -25,6 +25,7 @@ import {
   createBoardForUser,
   createChecklistItemForTask,
   createLabelForTask,
+  createPasswordResetToken,
   createTaskForBoard,
   deleteAttachmentForUser,
   deleteChecklistItemForUser,
@@ -43,6 +44,7 @@ import {
   reorderBoardsForUser,
   reorderDashboardInProgressForUser,
   reorderTasksForUser,
+  resetPasswordWithToken,
   rolloverDueRecurringTasks,
   updateBoardForUser,
   updateChecklistItemForUser,
@@ -1454,6 +1456,42 @@ describe("src/lib/data.ts", () => {
     await expect(prisma.attachment.findUnique({ where: { id: attachmentId } })).resolves.toBeNull();
   });
 
+  test("allows only one concurrent deletion of the same attachment", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Attachment race task",
+    });
+    const attachedTask = await createAttachmentRecord(
+      user.id,
+      task.id,
+      attachmentInput(task.id),
+    );
+    const attachmentId = attachedTask.attachments?.[0]?.id;
+    if (!attachmentId) {
+      throw new Error("Expected a serialized attachment id.");
+    }
+
+    const results = await Promise.allSettled([
+      deleteAttachmentForUser(user.id, attachmentId),
+      deleteAttachmentForUser(user.id, attachmentId),
+    ]);
+    const fulfilled = results.filter((result) => result.status === "fulfilled");
+    const rejected = results.filter((result) => result.status === "rejected");
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toEqual(
+      expect.objectContaining({ message: "Attachment not found." }),
+    );
+  });
+
   test("enforces the task checklist item cap", async () => {
     const user = await createTestUser();
     await createTestBoard(user.id);
@@ -2375,6 +2413,19 @@ describe("src/lib/data.ts", () => {
       "pending@example.test": "PENDING",
       "revoked@example.test": "REVOKED",
     });
+  });
+
+  test("allows only one concurrent reset with the same password token", async () => {
+    const user = await createTestUser();
+    const { token } = await createPasswordResetToken(user.id);
+
+    const results = await Promise.all([
+      resetPasswordWithToken(token, "hash-one"),
+      resetPasswordWithToken(token, "hash-two"),
+    ]);
+
+    expect(results.filter((result) => result !== null)).toHaveLength(1);
+    expect(results.filter((result) => result === null)).toHaveLength(1);
   });
 
   test("creates API tokens with hash-only persistence and scopes", async () => {
