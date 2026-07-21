@@ -75,6 +75,75 @@ function expectWordmarkVisible() {
   expect(screen.getByText("Blueprint")).toBeDefined();
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+
+  return { promise, resolve };
+}
+
+function stubRect(element: Element, rect: Partial<DOMRect>) {
+  vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+    bottom: 0,
+    height: 40,
+    left: 0,
+    right: 0,
+    top: 0,
+    width: 200,
+    x: 0,
+    y: 0,
+    ...rect,
+  } as DOMRect);
+}
+
+function dragReleasePlanBeforeLaunchPlan() {
+  const launchPlan = screen.getByRole("link", { name: "Launch Plan" }).closest("div.relative");
+  const releasePlan = screen
+    .getByRole("link", { name: "Release Plan" })
+    .closest("div.relative");
+  if (!launchPlan || !releasePlan) {
+    throw new Error("Expected sortable board containers.");
+  }
+
+  stubRect(launchPlan, { bottom: 40, top: 0 });
+  stubRect(releasePlan, { bottom: 80, top: 40 });
+
+  const handle = screen.getByRole("button", { name: "Reorder Release Plan" });
+  fireEvent.mouseDown(handle, { button: 0, clientX: 20, clientY: 60 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 50 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 35 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 20 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 20 });
+  fireEvent.mouseUp(document, { button: 0, clientX: 20, clientY: 20 });
+}
+
+function boardLinkNames() {
+  return screen
+    .getAllByRole("link")
+    .filter((link) => link.getAttribute("href")?.startsWith("/boards/"))
+    .map((link) => link.textContent?.trim() ?? "");
+}
+
+function useMobileViewport() {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: 800,
+    writable: true,
+  });
+}
+
+function openMobileNavigation() {
+  fireEvent.click(screen.getByRole("button", { name: "Open mobile navigation" }));
+  expect(screen.getByRole("button", { name: "Close navigation overlay" })).toBeDefined();
+}
+
+function expectMobileNavigationClosed() {
+  expect(screen.getByRole("button", { name: "Open mobile navigation" })).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Close navigation overlay" })).toBeNull();
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
@@ -315,5 +384,238 @@ describe("AppShell account menu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Profile" }));
 
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("AppShell transition fallback", () => {
+  test("enables sidebar transitions when requestAnimationFrame is unavailable", () => {
+    const originalRequestAnimationFrame = Object.getOwnPropertyDescriptor(
+      window,
+      "requestAnimationFrame",
+    );
+    Object.defineProperty(window, "requestAnimationFrame", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      renderShell();
+      const sidebar = screen.getByRole("complementary", { name: "Primary navigation" });
+      expect(sidebar.className).toContain("lg:transition-none");
+
+      act(() => vi.advanceTimersByTime(0));
+
+      expect(sidebar.className).not.toContain("lg:transition-none");
+    } finally {
+      if (originalRequestAnimationFrame) {
+        Object.defineProperty(window, "requestAnimationFrame", originalRequestAnimationFrame);
+      }
+    }
+  });
+});
+
+describe("AppShell theme switching", () => {
+  test("rolls back an optimistic theme change when persistence fails", async () => {
+    vi.useRealTimers();
+    const request = deferred<Response>();
+    const fetchMock = vi.fn().mockReturnValue(request.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      renderShell();
+      fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+      navigationMock.setTheme.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: "Night" }));
+
+      expect(navigationMock.setTheme).toHaveBeenCalledWith("night");
+      const optimisticCallCount = navigationMock.setTheme.mock.calls.length;
+      expect(
+        navigationMock.setTheme.mock.calls.every(([theme]) => theme === "night"),
+      ).toBe(true);
+
+      await act(async () => {
+        request.resolve(new Response(null, { status: 500 }));
+        await request.promise;
+      });
+
+      await waitFor(() =>
+        expect(
+          navigationMock.setTheme.mock.calls
+            .slice(optimisticCallCount)
+            .some(([theme]) => theme === "day"),
+        ).toBe(true),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/theme",
+        expect.objectContaining({
+          body: JSON.stringify({ themePreference: "night" }),
+          method: "PATCH",
+        }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("AppShell board reorder interactions", () => {
+  test("persists a board order changed with the drag handle", async () => {
+    vi.useRealTimers();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      renderShell();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      dragReleasePlanBeforeLaunchPlan();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/boards/reorder",
+          expect.objectContaining({
+            body: JSON.stringify({ boardSlugs: ["release-plan", "launch-plan"] }),
+            method: "POST",
+          }),
+        ),
+      );
+      expect(boardLinkNames()).toEqual(["Release Plan", "Launch Plan"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("reverts a failed board reorder and shows the persistence error", async () => {
+    vi.useRealTimers();
+    const request = deferred<Response>();
+    const fetchMock = vi.fn().mockReturnValue(request.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      renderShell();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      dragReleasePlanBeforeLaunchPlan();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(boardLinkNames()).toEqual(["Release Plan", "Launch Plan"]));
+
+      await act(async () => {
+        request.resolve(new Response(null, { status: 500 }));
+        await request.promise;
+      });
+
+      expect(await screen.findByText("Unable to save the new order.")).toBeDefined();
+      await waitFor(() => expect(boardLinkNames()).toEqual(["Launch Plan", "Release Plan"]));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("AppShell mobile navigation close interactions", () => {
+  test("closes from the in-sidebar close button", () => {
+    useMobileViewport();
+    renderShell();
+    openMobileNavigation();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+
+    expectMobileNavigationClosed();
+  });
+
+  test("closes from the wordmark, dashboard, and expanded board links", () => {
+    useMobileViewport();
+    renderShell();
+
+    openMobileNavigation();
+    fireEvent.click(screen.getByRole("link", { name: "Workflow Blueprint home" }));
+    expectMobileNavigationClosed();
+
+    openMobileNavigation();
+    fireEvent.click(screen.getByRole("link", { name: "Dashboard" }));
+    expectMobileNavigationClosed();
+
+    openMobileNavigation();
+    fireEvent.click(screen.getByRole("link", { name: "Launch Plan" }));
+    expectMobileNavigationClosed();
+  });
+
+  test("keeps mobile navigation closed when a collapsed board link is selected", () => {
+    useMobileViewport();
+    renderShell();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+
+    fireEvent.click(screen.getByRole("link", { name: "Launch Plan" }));
+
+    expectMobileNavigationClosed();
+  });
+
+  test("closes from the mobile overlay backdrop", () => {
+    useMobileViewport();
+    renderShell();
+    openMobileNavigation();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation overlay" }));
+
+    expectMobileNavigationClosed();
+  });
+});
+
+describe("AppShell account menu close interactions", () => {
+  test("closes the account menu from its invisible backdrop", () => {
+    const { container } = renderShell();
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    const backdrop = container.querySelector('button[aria-hidden="true"]');
+    if (!backdrop) {
+      throw new Error("Expected the account menu backdrop.");
+    }
+
+    fireEvent.click(backdrop);
+
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  test("admin links close both the account menu and mobile navigation", () => {
+    useMobileViewport();
+    renderShell(adminUser);
+
+    openMobileNavigation();
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Invitations" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expectMobileNavigationClosed();
+
+    openMobileNavigation();
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "API tokens" }));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expectMobileNavigationClosed();
+  });
+
+  test("signs out from the account menu and returns to the landing page", async () => {
+    vi.useRealTimers();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      renderShell();
+      fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
+
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/auth/sign-out",
+          expect.objectContaining({ method: "POST" }),
+        ),
+      );
+      await waitFor(() => expect(navigationMock.push).toHaveBeenCalledWith("/"));
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
