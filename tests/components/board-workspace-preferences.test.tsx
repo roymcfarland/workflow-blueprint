@@ -238,3 +238,95 @@ describe("BoardWorkspace per-board preferences", () => {
     expect(hydrationWarnings).toHaveLength(0);
   });
 });
+
+describe("BoardWorkspace note autosave", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  test("saves after the debounce and returns the indicator to idle", async () => {
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+
+    fireEvent.change(screen.getByPlaceholderText(notesPlaceholder), {
+      target: { value: "A decision worth saving" },
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/boards/alpha/note",
+      expect.objectContaining({
+        body: JSON.stringify({ content: "A decision worth saving" }),
+        method: "PATCH",
+      }),
+    );
+    expect(screen.getByRole("status").textContent).toContain("Saved");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600);
+    });
+
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  test("collapses rapid edits into one save with the latest content", async () => {
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+    const textarea = screen.getByPlaceholderText(notesPlaceholder);
+
+    fireEvent.change(textarea, { target: { value: "First draft" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    fireEvent.change(textarea, { target: { value: "Latest draft" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/boards/alpha/note",
+      expect.objectContaining({
+        body: JSON.stringify({ content: "Latest draft" }),
+        method: "PATCH",
+      }),
+    );
+  });
+
+  test("shows the server message when saving fails", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ message: "Notes are temporarily unavailable" }), {
+        headers: { "Content-Type": "application/json" },
+        status: 500,
+      }),
+    );
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+
+    fireEvent.change(screen.getByPlaceholderText(notesPlaceholder), {
+      target: { value: "This save will fail" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    expect(screen.getByRole("status").textContent).toContain(
+      "Notes are temporarily unavailable",
+    );
+  });
+});
