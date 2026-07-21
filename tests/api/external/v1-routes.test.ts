@@ -1336,6 +1336,180 @@ describe("external v1 route contracts", () => {
     });
   });
 
+  describe("external v1 mutation-error status mapping", () => {
+    test("POST /api/external/v1/tasks rejects a payload missing the title", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Task validation writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await postTask(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/tasks",
+          { boardSlug: starterBoard.slug },
+          token,
+        ),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(body).toEqual({ error: expect.any(String), ok: false });
+    });
+
+    test("POST /api/external/v1/tasks maps a not-found board to a 404", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Task missing-board writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await postTask(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/tasks",
+          { boardSlug: "missing-board", title: "Unplaceable task" },
+          token,
+        ),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(body).toEqual({ error: expect.stringMatching(/not found/i), ok: false });
+    });
+
+    test("POST /api/external/v1/boards rejects a payload missing the name", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Board validation writer",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await postBoard(
+        externalJsonRequest("POST", "/api/external/v1/boards", {}, token),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(body).toEqual({ error: expect.any(String), ok: false });
+    });
+
+    test("POST /api/external/v1/boards maps a slug collision to a 409", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Board collision writer",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+      const request = () =>
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/boards",
+          { name: "Collision Board" },
+          token,
+        );
+
+      const firstResponse = await postBoard(request());
+      const secondResponse = await postBoard(request());
+      const body = await secondResponse.json();
+
+      expect(firstResponse.status).toBe(201);
+      expect(secondResponse.status).toBe(409);
+      expect(body).toEqual({
+        error: expect.stringMatching(/already exists/i),
+        ok: false,
+      });
+    });
+
+    test("POST /api/external/v1/tasks/[id]/subtasks rejects a payload missing the title", async () => {
+      const board = await prisma.board.findUniqueOrThrow({
+        where: {
+          userId_slug: { slug: starterBoard.slug, userId: demoUser.id },
+        },
+      });
+      const task = await createRouteTask(board.id, "Subtask validation parent");
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Subtask validation writer",
+        scopes: [ApiTokenScope.SUBTASKS_WRITE],
+      });
+
+      const response = await postSubtask(
+        externalJsonRequest(
+          "POST",
+          `/api/external/v1/tasks/${task.id}/subtasks`,
+          {},
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(body).toEqual({ error: expect.any(String), ok: false });
+    });
+
+    test("POST /api/external/v1/tasks/[id]/subtasks maps a not-found task to a 404", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Subtask missing-task writer",
+        scopes: [ApiTokenScope.SUBTASKS_WRITE],
+      });
+      const taskId = randomUUID();
+
+      const response = await postSubtask(
+        externalJsonRequest(
+          "POST",
+          `/api/external/v1/tasks/${taskId}/subtasks`,
+          { title: "Orphan subtask" },
+          token,
+        ),
+        { params: Promise.resolve({ id: taskId }) },
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(body).toEqual({ error: expect.stringMatching(/not found/i), ok: false });
+    });
+
+    test("POST /api/external/v1/tasks/[id]/subtasks maps the 50-subtask limit to a 409", async () => {
+      const board = await prisma.board.findUniqueOrThrow({
+        where: {
+          userId_slug: { slug: starterBoard.slug, userId: demoUser.id },
+        },
+      });
+      const task = await createRouteTask(board.id, "Full subtask parent");
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Subtask limit writer",
+        scopes: [ApiTokenScope.SUBTASKS_WRITE],
+      });
+      await prisma.subtask.createMany({
+        data: Array.from({ length: 50 }, (_, sortOrder) => ({
+          id: randomUUID(),
+          isComplete: false,
+          sortOrder,
+          taskId: task.id,
+          title: `Existing subtask ${sortOrder}`,
+        })),
+      });
+
+      const response = await postSubtask(
+        externalJsonRequest(
+          "POST",
+          `/api/external/v1/tasks/${task.id}/subtasks`,
+          { title: "One too many" },
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(409);
+      expect(body).toEqual({ error: expect.stringMatching(/up to 50/i), ok: false });
+    });
+  });
+
   test("legacy env API key returns EXTERNAL_USER_ID data on all external read routes", async () => {
     const otherUser = await createTestUser({
       email: "legacy-other@example.test",
