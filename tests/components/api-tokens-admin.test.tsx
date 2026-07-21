@@ -59,6 +59,23 @@ function formattedDate(value: string) {
   }).format(new Date(value));
 }
 
+async function createApiToken(createdToken = "wbp_secret") {
+  fetchMock
+    .mockResolvedValueOnce(
+      apiResponse({ message: "API token created.", token: createdToken }),
+    )
+    .mockResolvedValueOnce(apiResponse({ apiTokens: [] }));
+
+  render(<ApiTokensAdmin initialApiTokens={[]} />);
+
+  fireEvent.change(screen.getByLabelText("Label"), {
+    target: { value: "Ops agent" },
+  });
+  fireEvent.click(submitButton());
+
+  await screen.findByText("Copy your API token now");
+}
+
 describe("ApiTokensAdmin", () => {
   test("defaults the create form to the read scopes", () => {
     render(<ApiTokensAdmin initialApiTokens={[]} />);
@@ -211,5 +228,128 @@ describe("ApiTokensAdmin", () => {
     expect(tokenRow).not.toBeNull();
     expect(within(tokenRow as HTMLElement).getAllByText("Expired")).toHaveLength(2);
     expect(within(tokenRow as HTMLElement).queryByRole("button", { name: /revoke/i })).toBeNull();
+  });
+
+  test("shows the server message when token creation fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Label already in use." }, 400));
+
+    render(<ApiTokensAdmin initialApiTokens={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Label"), {
+      target: { value: "Duplicate agent" },
+    });
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText("Label already in use.")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Copy your API token now")).toBeNull();
+  });
+
+  test("shows a refresh failure after token creation succeeds", async () => {
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ message: "API token created.", token: "wbp_secret" }))
+      .mockResolvedValueOnce(
+        apiResponse({ message: "Unable to refresh API tokens." }, 500),
+      );
+
+    render(<ApiTokensAdmin initialApiTokens={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Label"), {
+      target: { value: "Ops agent" },
+    });
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText("Copy your API token now")).toBeDefined();
+    expect(screen.getByText("wbp_secret")).toBeDefined();
+    expect(await screen.findByText("Unable to refresh API tokens.")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("ignores a direct form submission when the label is empty", () => {
+    const { container } = render(<ApiTokensAdmin initialApiTokens={[]} />);
+    const form = container.querySelector("form");
+
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("shows manual copy guidance when the clipboard is unavailable", async () => {
+    await createApiToken();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+
+    expect(
+      screen.getByText("Clipboard unavailable. Select and copy the API token manually."),
+    ).toBeDefined();
+  });
+
+  test("copies a created token to the clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    await createApiToken();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("wbp_secret"));
+    expect(await screen.findByText("API token copied.")).toBeDefined();
+  });
+
+  test("shows manual copy guidance when clipboard writing fails", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("Clipboard denied"));
+
+    await createApiToken();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+
+    expect(
+      await screen.findByText("Unable to copy the API token. Select and copy it manually."),
+    ).toBeDefined();
+  });
+
+  test("revokes an active token and refreshes the ledger", async () => {
+    const token = apiToken();
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ message: "API token revoked." }))
+      .mockResolvedValueOnce(apiResponse({ apiTokens: [] }));
+
+    render(<ApiTokensAdmin initialApiTokens={[token]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `/api/admin/api-tokens/${token.id}/revoke`,
+      { method: "POST" },
+    );
+    expect(screen.getByText("API token revoked.")).toBeDefined();
+  });
+
+  test("shows the server message when token revocation fails", async () => {
+    const token = apiToken();
+    fetchMock.mockResolvedValueOnce(
+      apiResponse({ message: "Token already revoked." }, 400),
+    );
+
+    render(<ApiTokensAdmin initialApiTokens={[token]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    expect(await screen.findByText("Token already revoked.")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
