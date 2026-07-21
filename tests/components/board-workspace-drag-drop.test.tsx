@@ -252,6 +252,37 @@ describe("BoardWorkspace drag and drop", () => {
     expect(sourceColumnAfter.textContent).toContain("First task");
   });
 
+  test("dropping in the same position does not persist", async () => {
+    render(
+      <BoardWorkspace
+        board={boardSnapshot([
+          task({ id: "task-1", title: "First task", status: "ON_DECK", sortOrder: 0 }),
+          task({ id: "task-2", title: "Second task", status: "IN_PROGRESS", sortOrder: 0 }),
+        ])}
+      />,
+    );
+
+    const sourceColumn = findColumnDroppable("Up Next");
+    sourceColumn.getBoundingClientRect = vi.fn(() =>
+      rect({ left: 0, right: 200, top: 0, bottom: 400 }),
+    );
+
+    const handle = screen.getByRole("button", { name: "Drag First task" });
+    handle.getBoundingClientRect = vi.fn(() =>
+      rect({ left: 10, right: 30, top: 10, bottom: 30 }),
+    );
+
+    fireEvent.mouseDown(handle, { clientX: 20, clientY: 20, button: 0 });
+    fireEvent.mouseMove(document, { clientX: 40, clientY: 20 });
+    fireEvent.mouseMove(document, { clientX: 20, clientY: 20 });
+    fireEvent.mouseUp(document, { clientX: 20, clientY: 20, button: 0 });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(findColumnDroppable("Up Next").textContent).toContain("First task");
+  });
+
   test("pressing Escape mid-drag cancels the move and leaves the task in its original column", async () => {
     render(
       <BoardWorkspace
