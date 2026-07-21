@@ -293,3 +293,104 @@ describe("TaskDetailModal remaining CRUD", () => {
     expect(requestJsonBody(init)?.description).toBe("Ship by Friday.");
   });
 });
+
+describe("EditableTaskTitle inline rename", () => {
+  test("enters edit mode with the current title focused", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+
+    const input = screen.getByLabelText("Task title for Visible task");
+    expect((input as HTMLInputElement).value).toBe("Visible task");
+    expect(document.activeElement).toBe(input);
+  });
+
+  test("saves a changed title on blur", async () => {
+    const updatedTask = task({ title: "Renamed task" });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+    const input = screen.getByLabelText("Task title for Visible task");
+    fireEvent.change(input, { target: { value: "Renamed task" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active");
+    expect(init.method).toBe("PATCH");
+    expect(requestJsonBody(init)?.title).toBe("Renamed task");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Rename Renamed task" })).toBeDefined(),
+    );
+  });
+
+  test("saves a changed title on Enter", async () => {
+    const updatedTask = task({ title: "Entered title" });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+    const input = screen.getByLabelText("Task title for Visible task");
+    fireEvent.change(input, { target: { value: "Entered title" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active");
+    expect(init.method).toBe("PATCH");
+    expect(requestJsonBody(init)?.title).toBe("Entered title");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Rename Entered title" })).toBeDefined(),
+    );
+  });
+
+  test("rejects an empty title and stays in edit mode", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+    const input = screen.getByLabelText("Task title for Visible task");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Task title is required.")).toBeDefined();
+    expect(screen.getByLabelText("Task title for Visible task")).toBeDefined();
+  });
+
+  test("closes edit mode without saving an unchanged title", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+
+    fireEvent.blur(screen.getByLabelText("Task title for Visible task"));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Rename Visible task" })).toBeDefined();
+  });
+
+  test("cancels an edited title on Escape without saving", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+    const input = screen.getByLabelText("Task title for Visible task");
+    fireEvent.change(input, { target: { value: "Unsaved title" } });
+
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    const renameButton = screen.getByRole("button", { name: "Rename Visible task" });
+    expect(renameButton.textContent).toBe("Visible task");
+  });
+
+  test("shows a rename failure and stays in edit mode", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Rename blocked." }, 500));
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+    const input = screen.getByLabelText("Task title for Visible task");
+    fireEvent.change(input, { target: { value: "Rejected title" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(screen.getByText("Rename blocked.")).toBeDefined());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Task title for Visible task")).toBeDefined();
+  });
+});
