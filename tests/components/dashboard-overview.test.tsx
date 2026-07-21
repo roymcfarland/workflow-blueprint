@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -125,6 +125,83 @@ function renderExpandedSubtasks(subtasks: DashboardSubtaskSummary[]) {
   );
 }
 
+function rect(overrides: Partial<DOMRect>): DOMRect {
+  return {
+    bottom: 50,
+    height: 50,
+    left: 0,
+    right: 200,
+    top: 0,
+    width: 200,
+    x: 0,
+    y: 0,
+    toJSON() {
+      return this;
+    },
+    ...overrides,
+  } as DOMRect;
+}
+
+function sortableTaskRow(title: string) {
+  const handle = screen.getByRole("button", { name: `Reorder ${title}` });
+  const row = handle.closest("div.rounded-lg.border") as HTMLElement | null;
+  if (!row) {
+    throw new Error(`Could not find sortable task row for ${title}.`);
+  }
+
+  return { handle, row };
+}
+
+function sortableSubtaskRow(title: string) {
+  const row = screen
+    .getByText(title)
+    .closest("div.flex.items-center.gap-2.text-sm") as HTMLElement | null;
+  if (!row) {
+    throw new Error(`Could not find sortable subtask row for ${title}.`);
+  }
+
+  return {
+    handle: within(row).getByRole("button", { name: "Reorder subtask" }),
+    row,
+  };
+}
+
+async function dragFirstRowAfterSecond(
+  firstRow: HTMLElement,
+  secondRow: HTMLElement,
+  handle: HTMLElement,
+) {
+  firstRow.getBoundingClientRect = vi.fn(() =>
+    rect({ left: 0, right: 200, top: 0, bottom: 50 }),
+  );
+  secondRow.getBoundingClientRect = vi.fn(() =>
+    rect({ left: 0, right: 200, top: 60, bottom: 110 }),
+  );
+  handle.getBoundingClientRect = vi.fn(() =>
+    rect({ left: 10, right: 30, top: 10, bottom: 30 }),
+  );
+
+  fireEvent.mouseDown(handle, { button: 0, clientX: 20, clientY: 20 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 35 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 55 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 75 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 85 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 85 });
+  fireEvent.mouseUp(document, { button: 0, clientX: 20, clientY: 85 });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+}
+
+function inProgressTaskOrder() {
+  return screen
+    .getAllByRole("button", { name: /^Reorder / })
+    .filter((button) => {
+      const label = button.getAttribute("aria-label");
+      return label !== "Reorder subtask" && !label?.endsWith(" section");
+    })
+    .map((button) => button.getAttribute("aria-label")?.replace("Reorder ", ""));
+}
+
 describe("DashboardOverview in-progress panel", () => {
   beforeEach(() => {
     fetchMock = vi.fn();
@@ -144,6 +221,65 @@ describe("DashboardOverview in-progress panel", () => {
     expect(screen.getByText("Draft launch checklist")).toBeDefined();
     expect(screen.getByText("Interview beta customer")).toBeDefined();
     expect(screen.queryByRole("heading", { name: "Boards" })).toBeNull();
+  });
+
+  test("reorders in-progress tasks and persists the new order", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    const first = sortableTaskRow("Draft launch checklist");
+    const second = sortableTaskRow("Interview beta customer");
+    await dragFirstRowAfterSecond(first.row, second.row, first.handle);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/dashboard/in-progress/reorder");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      taskIds: ["task-retro", "task-launch"],
+    });
+    await waitFor(() =>
+      expect(inProgressTaskOrder()).toEqual([
+        "Interview beta customer",
+        "Draft launch checklist",
+      ]),
+    );
+  });
+
+  test("shows an error and restores the task order when reordering fails", async () => {
+    let resolveFetch!: (response: Response) => void;
+    fetchMock.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    const first = sortableTaskRow("Draft launch checklist");
+    const second = sortableTaskRow("Interview beta customer");
+    await dragFirstRowAfterSecond(first.row, second.row, first.handle);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(inProgressTaskOrder()).toEqual([
+        "Interview beta customer",
+        "Draft launch checklist",
+      ]),
+    );
+
+    resolveFetch(apiResponse({}, 500));
+
+    const error = await screen.findByText("Unable to save the new order.");
+    expect(error.className).toContain("text-sm");
+    await waitFor(() =>
+      expect(inProgressTaskOrder()).toEqual([
+        "Draft launch checklist",
+        "Interview beta customer",
+      ]),
+    );
   });
 
   test("marks an in-progress task done and removes it from the list", async () => {
@@ -263,6 +399,34 @@ describe("DashboardOverview in-progress panel", () => {
     await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalledTimes(1));
   });
 
+  test("shows an error and restores a subtask toggle when the patch fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark subtask complete" }));
+
+    expect(
+      screen
+        .getByRole("button", { name: "Mark subtask incomplete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+
+    const error = await screen.findByText("Unable to update the subtask.");
+    expect(error.className).toContain("text-xs");
+    expect(
+      screen
+        .getByRole("button", { name: "Mark subtask complete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-brief");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ isComplete: true });
+  });
+
   test("renames a subtask title optimistically and patches the subtask", async () => {
     let resolveFetch!: (response: Response) => void;
     fetchMock.mockReturnValueOnce(
@@ -295,6 +459,31 @@ describe("DashboardOverview in-progress panel", () => {
     resolveFetch(apiResponse({ ok: true }));
 
     await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalledTimes(1));
+  });
+
+  test("shows an error and restores a subtask title when the rename fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit subtask Draft intro copy" }));
+    const input = screen.getByRole("textbox", {
+      name: "Subtask title for Draft intro copy",
+    });
+    fireEvent.change(input, { target: { value: "Revise intro copy" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(screen.getByRole("button", { name: "Edit subtask Revise intro copy" })).toBeDefined();
+
+    const error = await screen.findByText("Unable to update the subtask.");
+    expect(error.className).toContain("text-xs");
+    expect(screen.getByRole("button", { name: "Edit subtask Draft intro copy" })).toBeDefined();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-brief");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ title: "Revise intro copy" });
   });
 
   test("reverts an empty subtask title without patching", () => {
@@ -375,6 +564,46 @@ describe("DashboardOverview in-progress panel", () => {
     expect(init.method).toBe("DELETE");
 
     await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalled());
+  });
+
+  test("shows an error and restores a subtask when deletion fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove subtask" }));
+
+    expect(screen.queryByText("Draft intro copy")).toBeNull();
+
+    const error = await screen.findByText("Unable to delete the subtask.");
+    expect(error.className).toContain("text-xs");
+    expect(screen.getByText("Draft intro copy")).toBeDefined();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-brief");
+    expect(init.method).toBe("DELETE");
+  });
+
+  test("reorders subtasks and persists the new order", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+      { id: "subtask-review", isComplete: false, title: "Review launch notes" },
+    ]);
+
+    const first = sortableSubtaskRow("Draft intro copy");
+    const second = sortableSubtaskRow("Review launch notes");
+    await dragFirstRowAfterSecond(first.row, second.row, first.handle);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-launch/subtasks/reorder");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      subtaskIds: ["subtask-review", "subtask-brief"],
+    });
   });
 
   test("does not render a subtask caret for tasks without subtasks", () => {
