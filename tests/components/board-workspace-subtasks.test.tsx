@@ -101,6 +101,13 @@ function apiResponse(body: unknown, status = 200) {
   });
 }
 
+function selectAttachmentForUpload() {
+  const file = new File(["pdf-bytes"], "spec.pdf", { type: "application/pdf" });
+  fireEvent.change(screen.getByLabelText("Upload attachment"), {
+    target: { files: [file] },
+  });
+}
+
 function requestJsonBody(init: unknown) {
   if (!init || typeof init !== "object" || !("body" in init)) {
     return null;
@@ -439,6 +446,40 @@ describe("BoardWorkspace subtask panel granular API", () => {
     await waitFor(() => expect(screen.getAllByText("Urgent").length).toBeGreaterThan(0));
   });
 
+  test("shows an error when adding a label fails", async () => {
+    const initialTask = task();
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "That label already exists." }, 409));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    const input = screen.getByRole("textbox", { name: "New label text" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Urgent" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("That label already exists."),
+    );
+    expect(input.value).toBe("Urgent");
+  });
+
+  test("shows an error and keeps the label when removing it fails", async () => {
+    const initialTask = task({
+      labels: [{ id: "label-1", text: "Urgent", color: "#ef4444", sortOrder: 0 }],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove label Urgent" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to remove label."),
+    );
+    expect(screen.getByRole("button", { name: "Remove label Urgent" })).toBeDefined();
+  });
+
   test("adds a checklist item in the detail modal", async () => {
     const initialTask = task();
     const updatedTask = task({
@@ -462,6 +503,72 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(requestJsonBody(init)?.text).toBe("Verify copy");
 
     await waitFor(() => expect(screen.getByText("Verify copy")).toBeDefined());
+  });
+
+  test("shows an error when adding a checklist item fails", async () => {
+    const initialTask = task();
+    fetchMock.mockResolvedValueOnce(
+      apiResponse({ message: "Checklist items are temporarily unavailable." }, 503),
+    );
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    const input = screen.getByRole("textbox", {
+      name: "New checklist item",
+    }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Verify copy" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add checklist item" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "Checklist items are temporarily unavailable.",
+      ),
+    );
+    expect(input.value).toBe("Verify copy");
+  });
+
+  test("shows an error and keeps a checklist item incomplete when toggling fails", async () => {
+    const initialTask = task({
+      checklist: [{ id: "check-1", text: "Verify copy", isComplete: false, sortOrder: 0 }],
+    });
+    fetchMock.mockResolvedValueOnce(
+      apiResponse({ message: "Checklist update was rejected." }, 409),
+    );
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark checklist item complete" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Checklist update was rejected."),
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Mark checklist item complete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+  });
+
+  test("shows an error and keeps the checklist item when removing it fails", async () => {
+    const initialTask = task({
+      checklist: [{ id: "check-1", text: "Verify copy", isComplete: false, sortOrder: 0 }],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove checklist item Verify copy" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to remove checklist item."),
+    );
+    expect(
+      screen.getByRole("button", { name: "Remove checklist item Verify copy" }),
+    ).toBeDefined();
+    expect(screen.getByText("Verify copy")).toBeDefined();
   });
 
   test("uploads an attachment in the detail modal", async () => {
@@ -513,5 +620,168 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(requestJsonBody(recordInit)?.storagePath).toBe("tasks/task-active/abc");
 
     await waitFor(() => expect(screen.getByText("spec.pdf")).toBeDefined());
+  });
+
+  test("stops when starting an attachment upload fails", async () => {
+    const initialTask = task();
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    selectAttachmentForUpload();
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to start the upload."),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("stops when the attachment upload response is malformed", async () => {
+    const initialTask = task();
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    selectAttachmentForUpload();
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to start the upload."),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("stops when uploading an attachment to storage fails", async () => {
+    const initialTask = task();
+    fetchMock
+      .mockResolvedValueOnce(
+        apiResponse({
+          ok: true,
+          path: "tasks/task-active/abc",
+          uploadUrl: "https://signed.example/upload",
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    selectAttachmentForUpload();
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("The file upload failed."),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("shows an error when saving an uploaded attachment fails", async () => {
+    const initialTask = task();
+    fetchMock
+      .mockResolvedValueOnce(
+        apiResponse({
+          ok: true,
+          path: "tasks/task-active/abc",
+          uploadUrl: "https://signed.example/upload",
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    selectAttachmentForUpload();
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to save the attachment."),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  test("does not open an attachment when its download fails", async () => {
+    const initialTask = task({
+      attachments: [
+        {
+          contentType: "application/pdf",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          fileName: "spec.pdf",
+          id: "att-1",
+          size: 2048,
+        },
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "spec.pdf" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to download the attachment."),
+    );
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  test("shows an error and keeps the attachment when removing it fails", async () => {
+    const initialTask = task({
+      attachments: [
+        {
+          contentType: "application/pdf",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          fileName: "spec.pdf",
+          id: "att-1",
+          size: 2048,
+        },
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove attachment spec.pdf" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to remove the attachment."),
+    );
+    expect(screen.getByRole("button", { name: "spec.pdf" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Remove attachment spec.pdf" })).toBeDefined();
+  });
+
+  test("keeps the task detail modal open when deletion is cancelled", () => {
+    const initialTask = task();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete task" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Delete this task?");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+  });
+
+  test("shows an error and keeps the task detail modal open when deletion fails", async () => {
+    const initialTask = task();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete task" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to delete task."),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`/api/tasks/${initialTask.id}`);
+    expect(init.method).toBe("DELETE");
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
   });
 });
