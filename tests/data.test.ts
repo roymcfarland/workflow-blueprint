@@ -34,6 +34,7 @@ import {
   getBoardSnapshot,
   getShellSnapshot,
   listApiTokens,
+  listInvitations,
   markTaskDoneForUser,
   MAX_BOARDS_PER_USER,
   MAX_TASKS_PER_BOARD,
@@ -642,6 +643,78 @@ describe("src/lib/data.ts", () => {
     ).resolves.toEqual({ recurrence: "WEEKLY" });
   });
 
+  test("archives a task while keeping its completion date clear", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Archive project notes",
+    });
+
+    const archivedTask = await updateTaskForUser(user.id, task.id, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ARCHIVED",
+      subtasks: [],
+      title: "Archive project notes",
+    });
+
+    expect(archivedTask.archivedAt).not.toBeNull();
+    expect(archivedTask.completedAt).toBeNull();
+  });
+
+  test("removes subtasks omitted from a task update", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [
+        { isComplete: false, title: "Keep this step" },
+        { isComplete: false, title: "Remove this step" },
+      ],
+      title: "Trim the checklist",
+    });
+    const [keptSubtask, omittedSubtask] = task.subtasks;
+
+    if (!keptSubtask || !omittedSubtask) {
+      throw new Error("Expected two serialized subtasks.");
+    }
+
+    const updatedTask = await updateTaskForUser(user.id, task.id, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [
+        {
+          id: keptSubtask.id,
+          isComplete: keptSubtask.isComplete,
+          title: keptSubtask.title,
+        },
+      ],
+      title: "Trim the checklist",
+    });
+
+    expect(updatedTask.subtasks.map((subtask) => subtask.id)).toEqual([keptSubtask.id]);
+    await expect(
+      prisma.subtask.findUnique({ where: { id: omittedSubtask.id } }),
+    ).resolves.toBeNull();
+  });
+
   test("rejects creating a board once the user reaches the board cap", async () => {
     const user = await createTestUser();
     await prisma.board.createMany({ data: boardRows(user.id, MAX_BOARDS_PER_USER) });
@@ -670,6 +743,18 @@ describe("src/lib/data.ts", () => {
       name: "Last allowed board",
       slug: "last-allowed-board",
     });
+  });
+
+  test("rejects board names that produce an empty URL slug", async () => {
+    const user = await createTestUser();
+
+    await expect(
+      createBoardForUser(user.id, {
+        description: null,
+        iconKey: starterBoard.iconKey,
+        name: "!!!",
+      }),
+    ).rejects.toThrow("Board name must produce a valid URL slug.");
   });
 
   test("persists board accent colors through create, update, and shell snapshot", async () => {
@@ -719,6 +804,10 @@ describe("src/lib/data.ts", () => {
     await expect(getShellSnapshot(demo.id)).resolves.toMatchObject({
       user: { isDemo: true },
     });
+  });
+
+  test("getShellSnapshot returns null for a nonexistent user", async () => {
+    await expect(getShellSnapshot(randomUUID())).resolves.toBeNull();
   });
 
   test("includes board accent colors in dashboard snapshot breakdown", async () => {
@@ -1130,6 +1219,31 @@ describe("src/lib/data.ts", () => {
 
     expect(deletedTask.labels).toEqual([]);
     await expect(prisma.taskLabel.findUnique({ where: { id: labelId } })).resolves.toBeNull();
+  });
+
+  test("appends new labels after the highest existing sort order", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Multi-label task",
+    });
+
+    await createLabelForTask(user.id, task.id, {
+      color: labelColorPalette[0],
+      text: "First",
+    });
+    const labeledTask = await createLabelForTask(user.id, task.id, {
+      color: labelColorPalette[1],
+      text: "Second",
+    });
+
+    expect(labeledTask.labels?.find((label) => label.text === "Second")?.sortOrder).toBe(1);
   });
 
   test("enforces the task label cap", async () => {
@@ -1606,6 +1720,79 @@ describe("src/lib/data.ts", () => {
       secondBoard.slug,
       firstBoard.slug,
       secondBoard.slug,
+    ]);
+  });
+
+  test("sorts dashboard due-date groups and equal dashboard orders", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const overdueEarlierId = randomUUID();
+    const overdueLaterId = randomUUID();
+    const upcomingEarlierId = randomUUID();
+    const upcomingLaterId = randomUUID();
+    const inProgressEarlierId = randomUUID();
+    const inProgressLaterId = randomUUID();
+
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() - 24 * 60 * 60 * 1000),
+      id: overdueLaterId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Overdue later",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000),
+      id: overdueEarlierId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Overdue earlier",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000),
+      id: upcomingLaterId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Upcoming later",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+      id: upcomingEarlierId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Upcoming earlier",
+    });
+    await createDataTask({
+      boardId: board.id,
+      createdAt: new Date("2026-01-02T00:00:00.000Z"),
+      dashboardSortOrder: 4,
+      id: inProgressLaterId,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Equal order later",
+    });
+    await createDataTask({
+      boardId: board.id,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      dashboardSortOrder: 4,
+      id: inProgressEarlierId,
+      status: PrismaTaskStatus.IN_PROGRESS,
+      title: "Equal order earlier",
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.overdueTasks.map((task) => task.id)).toEqual([
+      overdueEarlierId,
+      overdueLaterId,
+    ]);
+    expect(snapshot.upcomingTasks.map((task) => task.id)).toEqual([
+      upcomingEarlierId,
+      upcomingLaterId,
+    ]);
+    expect(snapshot.inProgressTasks.map((task) => task.id)).toEqual([
+      inProgressEarlierId,
+      inProgressLaterId,
     ]);
   });
 
@@ -2138,6 +2325,58 @@ describe("src/lib/data.ts", () => {
     ).resolves.toEqual({ status: PrismaTaskStatus.IN_PROGRESS });
   });
 
+  test("lists revoked, accepted, expired, and pending invitations", async () => {
+    const inviter = await createTestUser();
+    const now = new Date();
+
+    await prisma.invitation.createMany({
+      data: [
+        {
+          email: "revoked@example.test",
+          expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          id: randomUUID(),
+          invitedById: inviter.id,
+          revokedAt: now,
+          tokenHash: sha256("revoked-invitation"),
+        },
+        {
+          acceptedAt: now,
+          email: "accepted@example.test",
+          expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          id: randomUUID(),
+          invitedById: inviter.id,
+          tokenHash: sha256("accepted-invitation"),
+        },
+        {
+          email: "expired@example.test",
+          expiresAt: subDays(now, 1),
+          id: randomUUID(),
+          invitedById: inviter.id,
+          tokenHash: sha256("expired-invitation"),
+        },
+        {
+          email: "pending@example.test",
+          expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+          id: randomUUID(),
+          invitedById: inviter.id,
+          tokenHash: sha256("pending-invitation"),
+        },
+      ],
+    });
+
+    const invitations = await listInvitations();
+    const statuses = Object.fromEntries(
+      invitations.map((invitation) => [invitation.email, invitation.status]),
+    );
+
+    expect(statuses).toEqual({
+      "accepted@example.test": "ACCEPTED",
+      "expired@example.test": "EXPIRED",
+      "pending@example.test": "PENDING",
+      "revoked@example.test": "REVOKED",
+    });
+  });
+
   test("creates API tokens with hash-only persistence and scopes", async () => {
     const user = await createTestUser({
       email: "admin@example.test",
@@ -2217,6 +2456,10 @@ describe("src/lib/data.ts", () => {
       id: apiToken.id,
       scopes,
     });
+  });
+
+  test("findActiveApiTokenByRawToken returns null for an empty token", async () => {
+    await expect(findActiveApiTokenByRawToken("")).resolves.toBeNull();
   });
 
   test("rejects expired API tokens and serializes expired status", async () => {
