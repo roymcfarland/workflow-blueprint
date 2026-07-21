@@ -1156,3 +1156,109 @@ describe("DashboardOverview active tokens panel", () => {
     expect(screen.getByText("No active API tokens yet.")).toBeDefined();
   });
 });
+
+describe("DashboardOverview new task menu", () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  test("renders nothing with no boards", () => {
+    render(<DashboardOverview data={dashboardSnapshot({ boardBreakdown: [] })} />);
+
+    expect(screen.queryByRole("button", { name: "New Task" })).toBeNull();
+  });
+
+  test("opens the board picker and closes it via the backdrop", () => {
+    const { container } = render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New Task" }));
+
+    expect(screen.getByRole("menu")).toBeDefined();
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+
+    const backdrop = container.querySelector('button[aria-hidden="true"]');
+    expect(backdrop).not.toBeNull();
+    fireEvent.click(backdrop as HTMLButtonElement);
+
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  test("closes the board picker after selecting a board", () => {
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "New Task" }));
+
+    const boardItem = screen.getByRole("menuitem", { name: "Launch Plan" });
+    expect(boardItem.getAttribute("href")).toBe("/boards/launch-plan?new=1");
+    boardItem.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(boardItem);
+
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+describe("DashboardOverview section reordering", () => {
+  beforeEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  test("reorders sections and persists the complete order", async () => {
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    const snapshotHandle = screen.getByRole("button", {
+      name: "Reorder Snapshot section",
+    });
+    const inProgressHandle = screen.getByRole("button", {
+      name: "Reorder In Progress section",
+    });
+    const sectionGrid = snapshotHandle.closest("div.grid.gap-6");
+    const snapshotSection = Array.from(sectionGrid?.children ?? []).find((section) =>
+      section.contains(snapshotHandle),
+    );
+    const inProgressSection = Array.from(sectionGrid?.children ?? []).find((section) =>
+      section.contains(inProgressHandle),
+    );
+
+    expect(sectionGrid).not.toBeNull();
+    expect(snapshotSection).toBeDefined();
+    expect(inProgressSection).toBeDefined();
+
+    await dragFirstRowAfterSecond(
+      snapshotSection as HTMLElement,
+      inProgressSection as HTMLElement,
+      snapshotHandle,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("button", { name: /^Reorder .+ section$/ })
+          .slice(0, 2)
+          .map((button) => button.getAttribute("aria-label")),
+      ).toEqual(["Reorder In Progress section", "Reorder Snapshot section"]),
+    );
+
+    const { DASHBOARD_SECTION_ORDER_DEFAULT, readDashboardSectionOrder } = await import(
+      "@/lib/board-preferences"
+    );
+    const storedOrder = readDashboardSectionOrder();
+
+    expect(storedOrder).toHaveLength(9);
+    expect(new Set(storedOrder).size).toBe(9);
+    expect(storedOrder).toEqual([
+      DASHBOARD_SECTION_ORDER_DEFAULT[1],
+      DASHBOARD_SECTION_ORDER_DEFAULT[0],
+      ...DASHBOARD_SECTION_ORDER_DEFAULT.slice(2),
+    ]);
+  });
+});
