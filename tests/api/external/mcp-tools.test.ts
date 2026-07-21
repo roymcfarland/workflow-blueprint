@@ -4,8 +4,9 @@ import {
   TaskStatus as PrismaTaskStatus,
 } from "@/generated/prisma/client";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
   POST as postMcp,
@@ -14,7 +15,11 @@ import { createApiToken } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { resolveExternalToken } from "@/lib/external-api";
 import { verifyExternalMcpToken } from "@/lib/mcp-auth";
-import { executeExternalMcpTool } from "@/lib/mcp-tools";
+import {
+  executeExternalMcpTool,
+  externalMcpToolNames,
+  registerExternalMcpTools,
+} from "@/lib/mcp-tools";
 import {
   createTestBoard,
   createTestUser,
@@ -241,5 +246,364 @@ describe("external MCP tools", () => {
     expect(response.status).toBe(401);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("X-Robots-Tag")).toBe("noindex");
+  });
+
+  test("read-only no-input tools return the token owner's planning data", async () => {
+    const owner = await createTestUser({
+      email: "mcp-read-owner@example.test",
+      name: "MCP Read Owner",
+    });
+    const board = await createNamedBoard(owner.id, "MCP read board", "mcp-read-board");
+    await createRouteTask(board.id, "MCP read task");
+    const { token } = await createApiToken({
+      createdById: owner.id,
+      label: "Read MCP token",
+      scopes: [ApiTokenScope.BOARDS_READ, ApiTokenScope.TASKS_READ],
+    });
+    const authInfo = await verifiedMcpAuthInfo(token);
+
+    const dashboardResult = await executeExternalMcpTool(
+      "get_dashboard",
+      {},
+      { authInfo },
+    );
+    const boardsResult = await executeExternalMcpTool(
+      "list_boards",
+      {},
+      { authInfo },
+    );
+    const dailySummaryResult = await executeExternalMcpTool(
+      "get_daily_summary",
+      {},
+      { authInfo },
+    );
+
+    expect(jsonContent(dashboardResult)).toMatchObject({
+      boardBreakdown: [
+        {
+          name: "MCP read board",
+          slug: "mcp-read-board",
+          totalTasks: 1,
+        },
+      ],
+      totalTaskCount: 1,
+    });
+    expect(jsonContent(boardsResult)).toMatchObject({
+      boards: [
+        {
+          name: "MCP read board",
+          slug: "mcp-read-board",
+          totalTasks: 1,
+        },
+      ],
+    });
+    expect(jsonContent(dailySummaryResult)).toMatchObject({
+      inProgress: [
+        {
+          category: "mcp-read-board",
+          title: "MCP read task",
+        },
+      ],
+      summary: {
+        byStatus: { inProgress: 1 },
+        totalActive: 1,
+      },
+    });
+  });
+
+  test("task tools create and delete a task on the token owner's board", async () => {
+    const owner = await createTestUser({
+      email: "mcp-task-owner@example.test",
+      name: "MCP Task Owner",
+    });
+    const board = await createNamedBoard(owner.id, "MCP task board", "mcp-task-board");
+    const { token } = await createApiToken({
+      createdById: owner.id,
+      label: "Task-write MCP token",
+      scopes: [ApiTokenScope.TASKS_WRITE],
+    });
+    const authInfo = await verifiedMcpAuthInfo(token);
+
+    const createResult = await executeExternalMcpTool(
+      "create_task",
+      { boardSlug: board.slug, title: "Created via MCP" },
+      { authInfo },
+    );
+    const createdTask = await prisma.task.findFirstOrThrow({
+      where: { boardId: board.id, title: "Created via MCP" },
+    });
+
+    expect(jsonContent(createResult)).toMatchObject({
+      description: null,
+      id: createdTask.id,
+      priority: PrismaItemPriority.NONE,
+      status: PrismaTaskStatus.ON_DECK,
+      subtasks: [],
+      title: "Created via MCP",
+    });
+
+    const deleteResult = await executeExternalMcpTool(
+      "delete_task",
+      { taskId: createdTask.id },
+      { authInfo },
+    );
+
+    expect(jsonContent(deleteResult)).toEqual({ ok: true });
+    await expect(
+      prisma.task.findUnique({ where: { id: createdTask.id } }),
+    ).resolves.toBeNull();
+  });
+
+  test("board tools create, update, annotate, and delete a board", async () => {
+    const owner = await createTestUser({
+      email: "mcp-board-owner@example.test",
+      name: "MCP Board Owner",
+    });
+    const { token } = await createApiToken({
+      createdById: owner.id,
+      label: "Board-write MCP token",
+      scopes: [ApiTokenScope.BOARDS_WRITE],
+    });
+    const authInfo = await verifiedMcpAuthInfo(token);
+
+    const createResult = await executeExternalMcpTool(
+      "create_board",
+      { name: "MCP Created Board" },
+      { authInfo },
+    );
+    const createdBoard = await prisma.board.findFirstOrThrow({
+      where: { name: "MCP Created Board", userId: owner.id },
+    });
+
+    expect(jsonContent(createResult)).toMatchObject({
+      iconKey: "briefcase",
+      name: "MCP Created Board",
+      slug: "mcp-created-board",
+    });
+    expect(createdBoard.description).toBeNull();
+
+    const updateResult = await executeExternalMcpTool(
+      "update_board",
+      {
+        fields: { name: "Renamed via MCP" },
+        slug: createdBoard.slug,
+      },
+      { authInfo },
+    );
+
+    expect(jsonContent(updateResult)).toMatchObject({
+      name: "Renamed via MCP",
+      slug: "renamed-via-mcp",
+    });
+
+    const noteResult = await executeExternalMcpTool(
+      "update_board_note",
+      {
+        body: { content: "Note via MCP" },
+        slug: "renamed-via-mcp",
+      },
+      { authInfo },
+    );
+    const persistedNote = await prisma.boardNote.findUniqueOrThrow({
+      where: { boardId: createdBoard.id },
+    });
+
+    expect(jsonContent(noteResult)).toEqual({ ok: true });
+    expect(persistedNote.content).toBe("Note via MCP");
+
+    const deleteResult = await executeExternalMcpTool(
+      "delete_board",
+      { slug: "renamed-via-mcp" },
+      { authInfo },
+    );
+
+    expect(jsonContent(deleteResult)).toEqual({ ok: true });
+    await expect(
+      prisma.board.findUnique({ where: { id: createdBoard.id } }),
+    ).resolves.toBeNull();
+  });
+
+  test("subtask tools create, update, and delete a real subtask", async () => {
+    const owner = await createTestUser({
+      email: "mcp-subtask-owner@example.test",
+      name: "MCP Subtask Owner",
+    });
+    const board = await createNamedBoard(
+      owner.id,
+      "MCP subtask board",
+      "mcp-subtask-board",
+    );
+    const task = await createRouteTask(board.id, "MCP subtask parent");
+    const { token } = await createApiToken({
+      createdById: owner.id,
+      label: "Subtask-write MCP token",
+      scopes: [ApiTokenScope.SUBTASKS_WRITE],
+    });
+    const authInfo = await verifiedMcpAuthInfo(token);
+
+    const createResult = await executeExternalMcpTool(
+      "create_subtask",
+      {
+        body: { title: "Subtask via MCP" },
+        taskId: task.id,
+      },
+      { authInfo },
+    );
+    const createdSubtask = await prisma.subtask.findFirstOrThrow({
+      where: { taskId: task.id, title: "Subtask via MCP" },
+    });
+
+    expect(jsonContent(createResult)).toMatchObject({
+      id: task.id,
+      subtasks: [
+        {
+          id: createdSubtask.id,
+          isComplete: false,
+          title: "Subtask via MCP",
+        },
+      ],
+    });
+
+    const updateResult = await executeExternalMcpTool(
+      "update_subtask",
+      {
+        fields: { isComplete: true },
+        subtaskId: createdSubtask.id,
+      },
+      { authInfo },
+    );
+
+    expect(jsonContent(updateResult)).toMatchObject({
+      id: task.id,
+      subtasks: [
+        {
+          id: createdSubtask.id,
+          isComplete: true,
+          title: "Subtask via MCP",
+        },
+      ],
+    });
+    await expect(
+      prisma.subtask.findUnique({ where: { id: createdSubtask.id } }),
+    ).resolves.toMatchObject({ isComplete: true });
+
+    const deleteResult = await executeExternalMcpTool(
+      "delete_subtask",
+      { subtaskId: createdSubtask.id },
+      { authInfo },
+    );
+
+    expect(jsonContent(deleteResult)).toMatchObject({
+      id: task.id,
+      subtasks: [],
+    });
+    await expect(
+      prisma.subtask.findUnique({ where: { id: createdSubtask.id } }),
+    ).resolves.toBeNull();
+  });
+
+  test("tool dispatch reports unknown names, invalid input, and missing auth", async () => {
+    const owner = await createTestUser({
+      email: "mcp-dispatch-owner@example.test",
+      name: "MCP Dispatch Owner",
+    });
+    const { token } = await createApiToken({
+      createdById: owner.id,
+      label: "Dispatch MCP token",
+      scopes: [ApiTokenScope.BOARDS_READ, ApiTokenScope.TASKS_WRITE],
+    });
+    const authInfo = await verifiedMcpAuthInfo(token);
+
+    const unknownToolResult = await executeExternalMcpTool(
+      "not_a_real_tool" as never,
+      {},
+      { authInfo },
+    );
+    const invalidInputResult = await executeExternalMcpTool(
+      "create_task",
+      { boardSlug: "missing-title" },
+      { authInfo },
+    );
+    const missingAuthResult = await executeExternalMcpTool(
+      "list_boards",
+      {},
+      {},
+    );
+
+    expect(unknownToolResult.isError).toBe(true);
+    expect(textContent(unknownToolResult)).toBe(
+      "Unknown MCP tool: not_a_real_tool.",
+    );
+    expect(invalidInputResult.isError).toBe(true);
+    expect(textContent(invalidInputResult)).not.toBe("");
+    expect(missingAuthResult.isError).toBe(true);
+    expect(textContent(missingAuthResult)).toBe("Authentication required.");
+  });
+
+  test("externalMcpToolNames returns all registered tools in declaration order", () => {
+    expect(externalMcpToolNames()).toEqual([
+      "get_dashboard",
+      "list_boards",
+      "get_board",
+      "get_daily_summary",
+      "create_task",
+      "update_task",
+      "delete_task",
+      "create_board",
+      "update_board",
+      "delete_board",
+      "update_board_note",
+      "create_subtask",
+      "update_subtask",
+      "delete_subtask",
+    ]);
+  });
+
+  test("registerExternalMcpTools registers all tools and delegates execution", async () => {
+    const owner = await createTestUser({
+      email: "mcp-registration-owner@example.test",
+      name: "MCP Registration Owner",
+    });
+    await createNamedBoard(
+      owner.id,
+      "MCP registration board",
+      "mcp-registration-board",
+    );
+    const { token } = await createApiToken({
+      createdById: owner.id,
+      label: "Registration MCP token",
+      scopes: [ApiTokenScope.BOARDS_READ],
+    });
+    const authInfo = await verifiedMcpAuthInfo(token);
+    const registerTool = vi.fn();
+    const fakeServer = { registerTool } as unknown as McpServer;
+
+    registerExternalMcpTools(fakeServer);
+
+    expect(registerTool).toHaveBeenCalledTimes(14);
+    const createTaskRegistration = registerTool.mock.calls.find(
+      ([name]) => name === "create_task",
+    );
+    expect(createTaskRegistration?.[1]).toMatchObject({ title: "Create Task" });
+
+    const listBoardsRegistration = registerTool.mock.calls.find(
+      ([name]) => name === "list_boards",
+    );
+    const registeredCallback = listBoardsRegistration?.[2] as
+      | ((
+          input: unknown,
+          extra: { authInfo?: AuthInfo },
+        ) => ReturnType<typeof executeExternalMcpTool>)
+      | undefined;
+
+    expect(registeredCallback).toBeTypeOf("function");
+    const registeredResult = await registeredCallback?.({}, { authInfo });
+    const directResult = await executeExternalMcpTool(
+      "list_boards",
+      {},
+      { authInfo },
+    );
+
+    expect(registeredResult).toEqual(directResult);
   });
 });
