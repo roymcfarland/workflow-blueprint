@@ -251,7 +251,8 @@ export type DashboardSnapshot = {
   upcomingTasks: DashboardTaskSummary[];
   recentlyCompletedTasks: DashboardTaskSummary[];
   staleTasks: DashboardTaskSummary[];
-  onDeckTasks: DashboardTaskSummary[];
+  dueTodayTasks: DashboardTaskSummary[];
+  dueSoonTasks: DashboardTaskSummary[];
 };
 
 export type InvitationStatus = "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
@@ -781,6 +782,36 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     .slice(0, 6)
     .map(summarize);
 
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const threeDaysFromNow = new Date(today);
+  threeDaysFromNow.setDate(today.getDate() + 3);
+  threeDaysFromNow.setHours(23, 59, 59, 999);
+
+  const dueTodayTasks = allTasks
+    .filter(
+      (task) =>
+        openStatuses.includes(task.status) &&
+        task.dueDate !== null &&
+        task.dueDate >= today &&
+        task.dueDate < tomorrow,
+    )
+    .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0))
+    .slice(0, 6)
+    .map(summarize);
+
+  const dueSoonTasks = allTasks
+    .filter(
+      (task) =>
+        openStatuses.includes(task.status) &&
+        task.dueDate !== null &&
+        task.dueDate >= tomorrow &&
+        task.dueDate <= threeDaysFromNow,
+    )
+    .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0))
+    .slice(0, 6)
+    .map(summarize);
+
   const recentlyCompletedTasks = allTasks
     .filter(
       (task) =>
@@ -797,12 +828,6 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       (task) => openStatuses.includes(task.status) && task.updatedAt < subDays(new Date(), 14),
     )
     .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())
-    .slice(0, 6)
-    .map(summarize);
-
-  const onDeckTasks = allTasks
-    .filter((task) => task.status === "ON_DECK")
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
     .slice(0, 6)
     .map(summarize);
 
@@ -879,9 +904,10 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     inProgressTasks,
     overdueTasks,
     upcomingTasks,
+    dueTodayTasks,
+    dueSoonTasks,
     recentlyCompletedTasks,
     staleTasks,
-    onDeckTasks,
     activeTokens,
   };
 }

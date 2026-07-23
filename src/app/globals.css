@@ -56,6 +56,7 @@
   --status-done: #0f9568;
   --status-ice-box: #6f86b5;
   --status-in-progress: #f2690c;
+  --status-in-progress-soft: rgba(242, 105, 12, 0.18);
   --status-on-deck: #3568d4;
   --radius-card: 0.9rem;
   --radius-note: 0.75rem;
@@ -64,6 +65,8 @@
   --due-soon-soft: var(--accent-soft);
   --overdue: var(--danger);
   --overdue-soft: var(--danger-soft);
+  --due-today: var(--status-in-progress);
+  --due-today-soft: var(--status-in-progress-soft);
 }
 
 .dark {
@@ -111,6 +114,7 @@
   --status-done: #4ec99a;
   --status-ice-box: #7e96c2;
   --status-in-progress: #fb8a34;
+  --status-in-progress-soft: rgba(251, 138, 52, 0.18);
   --status-on-deck: #5d86e6;
   --focus-ring-offset: var(--background);
 }
@@ -147,6 +151,8 @@
   --color-due-soon-soft: var(--due-soon-soft);
   --color-overdue: var(--overdue);
   --color-overdue-soft: var(--overdue-soft);
+  --color-due-today: var(--due-today);
+  --color-due-today-soft: var(--due-today-soft);
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SF Mono", ui-monospace, monospace;

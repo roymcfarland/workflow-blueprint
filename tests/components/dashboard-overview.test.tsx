@@ -91,7 +91,8 @@ function dashboardSnapshot(overrides: Partial<DashboardSnapshot> = {}): Dashboar
     overdueTasks: [],
     recentlyCompletedTasks: [],
     staleTasks: [],
-    onDeckTasks: [],
+    dueTodayTasks: [],
+    dueSoonTasks: [],
     totalTaskCount: 3,
     upcomingTasks: [],
     ...overrides,
@@ -747,7 +748,7 @@ describe("DashboardOverview overdue and due soon panel", () => {
     vi.clearAllMocks();
   });
 
-  test("renders overdue tasks with a due date and an upbeat empty state for due soon", () => {
+  test("renders overdue tasks with an upbeat empty state for due today and due soon", () => {
     render(
       <DashboardOverview
         data={dashboardSnapshot({
@@ -758,25 +759,44 @@ describe("DashboardOverview overdue and due soon panel", () => {
               title: "Renew SSL certificate",
             }),
           ],
-          upcomingTasks: [],
         })}
       />,
     );
 
     expect(screen.getByText("Renew SSL certificate")).toBeDefined();
     expect(screen.getByText("Jan 1")).toBeDefined();
-    expect(screen.getByText("Nothing due in the next 7 days.")).toBeDefined();
+    expect(screen.getByText("Nothing due today.")).toBeDefined();
+    expect(screen.getByText("Nothing due in the next 3 days.")).toBeDefined();
   });
 
-  test("renders due-soon tasks and an upbeat empty state for overdue", () => {
+  test("renders due-today tasks with upbeat empty states for overdue and due soon", () => {
     render(
       <DashboardOverview
         data={dashboardSnapshot({
-          overdueTasks: [],
-          upcomingTasks: [
+          dueTodayTasks: [
             taskSummary({
               dueDate: "2026-07-20T00:00:00.000Z",
-              id: "task-upcoming",
+              id: "task-due-today",
+              title: "File quarterly report",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("File quarterly report")).toBeDefined();
+    expect(screen.getByText("Nothing overdue — nice work.")).toBeDefined();
+    expect(screen.getByText("Nothing due in the next 3 days.")).toBeDefined();
+  });
+
+  test("renders due-soon tasks with upbeat empty states for overdue and due today", () => {
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          dueSoonTasks: [
+            taskSummary({
+              dueDate: "2026-07-21T00:00:00.000Z",
+              id: "task-due-soon",
               title: "Renew domain",
             }),
           ],
@@ -786,6 +806,7 @@ describe("DashboardOverview overdue and due soon panel", () => {
 
     expect(screen.getByText("Renew domain")).toBeDefined();
     expect(screen.getByText("Nothing overdue — nice work.")).toBeDefined();
+    expect(screen.getByText("Nothing due today.")).toBeDefined();
   });
 
   test("marks an overdue task done and removes it from the list", async () => {
@@ -795,7 +816,6 @@ describe("DashboardOverview overdue and due soon panel", () => {
       <DashboardOverview
         data={dashboardSnapshot({
           overdueTasks: [taskSummary({ id: "task-overdue", title: "Renew SSL certificate" })],
-          upcomingTasks: [],
         })}
       />,
     );
@@ -811,6 +831,52 @@ describe("DashboardOverview overdue and due soon panel", () => {
     await waitFor(() => expect(screen.queryByText("Renew SSL certificate")).toBeNull());
   });
 
+  test("marks a due-today task done and removes it from the list", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          dueTodayTasks: [
+            taskSummary({ id: "task-due-today", title: "File quarterly report" }),
+          ],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark File quarterly report done" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/task-due-today/done",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText("File quarterly report")).toBeNull());
+  });
+
+  test("marks a due-soon task done and removes it from the list", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({
+          dueSoonTasks: [taskSummary({ id: "task-due-soon", title: "Renew domain" })],
+        })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Renew domain done" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tasks/task-due-soon/done",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText("Renew domain")).toBeNull());
+  });
+
   test("shows an error and restores the task when marking it done fails", async () => {
     fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
 
@@ -818,7 +884,6 @@ describe("DashboardOverview overdue and due soon panel", () => {
       <DashboardOverview
         data={dashboardSnapshot({
           overdueTasks: [taskSummary({ id: "task-overdue", title: "Renew SSL certificate" })],
-          upcomingTasks: [],
         })}
       />,
     );
@@ -831,29 +896,6 @@ describe("DashboardOverview overdue and due soon panel", () => {
       expect(screen.getAllByText("Unable to mark the task done.")).toHaveLength(1),
     );
     expect(screen.getByText("Renew SSL certificate")).toBeDefined();
-  });
-
-  test("marks a due-soon task done and removes it from the list", async () => {
-    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
-
-    render(
-      <DashboardOverview
-        data={dashboardSnapshot({
-          overdueTasks: [],
-          upcomingTasks: [taskSummary({ id: "task-upcoming", title: "Renew domain" })],
-        })}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Mark Renew domain done" }));
-
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/tasks/task-upcoming/done",
-        expect.objectContaining({ method: "POST" }),
-      ),
-    );
-    await waitFor(() => expect(screen.queryByText("Renew domain")).toBeNull());
   });
 });
 
@@ -1002,95 +1044,6 @@ describe("DashboardOverview needs attention panel", () => {
       expect(screen.getByText("Unable to mark the task done.")).toBeDefined(),
     );
     expect(screen.getByText("Forgotten migration doc")).toBeDefined();
-  });
-});
-
-describe("DashboardOverview on deck panel", () => {
-  beforeEach(() => {
-    fetchMock = vi.fn();
-    navigationMock.refresh.mockReset();
-    vi.stubGlobal("fetch", fetchMock);
-  });
-
-  afterEach(() => {
-    cleanup();
-    vi.unstubAllGlobals();
-    vi.clearAllMocks();
-  });
-
-  test("renders on-deck tasks with a queued date", () => {
-    render(
-      <DashboardOverview
-        data={dashboardSnapshot({
-          onDeckTasks: [
-            taskSummary({
-              createdAt: "2026-06-15T00:00:00.000Z",
-              id: "task-on-deck",
-              status: "ON_DECK",
-              title: "Design the onboarding flow",
-            }),
-          ],
-        })}
-      />,
-    );
-
-    expect(screen.getByText("Design the onboarding flow")).toBeDefined();
-    expect(screen.getByText(/Queued Jun 15/)).toBeDefined();
-  });
-
-  test("shows an empty state when nothing is queued", () => {
-    render(<DashboardOverview data={dashboardSnapshot({ onDeckTasks: [] })} />);
-
-    expect(screen.getByText("Nothing queued up right now.")).toBeDefined();
-  });
-
-  test("marks an on-deck task done and removes it from the list", async () => {
-    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
-
-    render(
-      <DashboardOverview
-        data={dashboardSnapshot({
-          onDeckTasks: [taskSummary({ id: "task-on-deck", title: "Design the onboarding flow" })],
-        })}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Mark Design the onboarding flow done" }));
-
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/tasks/task-on-deck/done",
-        expect.objectContaining({ method: "POST" }),
-      ),
-    );
-    await waitFor(() => expect(screen.queryByText("Design the onboarding flow")).toBeNull());
-  });
-
-  test("shows an error and restores the task when marking it done fails", async () => {
-    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
-
-    render(
-      <DashboardOverview
-        data={dashboardSnapshot({
-          onDeckTasks: [
-            taskSummary({
-              id: "task-on-deck",
-              status: "ON_DECK",
-              title: "Design the onboarding flow",
-            }),
-          ],
-        })}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Mark Design the onboarding flow done" }));
-
-    expect(screen.queryByText("Design the onboarding flow")).toBeNull();
-
-    await waitFor(() =>
-      expect(screen.getByText("Unable to mark the task done.")).toBeDefined(),
-    );
-    expect(screen.getByText("Design the onboarding flow")).toBeDefined();
   });
 });
 
@@ -1267,8 +1220,8 @@ describe("DashboardOverview section reordering", () => {
     );
     const storedOrder = readDashboardSectionOrder();
 
-    expect(storedOrder).toHaveLength(9);
-    expect(new Set(storedOrder).size).toBe(9);
+    expect(storedOrder).toHaveLength(8);
+    expect(new Set(storedOrder).size).toBe(8);
     expect(storedOrder).toEqual([
       DASHBOARD_SECTION_ORDER_DEFAULT[1],
       DASHBOARD_SECTION_ORDER_DEFAULT[0],

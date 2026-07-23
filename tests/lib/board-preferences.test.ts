@@ -149,7 +149,6 @@ describe("board preferences", () => {
       "this-week",
       "recently-completed",
       "needs-attention",
-      "on-deck",
       "board-health",
       "active-tokens",
     ]);
@@ -167,7 +166,6 @@ describe("board preferences", () => {
       "this-week",
       "recently-completed",
       "needs-attention",
-      "on-deck",
       "board-health",
       "active-tokens",
     ]);
@@ -179,7 +177,6 @@ describe("board preferences", () => {
       "this-week",
       "recently-completed",
       "needs-attention",
-      "on-deck",
       "board-health",
       "active-tokens",
     ]);
@@ -196,7 +193,6 @@ describe("board preferences", () => {
       "wb.dashboard.section-order",
       JSON.stringify([
         "board-health",
-        "on-deck",
         "needs-attention",
         "recently-completed",
         "this-week",
@@ -242,27 +238,38 @@ describe("board preferences", () => {
     expect(readDashboardSectionOrder()).toBeNull();
   });
 
-  test("readDashboardSectionOrder falls back to the default when a stored order predates on-deck", () => {
+  test("readDashboardSectionOrder drops a stored on-deck entry left over from before it was removed", () => {
     localStorage.setItem(
       "wb.dashboard.section-order",
       JSON.stringify([
-        "needs-attention",
-        "recently-completed",
-        "this-week",
-        "overdue-due-soon",
         "in-progress",
         "snapshot",
+        "on-deck",
+        "overdue-due-soon",
+        "this-week",
+        "recently-completed",
+        "needs-attention",
+        "board-health",
+        "active-tokens",
       ]),
     );
 
-    expect(readDashboardSectionOrder()).toBeNull();
+    expect(readDashboardSectionOrder()).toEqual([
+      "in-progress",
+      "snapshot",
+      "overdue-due-soon",
+      "this-week",
+      "recently-completed",
+      "needs-attention",
+      "board-health",
+      "active-tokens",
+    ]);
   });
 
   test("readDashboardSectionOrder falls back to the default when a stored order predates board-health", () => {
     localStorage.setItem(
       "wb.dashboard.section-order",
       JSON.stringify([
-        "on-deck",
         "needs-attention",
         "recently-completed",
         "this-week",
