@@ -92,7 +92,6 @@ export type DashboardSectionId =
   | "this-week"
   | "recently-completed"
   | "needs-attention"
-  | "on-deck"
   | "board-health"
   | "active-tokens";
 export const DASHBOARD_SECTION_ORDER_DEFAULT: DashboardSectionId[] = [
@@ -102,7 +101,6 @@ export const DASHBOARD_SECTION_ORDER_DEFAULT: DashboardSectionId[] = [
   "this-week",
   "recently-completed",
   "needs-attention",
-  "on-deck",
   "board-health",
   "active-tokens",
 ];
@@ -114,7 +112,6 @@ const isDashboardSectionId = (value: unknown): value is DashboardSectionId =>
   value === "this-week" ||
   value === "recently-completed" ||
   value === "needs-attention" ||
-  value === "on-deck" ||
   value === "board-health" ||
   value === "active-tokens";
 

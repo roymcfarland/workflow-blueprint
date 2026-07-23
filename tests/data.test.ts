@@ -1030,37 +1030,6 @@ describe("src/lib/data.ts", () => {
     expect(snapshot.staleTasks.map((task) => task.id)).toEqual([veryStaleTaskId, staleTaskId]);
   });
 
-  test("includes on-deck tasks ordered oldest-queued first", async () => {
-    const user = await createTestUser();
-    const board = await createTestBoard(user.id);
-    const oldestTaskId = randomUUID();
-    const newerTaskId = randomUUID();
-
-    await createDataTask({
-      boardId: board.id,
-      createdAt: new Date("2026-06-01T00:00:00.000Z"),
-      id: oldestTaskId,
-      status: PrismaTaskStatus.ON_DECK,
-      title: "Queued first",
-    });
-    await createDataTask({
-      boardId: board.id,
-      createdAt: new Date("2026-07-01T00:00:00.000Z"),
-      id: newerTaskId,
-      status: PrismaTaskStatus.ON_DECK,
-      title: "Queued later",
-    });
-    await createDataTask({
-      boardId: board.id,
-      status: PrismaTaskStatus.IN_PROGRESS,
-      title: "Not on deck",
-    });
-
-    const snapshot = await getDashboardSnapshot(user.id);
-
-    expect(snapshot.onDeckTasks.map((task) => task.id)).toEqual([oldestTaskId, newerTaskId]);
-  });
-
   test("hides tasks with a future visibleAt from the board snapshot", async () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);
@@ -1831,6 +1800,65 @@ describe("src/lib/data.ts", () => {
     expect(snapshot.inProgressTasks.map((task) => task.id)).toEqual([
       inProgressEarlierId,
       inProgressLaterId,
+    ]);
+  });
+
+  test("buckets due-today and due-soon tasks (next 3 days, excluding today) separately", async () => {
+    const user = await createTestUser();
+    const board = await createTestBoard(user.id);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueTodayEarlierId = randomUUID();
+    const dueTodayLaterId = randomUUID();
+    const dueSoonEarlierId = randomUUID();
+    const dueSoonLaterId = randomUUID();
+    const dueTooFarId = randomUUID();
+
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() + 18 * 60 * 60 * 1000),
+      id: dueTodayLaterId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Due today, later in the day",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime()),
+      id: dueTodayEarlierId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Due today, midnight",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000),
+      id: dueSoonLaterId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Due in 3 days",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+      id: dueSoonEarlierId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Due tomorrow",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000),
+      id: dueTooFarId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Due in 4 days -- outside the due-soon window",
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.dueTodayTasks.map((task) => task.id)).toEqual([
+      dueTodayEarlierId,
+      dueTodayLaterId,
+    ]);
+    expect(snapshot.dueSoonTasks.map((task) => task.id)).toEqual([
+      dueSoonEarlierId,
+      dueSoonLaterId,
     ]);
   });
 

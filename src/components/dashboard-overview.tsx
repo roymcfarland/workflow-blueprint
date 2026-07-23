@@ -819,7 +819,7 @@ function DueTaskRow({
   onDone: (taskId: string) => void;
   pending: boolean;
   task: DashboardTaskSummary;
-  tone: "overdue" | "due-soon";
+  tone: "overdue" | "due-today" | "due-soon";
 }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5">
@@ -842,6 +842,8 @@ function DueTaskRow({
           className={cn(
             "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line-soft bg-surface-control px-2 py-1 text-xs font-semibold text-text-muted",
             tone === "overdue" && "border-danger/40 bg-danger-soft text-danger",
+            tone === "due-today" &&
+              "border-due-today/40 bg-due-today-soft text-due-today",
             tone === "due-soon" && "border-accent bg-accent-soft text-text-primary",
           )}
         >
@@ -1145,128 +1147,31 @@ function NeedsAttentionPanel({
   );
 }
 
-function OnDeckRow({
-  onDone,
-  pending,
-  task,
-}: {
-  onDone: (taskId: string) => void;
-  pending: boolean;
-  task: DashboardTaskSummary;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-line-soft bg-surface-control px-3 py-2.5">
-      <BoardIcon
-        className="h-4 w-4 shrink-0"
-        iconKey={task.boardIconKey}
-        style={{ color: task.boardAccentColor ?? getBoardAccentColor(task.boardSlug) }}
-      />
-      <div className="min-w-0 flex-1">
-        <Link
-          className="block truncate text-sm font-semibold text-text-primary transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
-          href={`/boards/${task.boardSlug}`}
-        >
-          {task.title}
-        </Link>
-        <p className="truncate text-xs text-text-muted">
-          {task.boardName} · Queued {formatShortDate(task.createdAt)}
-        </p>
-      </div>
-      <button
-        aria-label={`Mark ${task.title} done`}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong transition disabled:opacity-30"
-        disabled={pending}
-        onClick={() => onDone(task.id)}
-        style={{ color: "var(--status-done)" }}
-        type="button"
-      >
-        <Check className="h-4 w-4" />
-      </button>
-    </div>
-  );
-}
-
-function OnDeckPanel({
-  dragHandle,
-  tasks,
-}: {
-  dragHandle?: ReactNode;
-  tasks: DashboardTaskSummary[];
-}) {
-  const router = useRouter();
-  const [items, setItems] = useState(tasks);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function markDone(taskId: string) {
-    const previous = items;
-    setItems((current) => current.filter((task) => task.id !== taskId));
-    setPending(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/tasks/${taskId}/done`, {
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Unable to mark the task done.");
-      }
-
-      router.refresh();
-    } catch (err) {
-      setItems(previous);
-      setError(err instanceof Error ? err.message : "Unable to mark the task done.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <BlueprintCard className="p-5 lg:p-6" surface="flat">
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          {dragHandle}
-          <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">On Deck</h2>
-        </div>
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {items.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
-            Nothing queued up right now.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {items.map((task) => (
-              <OnDeckRow key={task.id} onDone={markDone} pending={pending} task={task} />
-            ))}
-          </div>
-        )}
-      </div>
-    </BlueprintCard>
-  );
-}
-
 function OverdueDueSoonPanel({
   dragHandle,
   overdueTasks,
-  upcomingTasks,
+  dueTodayTasks,
+  dueSoonTasks,
 }: {
   dragHandle?: ReactNode;
   overdueTasks: DashboardTaskSummary[];
-  upcomingTasks: DashboardTaskSummary[];
+  dueTodayTasks: DashboardTaskSummary[];
+  dueSoonTasks: DashboardTaskSummary[];
 }) {
   const router = useRouter();
   const [overdueItems, setOverdueItems] = useState(overdueTasks);
-  const [upcomingItems, setUpcomingItems] = useState(upcomingTasks);
+  const [dueTodayItems, setDueTodayItems] = useState(dueTodayTasks);
+  const [dueSoonItems, setDueSoonItems] = useState(dueSoonTasks);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function markDone(taskId: string) {
     const previousOverdue = overdueItems;
-    const previousUpcoming = upcomingItems;
+    const previousDueToday = dueTodayItems;
+    const previousDueSoon = dueSoonItems;
     setOverdueItems((current) => current.filter((task) => task.id !== taskId));
-    setUpcomingItems((current) => current.filter((task) => task.id !== taskId));
+    setDueTodayItems((current) => current.filter((task) => task.id !== taskId));
+    setDueSoonItems((current) => current.filter((task) => task.id !== taskId));
     setPending(true);
     setError(null);
 
@@ -1283,7 +1188,8 @@ function OverdueDueSoonPanel({
       router.refresh();
     } catch (err) {
       setOverdueItems(previousOverdue);
-      setUpcomingItems(previousUpcoming);
+      setDueTodayItems(previousDueToday);
+      setDueSoonItems(previousDueSoon);
       setError(err instanceof Error ? err.message : "Unable to mark the task done.");
     } finally {
       setPending(false);
@@ -1323,16 +1229,40 @@ function OverdueDueSoonPanel({
 
         <div className="space-y-3 border-t border-line-soft pt-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">Due Soon</h2>
-            <span className="blueprint-eyebrow">next 7 days</span>
+            <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">Due Today</h2>
+            <span className="blueprint-eyebrow">{dueTodayItems.length}</span>
           </div>
-          {upcomingItems.length === 0 ? (
+          {dueTodayItems.length === 0 ? (
             <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
-              Nothing due in the next 7 days.
+              Nothing due today.
             </p>
           ) : (
             <div className="space-y-2">
-              {upcomingItems.map((task) => (
+              {dueTodayItems.map((task) => (
+                <DueTaskRow
+                  key={task.id}
+                  onDone={markDone}
+                  pending={pending}
+                  task={task}
+                  tone="due-today"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3 border-t border-line-soft pt-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="blueprint-display text-xl text-text-primary sm:text-2xl">Due Soon</h2>
+            <span className="blueprint-eyebrow">next 3 days</span>
+          </div>
+          {dueSoonItems.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-line-soft px-4 py-5 text-center text-sm text-text-muted">
+              Nothing due in the next 3 days.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {dueSoonItems.map((task) => (
                 <DueTaskRow
                   key={task.id}
                   onDone={markDone}
@@ -1479,9 +1409,12 @@ function SortableSection({
 function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin: boolean }) {
   const [order, setOrder] = useState<DashboardSectionId[]>(DASHBOARD_SECTION_ORDER_DEFAULT);
   const inProgressPanelKey = getTaskListKey(data.inProgressTasks);
-  const overdueDueSoonPanelKey = getTaskListKey([...data.overdueTasks, ...data.upcomingTasks]);
+  const overdueDueSoonPanelKey = getTaskListKey([
+    ...data.overdueTasks,
+    ...data.dueTodayTasks,
+    ...data.dueSoonTasks,
+  ]);
   const staleTasksPanelKey = getTaskListKey(data.staleTasks);
-  const onDeckPanelKey = getTaskListKey(data.onDeckTasks);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
@@ -1542,9 +1475,10 @@ function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin
                   {(handle) => (
                     <OverdueDueSoonPanel
                       dragHandle={handle}
+                      dueSoonTasks={data.dueSoonTasks}
+                      dueTodayTasks={data.dueTodayTasks}
                       key={overdueDueSoonPanelKey}
                       overdueTasks={data.overdueTasks}
-                      upcomingTasks={data.upcomingTasks}
                     />
                   )}
                 </SortableSection>
@@ -1585,16 +1519,6 @@ function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin
                       key={staleTasksPanelKey}
                       tasks={data.staleTasks}
                     />
-                  )}
-                </SortableSection>
-              );
-            }
-
-            if (id === "on-deck") {
-              return (
-                <SortableSection id="on-deck" key="on-deck" label="On Deck">
-                  {(handle) => (
-                    <OnDeckPanel dragHandle={handle} key={onDeckPanelKey} tasks={data.onDeckTasks} />
                   )}
                 </SortableSection>
               );
