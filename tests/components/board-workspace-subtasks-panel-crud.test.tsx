@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardWorkspace } from "@/components/board-workspace";
+import { ToastProvider } from "@/components/providers/toast-provider";
 import type { BoardSnapshot, SerializedSubtask, SerializedTask } from "@/lib/data";
 
 // Deliberately NOT mocking @dnd-kit/core, @dnd-kit/sortable, or @dnd-kit/utilities —
@@ -127,6 +128,20 @@ describe("SubtasksCardPanel remove and reorder", () => {
     expect(url).toBe("/api/subtasks/subtask-1");
     expect(init.method).toBe("DELETE");
     await waitFor(() => expect(screen.queryByDisplayValue("Draft outline")).toBeNull());
+  });
+
+  test("shows a success toast after removing a subtask", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: task({ subtasks: [] }) }));
+
+    render(
+      <ToastProvider>
+        <BoardWorkspace board={boardSnapshot(task())} />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove subtask" }));
+
+    expect(await screen.findByText("Subtask removed.")).toBeDefined();
   });
 
   test("reverts a failed subtask removal and shows an error", async () => {

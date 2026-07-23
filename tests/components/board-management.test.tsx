@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardManagement } from "@/components/board-management";
+import { ToastProvider } from "@/components/providers/toast-provider";
 
 const navigationMock = vi.hoisted(() => ({
   push: vi.fn(),
@@ -130,5 +131,22 @@ describe("BoardManagement", () => {
     expect(await screen.findByText("A board with that name already exists.")).toBeDefined();
     expect(screen.getByPlaceholderText("Board name")).toBeDefined();
     expect(navigationMock.refresh).not.toHaveBeenCalled();
+  });
+
+  test("shows a success toast after creating a board", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+    render(
+      <ToastProvider>
+        <BoardManagement />
+      </ToastProvider>,
+    );
+
+    openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText("Board name"), {
+      target: { value: "Launch Plan" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText("Board created.")).toBeDefined();
   });
 });

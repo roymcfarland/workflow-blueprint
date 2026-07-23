@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardWorkspace } from "@/components/board-workspace";
+import { ToastProvider } from "@/components/providers/toast-provider";
 import type { BoardSnapshot, SerializedTask } from "@/lib/data";
 
 vi.mock("@dnd-kit/core", () => ({
@@ -143,5 +144,18 @@ describe("BoardWorkspace task detail modal delete", () => {
 
     const secondDeleteButton = await screen.findByRole("button", { name: "Delete task" });
     expect((secondDeleteButton as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  test("shows a success toast after deleting a task", async () => {
+    render(
+      <ToastProvider>
+        <BoardWorkspace board={boardSnapshot([task()])} />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete task" }));
+
+    expect(await screen.findByText("Task deleted.")).toBeDefined();
   });
 });

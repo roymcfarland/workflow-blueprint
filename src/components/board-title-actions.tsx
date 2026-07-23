@@ -7,6 +7,7 @@ import { useEffect, useState, useTransition, type FormEvent, type ReactNode } fr
 import { BoardIcon } from "@/components/board-icon";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
+import { useToast } from "@/components/providers/toast-provider";
 import { availableBoardIcons, boardAccentPalette } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
@@ -123,6 +124,7 @@ function EditBoardModalContent({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [name, setName] = useState(board.name);
   const [iconKey, setIconKey] = useState(board.iconKey);
   const [accentColor, setAccentColor] = useState<string | null>(board.accentColor ?? null);
@@ -148,6 +150,7 @@ function EditBoardModalContent({
       }
 
       const updatedSlug = data.board?.slug ?? board.slug;
+      showToast("Board updated.");
       onClose();
       if (updatedSlug !== board.slug) {
         router.push(`/boards/${updatedSlug}`);
@@ -224,6 +227,7 @@ function DeleteBoardModalContent({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -241,6 +245,7 @@ function DeleteBoardModalContent({
         return;
       }
 
+      showToast("Board deleted.");
       onClose();
       router.push("/dashboard");
       router.refresh();
