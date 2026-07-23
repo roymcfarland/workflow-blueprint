@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { SaveIndicator } from "@/components/blueprint/save-indicator";
 
 type StandaloneNavigator = Navigator & {
   standalone?: boolean;
@@ -53,6 +55,7 @@ export default function PullToRefresh() {
   const isRefreshing = useRef(false);
   const pullDistance = useRef(0);
   const startY = useRef(0);
+  const [isRefreshingState, setIsRefreshingState] = useState(false);
 
   useEffect(() => {
     if (!isStandaloneTouchApp()) {
@@ -91,6 +94,7 @@ export default function PullToRefresh() {
     const handleTouchEnd = () => {
       if (isTracking.current && pullDistance.current >= PULL_THRESHOLD) {
         isRefreshing.current = true;
+        setIsRefreshingState(true);
         window.location.reload();
         return;
       }
@@ -111,5 +115,15 @@ export default function PullToRefresh() {
     };
   }, []);
 
-  return null;
+  if (!isRefreshingState) {
+    return null;
+  }
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center">
+      <div className="blueprint-surface-flat px-3 py-1.5">
+        <SaveIndicator message="Refreshing…" status="saving" />
+      </div>
+    </div>
+  );
 }
