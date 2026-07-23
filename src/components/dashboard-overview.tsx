@@ -155,6 +155,18 @@ function SnapshotPanel({
                 role="img"
                 viewBox="0 0 320 320"
               >
+                <defs>
+                  <pattern
+                    height="6"
+                    id="snapshot-ring-hatch"
+                    patternTransform="rotate(-55)"
+                    patternUnits="userSpaceOnUse"
+                    width="6"
+                  >
+                    <rect fill="var(--brand-fill)" height="6" width="6" />
+                    <rect fill="rgba(255, 255, 255, 0.16)" height="6" width="2" />
+                  </pattern>
+                </defs>
                 <circle
                   cx={chartCenter}
                   cy={chartCenter}
@@ -168,7 +180,7 @@ function SnapshotPanel({
                   cy={chartCenter}
                   fill="none"
                   r={chartRadius}
-                  stroke="var(--brand-fill)"
+                  stroke="url(#snapshot-ring-hatch)"
                   strokeDasharray={`${completionArcLength} ${chartCircumference - completionArcLength}`}
                   strokeLinecap="round"
                   strokeWidth={chartStrokeWidth}

@@ -718,6 +718,20 @@ describe("DashboardOverview snapshot ring", () => {
 
     expect(screen.getByRole("img", { name: "0% of active work is done" })).toBeDefined();
   });
+
+  test("the completion arc uses a hatched pattern fill instead of a flat color", () => {
+    render(
+      <DashboardOverview data={dashboardSnapshot({ completionRate: 40 })} />,
+    );
+
+    const svg = screen.getByRole("img", { name: "40% of active work is done" });
+    const pattern = svg.querySelector("pattern");
+    const circles = svg.querySelectorAll("circle");
+
+    expect(pattern).not.toBeNull();
+    expect(circles[1]?.getAttribute("stroke")).toBe(`url(#${pattern?.id})`);
+    expect(circles[0]?.getAttribute("stroke")).toBe("var(--brand-soft)");
+  });
 });
 
 describe("DashboardOverview overdue and due soon panel", () => {
