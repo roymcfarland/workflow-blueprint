@@ -1808,17 +1808,25 @@ describe("src/lib/data.ts", () => {
     const board = await createTestBoard(user.id);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const dueTodayId = randomUUID();
+    const dueTodayEarlierId = randomUUID();
+    const dueTodayLaterId = randomUUID();
     const dueSoonEarlierId = randomUUID();
     const dueSoonLaterId = randomUUID();
     const dueTooFarId = randomUUID();
 
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime()),
-      id: dueTodayId,
+      dueDate: new Date(today.getTime() + 18 * 60 * 60 * 1000),
+      id: dueTodayLaterId,
       status: PrismaTaskStatus.ON_DECK,
-      title: "Due today",
+      title: "Due today, later in the day",
+    });
+    await createDataTask({
+      boardId: board.id,
+      dueDate: new Date(today.getTime()),
+      id: dueTodayEarlierId,
+      status: PrismaTaskStatus.ON_DECK,
+      title: "Due today, midnight",
     });
     await createDataTask({
       boardId: board.id,
@@ -1844,7 +1852,10 @@ describe("src/lib/data.ts", () => {
 
     const snapshot = await getDashboardSnapshot(user.id);
 
-    expect(snapshot.dueTodayTasks.map((task) => task.id)).toEqual([dueTodayId]);
+    expect(snapshot.dueTodayTasks.map((task) => task.id)).toEqual([
+      dueTodayEarlierId,
+      dueTodayLaterId,
+    ]);
     expect(snapshot.dueSoonTasks.map((task) => task.id)).toEqual([
       dueSoonEarlierId,
       dueSoonLaterId,
