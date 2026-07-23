@@ -165,6 +165,17 @@ describe("SubtasksCardPanel remove and reorder", () => {
     expect(screen.getByRole("alert").textContent).toBe("Subtask removal failed.");
   });
 
+  test("subtask rows don't carry a competing CSS transition alongside dnd-kit's own", async () => {
+    const initialTask = task();
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+
+    const row = (await screen.findByDisplayValue("Draft outline")).closest(".group");
+    expect(row).not.toBeNull();
+    expect(row?.className.split(/\s+/)).not.toContain("transition");
+  });
+
   test("drags a subtask to reorder it within the panel", async () => {
     const firstSubtask = subtask();
     const secondSubtask = subtask({
