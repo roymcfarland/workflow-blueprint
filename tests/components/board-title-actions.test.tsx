@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardTitleActions } from "@/components/board-title-actions";
+import { ToastProvider } from "@/components/providers/toast-provider";
 
 const navigationMock = vi.hoisted(() => ({
   push: vi.fn(),
@@ -175,5 +176,33 @@ describe("BoardTitleActions", () => {
     fireEvent.click(dialog.parentElement!);
 
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("shows a success toast after editing a board", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ board: { slug: "launch-plan" }, ok: true }));
+    render(
+      <ToastProvider>
+        <BoardTitleActions board={board} />
+      </ToastProvider>,
+    );
+
+    openEditDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Board updated.")).toBeDefined();
+  });
+
+  test("shows a success toast after deleting a board", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+    render(
+      <ToastProvider>
+        <BoardTitleActions board={board} />
+      </ToastProvider>,
+    );
+
+    openDeleteDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Delete Board" }));
+
+    expect(await screen.findByText("Board deleted.")).toBeDefined();
   });
 });

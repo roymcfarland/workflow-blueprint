@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import PullToRefresh from "@/components/pull-to-refresh";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ToastProvider } from "@/components/providers/toast-provider";
 import { siteConfig } from "@/lib/site-config";
 
 import "./globals.css";
@@ -63,8 +64,10 @@ export default function RootLayout({
     <html data-scroll-behavior="smooth" lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground">
         <ThemeProvider>
-          <PullToRefresh />
-          {children}
+          <ToastProvider>
+            <PullToRefresh />
+            {children}
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

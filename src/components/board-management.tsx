@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import { BoardIcon } from "@/components/board-icon";
 import { BlueprintButton } from "@/components/blueprint/button";
 import { BlueprintInput } from "@/components/blueprint/input";
+import { useToast } from "@/components/providers/toast-provider";
 import { availableBoardIcons, boardAccentPalette } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ type CreateBoardFormProps = {
 };
 
 function CreateBoardForm({ onClose, onCreated }: CreateBoardFormProps) {
+  const { showToast } = useToast();
   const [name, setName] = useState("");
   const [iconKey, setIconKey] = useState("briefcase");
   const [accentColor, setAccentColor] = useState<string | null>(null);
@@ -40,6 +42,7 @@ function CreateBoardForm({ onClose, onCreated }: CreateBoardFormProps) {
         return;
       }
 
+      showToast("Board created.");
       onCreated();
     });
   };

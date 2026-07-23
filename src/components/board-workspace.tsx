@@ -58,6 +58,7 @@ import { BlueprintCard } from "@/components/blueprint/card";
 import { PageTitle } from "@/components/blueprint/page-title";
 import { SaveIndicator, type SaveStatus } from "@/components/blueprint/save-indicator";
 import { BlueprintTextarea } from "@/components/blueprint/textarea";
+import { useToast } from "@/components/providers/toast-provider";
 import {
   boardStatuses,
   itemPriorities,
@@ -725,6 +726,7 @@ function SubtasksCardPanel({
   panelRef: RefObject<HTMLDivElement | null>;
   task: SerializedTask;
 }) {
+  const { showToast } = useToast();
   const [rows, setRows] = useState(() => rowsFromTask(task));
   const rowsRef = useRef(rows);
   const [error, setError] = useState<string | null>(null);
@@ -998,11 +1000,13 @@ function SubtasksCardPanel({
 
   const commitSubtaskMutation = useCallback(async ({
     applyOptimistic,
+    onSuccessMessage,
     rollback,
     request,
     rowKeys = [],
   }: {
     applyOptimistic: (currentRows: PanelSubtaskRow[]) => PanelSubtaskRow[];
+    onSuccessMessage?: string;
     rollback: (
       currentRows: PanelSubtaskRow[],
       previousRows: PanelSubtaskRow[],
@@ -1016,13 +1020,16 @@ function SubtasksCardPanel({
     setRowsSafely((current) => applyOptimistic(current));
     try {
       applyServerTask(await request());
+      if (onSuccessMessage) {
+        showToast(onSuccessMessage);
+      }
     } catch (err) {
       setRowsSafely((current) => rollback(current, previousRows));
       setError(err instanceof Error ? err.message : "Unable to save.");
     } finally {
       rowKeys.forEach((rowKey) => markPendingRow(rowKey, false));
     }
-  }, [applyServerTask, markPendingRow, setRowsSafely]);
+  }, [applyServerTask, markPendingRow, setRowsSafely, showToast]);
 
   const requireServerId = (row: PanelSubtaskRow, message: string) => {
     if (row.serverId) {
@@ -1085,6 +1092,7 @@ function SubtasksCardPanel({
 
     void commitSubtaskMutation({
       applyOptimistic: (current) => current.filter((r) => r.key !== row.key),
+      onSuccessMessage: "Subtask removed.",
       rollback: (current, previous) => {
         const previousIndex = previous.findIndex((r) => r.key === row.key);
         const previousRow = previous[previousIndex];
@@ -2117,6 +2125,7 @@ function TaskDetailModal({
   onDelete: (taskId: string) => Promise<void>;
   onTaskUpdated: TaskUpdatedHandler;
 }) {
+  const { showToast } = useToast();
   const [title, setTitle] = useState(task?.title ?? "");
   const [priority, setPriority] = useState<ItemPriority>(task?.priority ?? "NONE");
   const [recurrence, setRecurrence] = useState<RecurrencePattern>(task?.recurrence ?? "NONE");
@@ -2396,6 +2405,7 @@ function TaskDetailModal({
     setSaving(true);
     try {
       await onDelete(task.id);
+      showToast("Task deleted.");
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete task.");
