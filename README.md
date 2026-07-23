@@ -60,10 +60,12 @@ Create `.env.local` for local work:
 
 ```bash
 DATABASE_URL="postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres?sslmode=require"
+DIRECT_URL="postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres?sslmode=require"
 AUTH_SECRET="replace-with-a-long-random-secret"
 NEXT_PUBLIC_SITE_URL="https://www.workflowblueprint.io"
 RESEND_API_KEY="re_..."
 EMAIL_FROM="Workflow Blueprint <hello@workflowblueprint.io>"
+ADMIN_EMAILS="you@example.com"
 EXTERNAL_API_KEY="replace-with-the-shared-external-api-key"
 EXTERNAL_USER_ID="user_demo_alex_blue"
 ```
@@ -83,11 +85,12 @@ npx vercel@latest env pull .env.local --environment=development
 ```
 
 `DATABASE_URL` must be a PostgreSQL 14+ connection string. Supabase Postgres is the recommended example and current production host, but any compatible durable PostgreSQL database works. If the Vercel/Supabase integration provides `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` instead, the app will use those automatically.
-Prisma CLI commands prefer `POSTGRES_URL_NON_POOLING` when it is available.
+Prisma CLI commands prefer `DIRECT_URL`, then `POSTGRES_URL_NON_POOLING`, when available.
 Use a durable PostgreSQL 14+ database for production account creation.
 `AUTH_SECRET` must be a long random secret in production.
 `NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
+`ADMIN_EMAILS` is a comma-separated allowlist consulted by `npm run admin:bootstrap`/`admin:promote` (`scripts/admin-promote.ts`) when no email is passed explicitly; optional otherwise.
 `EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to the seeded demo user.
 `CRON_SECRET` secures `/api/cron/recurring-tasks`. It is required in Vercel production for the scheduled rollover job, but local development can omit it unless you are manually testing the route. When `CRON_SECRET` is set on the Vercel project, Vercel cron invocations automatically send it as an `Authorization: Bearer <CRON_SECRET>` header; the endpoint returns `401` without the matching bearer token.
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` enable task attachments (`src/lib/storage.ts`). Local development can omit them unless you are testing that feature; the storage helper throws a clear error rather than failing silently when they're missing.
