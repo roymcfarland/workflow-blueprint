@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import PullToRefresh from "@/components/pull-to-refresh";
@@ -136,5 +136,27 @@ describe("PullToRefresh", () => {
     expect(removeSpy).toHaveBeenCalledWith("touchmove", expect.any(Function));
     expect(removeSpy).toHaveBeenCalledWith("touchend", expect.any(Function));
     expect(removeSpy).toHaveBeenCalledWith("touchcancel", expect.any(Function));
+  });
+
+  test("shows a refreshing spinner once the pull threshold is met", () => {
+    render(<PullToRefresh />);
+
+    act(() => {
+      document.dispatchEvent(touchEvent("touchstart", 0));
+      document.dispatchEvent(touchEvent("touchmove", 150));
+      document.dispatchEvent(touchEvent("touchend", 150));
+    });
+
+    expect(screen.getByRole("status").textContent).toBe("Refreshing…");
+  });
+
+  test("does not show a refreshing spinner if the pull doesn't reach the threshold", () => {
+    render(<PullToRefresh />);
+
+    document.dispatchEvent(touchEvent("touchstart", 0));
+    document.dispatchEvent(touchEvent("touchmove", 20));
+    document.dispatchEvent(touchEvent("touchend", 20));
+
+    expect(screen.queryByRole("status")).toBeNull();
   });
 });
