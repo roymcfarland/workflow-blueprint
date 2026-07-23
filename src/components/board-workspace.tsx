@@ -1424,7 +1424,7 @@ function TaskPreview({
   return (
     <div className="blueprint-note w-full overflow-hidden text-left text-text-primary">
       <div className="h-1.5" style={getStatusAccentStyle(task.status)} />
-      <div className="space-y-3 p-4">
+      <div className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             {onRename ? (
