@@ -642,7 +642,7 @@ function PanelSubtaskEditorRow({
       aria-busy={isSaving || undefined}
       ref={setNodeRef}
       className={cn(
-        "group flex items-center gap-2 px-1 py-0.5 transition",
+        "group flex items-center gap-2 px-1 py-0.5",
         row.isComplete && "opacity-80",
       )}
       style={{
