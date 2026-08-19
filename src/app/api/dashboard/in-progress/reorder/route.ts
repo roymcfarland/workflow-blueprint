@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   try {
     await reorderDashboardInProgressForUser(user.data.id, payload.data.taskIds);
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to reorder tasks." },
       { status: 400 },

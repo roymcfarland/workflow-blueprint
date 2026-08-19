@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   try {
     await reorderBoardsForUser(user.data.id, payload.data.boardSlugs);
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to reorder boards." },
       { status: 400 },

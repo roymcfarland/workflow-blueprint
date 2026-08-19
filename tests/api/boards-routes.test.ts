@@ -44,6 +44,21 @@ function authenticate(user: TestUser) {
   };
 }
 
+async function seedRateLimit(scope: string, user: TestUser, limit: number) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key: `${scope}:local:${user.id.toLowerCase()}`,
+      count: limit,
+      resetAt: new Date(Date.now() + 60_000),
+    },
+  });
+}
+
+function expectRateLimited(response: Response) {
+  expect(response.status).toBe(429);
+  expect(response.headers.has("Retry-After")).toBe(true);
+}
+
 function createBoard(userId: string, slug: string, sortOrder: number) {
   return prisma.board.create({
     data: {
@@ -73,6 +88,32 @@ describe("board route handlers", () => {
     await resetDatabase();
     authState.user = null;
     vi.mocked(revalidatePath).mockClear();
+  });
+
+  test("POST /api/boards/reorder returns 429 when the rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("boards-reorder", user, 60);
+
+    const response = await reorderBoards(
+      jsonRequest("/api/boards/reorder", { boardSlugs: ["board-slug"] }),
+    );
+
+    expectRateLimited(response);
+  });
+
+  test("POST /api/boards/reorder returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    await expectBadRequest(
+      await reorderBoards(
+        jsonRequest("/api/boards/reorder", {
+          boardSlugs: ["duplicate", "duplicate"],
+        }),
+      ),
+      "Reorder payload contains duplicate board slugs.",
+    );
   });
 
   test("POST /api/boards/reorder assigns board sort order", async () => {

@@ -46,6 +46,21 @@ function authenticate(user: TestUser) {
   };
 }
 
+async function seedRateLimit(scope: string, user: TestUser, limit: number) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key: `${scope}:local:${user.id.toLowerCase()}`,
+      count: limit,
+      resetAt: new Date(Date.now() + 60_000),
+    },
+  });
+}
+
+function expectRateLimited(response: Response) {
+  expect(response.status).toBe(429);
+  expect(response.headers.has("Retry-After")).toBe(true);
+}
+
 function seedBoard(userId: string, slug: string, sortOrder = 0) {
   return prisma.board.create({
     data: {
@@ -187,6 +202,41 @@ describe("POST /api/boards/[slug]/tasks", () => {
 });
 
 describe("POST /api/boards/manage", () => {
+  test("returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await createBoard(
+      jsonRequest(
+        "/api/boards/manage",
+        { name: "New Board" },
+        { headers: { origin: "https://evil.example" } },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("returns 401 when unauthenticated", async () => {
+    const response = await createBoard(
+      jsonRequest("/api/boards/manage", { name: "New Board" }),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("returns 429 when the create-board rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("create-board", user, 20);
+
+    const response = await createBoard(
+      jsonRequest("/api/boards/manage", { name: "New Board" }),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("creates a board for the caller", async () => {
     const user = await createTestUser();
     authenticate(user);
@@ -223,6 +273,93 @@ describe("POST /api/boards/manage", () => {
 });
 
 describe("PATCH /api/boards/manage/[slug]", () => {
+  test("returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await updateBoard(
+      jsonRequest(
+        "/api/boards/manage/some-slug",
+        { description: "Updated description" },
+        { method: "PATCH", headers: { origin: "https://evil.example" } },
+      ),
+      slugParams("some-slug"),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("returns 401 when unauthenticated", async () => {
+    const response = await updateBoard(
+      jsonRequest(
+        "/api/boards/manage/some-slug",
+        { description: "Updated description" },
+        { method: "PATCH" },
+      ),
+      slugParams("some-slug"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("returns 429 when the update-board rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("update-board", user, 30);
+
+    const response = await updateBoard(
+      jsonRequest(
+        "/api/boards/manage/some-slug",
+        { description: "Updated description" },
+        { method: "PATCH" },
+      ),
+      slugParams("some-slug"),
+    );
+
+    expectRateLimited(response);
+  });
+
+  test("returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await updateBoard(
+      jsonRequest(
+        "/api/boards/manage/some-slug",
+        { name: "   " },
+        { method: "PATCH" },
+      ),
+      slugParams("some-slug"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ message: "Board name is required." });
+  });
+
+  test("updates a non-name field without changing the board slug", async () => {
+    const user = await createTestUser();
+    const board = await seedBoard(user.id, "unchanged-slug");
+    authenticate(user);
+
+    const response = await updateBoard(
+      jsonRequest(
+        `/api/boards/manage/${board.slug}`,
+        { description: "Updated description" },
+        { method: "PATCH" },
+      ),
+      slugParams(board.slug),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.board.slug).toBe(board.slug);
+    expect(revalidatePath).toHaveBeenCalledWith(`/boards/${board.slug}`);
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(
+      vi.mocked(revalidatePath).mock.calls.filter(([path]) => path.startsWith("/boards/")),
+    ).toEqual([[`/boards/${board.slug}`]]);
+  });
+
   test("renames a board and revalidates both the old and new slug", async () => {
     const user = await createTestUser();
     const board = await seedBoard(user.id, "old-name");
@@ -275,6 +412,44 @@ describe("PATCH /api/boards/manage/[slug]", () => {
 });
 
 describe("DELETE /api/boards/manage/[slug]", () => {
+  test("returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await deleteBoard(
+      jsonRequest(
+        "/api/boards/manage/some-slug",
+        {},
+        { method: "DELETE", headers: { origin: "https://evil.example" } },
+      ),
+      slugParams("some-slug"),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("returns 401 when unauthenticated", async () => {
+    const response = await deleteBoard(
+      requestWithoutBody("/api/boards/manage/some-slug", "DELETE"),
+      slugParams("some-slug"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("returns 429 when the delete-board rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("delete-board", user, 10);
+
+    const response = await deleteBoard(
+      requestWithoutBody("/api/boards/manage/some-slug", "DELETE"),
+      slugParams("some-slug"),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("deletes the board", async () => {
     const user = await createTestUser();
     const board = await seedBoard(user.id, "launch");
