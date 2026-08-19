@@ -218,4 +218,45 @@ describe("task reorder route handler", () => {
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ message: "Authentication is required." });
   });
+
+  test("POST /api/tasks/reorder returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await reorderTasks(
+      jsonRequest(
+        "/api/tasks/reorder",
+        { items: [] },
+        { headers: { origin: "https://evil.example" } },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("POST /api/tasks/reorder returns 429 when the tasks-reorder rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await prisma.rateLimitBucket.create({
+      data: {
+        key: `tasks-reorder:local:${user.id.toLowerCase()}`,
+        count: 180,
+        resetAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const response = await reorderTasks(jsonRequest("/api/tasks/reorder", { items: [] }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
+  });
+
+  test("POST /api/tasks/reorder returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await reorderTasks(jsonRequest("/api/tasks/reorder", { items: [] }));
+
+    expect(response.status).toBe(400);
+  });
 });

@@ -96,6 +96,49 @@ beforeEach(async () => {
 });
 
 describe("POST /api/boards/[slug]/tasks", () => {
+  test("returns 401 when unauthenticated", async () => {
+    const response = await createTask(
+      jsonRequest("/api/boards/nonexistent/tasks", validTaskBody()),
+      slugParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await createTask(
+      jsonRequest("/api/boards/nonexistent/tasks", validTaskBody(), {
+        headers: { origin: "https://evil.example" },
+      }),
+      slugParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("returns 429 when the tasks-create rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await prisma.rateLimitBucket.create({
+      data: {
+        key: `tasks-create:local:${user.id.toLowerCase()}`,
+        count: 120,
+        resetAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const response = await createTask(
+      jsonRequest("/api/boards/nonexistent/tasks", validTaskBody()),
+      slugParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
+  });
+
   test("creates a task on the caller's board", async () => {
     const user = await createTestUser();
     const board = await seedBoard(user.id, "launch");
