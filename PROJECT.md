@@ -229,10 +229,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#205** | Security override bumps (D1) | `#205` | Added within-major overrides for 10 vulnerable transitive dependency groups, including major-specific `brace-expansion` selectors and Prisma CLI transitives. `npm audit` fell from 15 vulnerabilities to 3 (12 cleared); the remaining `deepmerge-ts` advisory through `@prisma/config`/`prisma` requires a major crossing and is deliberately deferred to D2. Dependency/config-only; no direct dependency or source/test change. |
 | **#206** | Test coverage: task-child-resource API route guards (CV2) | `#206` | Extends the subtask, checklist, label, and attachment child-resource route suites with unauthenticated, real database-backed rate-limit, and invalid-payload coverage where applicable. Adds narrowly traced V8 pragmas for nine impossible missing-board false arms and thirteen non-`Error` catch arms; no route logic changes. CV2 — slice 2 of a 13-slice campaign targeting 100% Codecov. |
 | **#207** | Test coverage: board/dashboard/theme/profile API route guards (CV3) | `#207` | Extends the board management, dashboard reorder, board reorder, board note, theme, and profile route suites with unauthenticated, cross-origin, real database-backed rate-limit, invalid-payload, and missing-board coverage where applicable. Adds narrowly traced V8 pragmas for six non-`Error` catch arms; no route logic changes. CV3 — slice 3 of a 13-slice campaign targeting 100% Codecov. |
+| **#208** | Test coverage: auth API route guards (CV4a) | `#208` | Extends the sign-up, sign-in, demo, forgot-password, reset-password, invitation-preview, and sign-out route suites with 15 cross-origin, invalid-payload, real database-backed rate-limit, and generic-error tests. Adds two narrowly traced V8 pragmas for unreachable branches; no route logic changes. CV4a — slice 4 of a 14-slice campaign targeting 100% Codecov after CV4 split into CV4a (auth) and CV4b (admin). |
 
 ### Active phase
 
-- **13-slice coverage campaign:** CV1 (`#204`), CV2 (`#206`), and CV3 (`#207`) are slices 1–3 of a campaign targeting 100% Codecov.
+- **14-slice coverage campaign:** CV1 (`#204`), CV2 (`#206`), CV3 (`#207`), and CV4a (`#208`) are slices 1–4 of a campaign targeting 100% Codecov. CV4 was split into CV4a (auth, shipped) and CV4b (admin, queued).
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (the deferred `deepmerge-ts` major) is queued.
 
 ### Standing Builder guardrails (post-PR-1)
