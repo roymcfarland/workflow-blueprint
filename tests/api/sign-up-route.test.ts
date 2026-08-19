@@ -42,13 +42,32 @@ const invitationFailureResponse = {
 };
 const validPassword = "correct horse battery staple";
 
-function signUpRequest(email: string, inviteToken: string, name = "New User") {
-  return jsonRequest("/api/auth/sign-up", {
-    confirmPassword: validPassword,
-    email,
-    inviteToken,
-    name,
-    password: validPassword,
+function signUpRequest(
+  email: string,
+  inviteToken: string,
+  name = "New User",
+  init?: RequestInit,
+) {
+  return jsonRequest(
+    "/api/auth/sign-up",
+    {
+      confirmPassword: validPassword,
+      email,
+      inviteToken,
+      name,
+      password: validPassword,
+    },
+    init,
+  );
+}
+
+async function seedRateLimit(key: string, count: number) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key,
+      count,
+      resetAt: new Date(Date.now() + 60_000),
+    },
   });
 }
 
@@ -67,6 +86,33 @@ describe("POST /api/auth/sign-up", () => {
     cookieMock.set.mockClear();
     sendWelcomeEmailMock.mockReset().mockResolvedValue({ status: "sent" });
     vi.mocked(createUserAccountWithInvitationData).mockClear();
+  });
+
+  test("returns 403 for a cross-origin request", async () => {
+    const response = await POST(
+      signUpRequest("cross-origin@example.test", "cross-origin-token", "Cross Origin", {
+        headers: { origin: "https://evil.example" },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("rejects an invalid payload", async () => {
+    const response = await POST(jsonRequest("/api/auth/sign-up", {}));
+
+    expect(response.status).toBe(400);
+  });
+
+  test("returns 429 when the sign-up rate limit is exceeded", async () => {
+    await seedRateLimit("sign-up:local:rate-limit@example.test", 5);
+
+    const response = await POST(
+      signUpRequest("RATE-LIMIT@EXAMPLE.TEST", "rate-limit-token", "Rate Limited"),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
   });
 
   test("rejects an invalid invitation without creating an account", async () => {
@@ -162,5 +208,24 @@ describe("POST /api/auth/sign-up", () => {
     expect(cookieMock.set).not.toHaveBeenCalled();
     expect(sendWelcomeEmailMock).not.toHaveBeenCalled();
     consoleWarn.mockRestore();
+  });
+
+  test("returns a clean 500 when account creation fails unexpectedly", async () => {
+    const createAccountMock = vi.mocked(createUserAccountWithInvitationData);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    createAccountMock.mockRejectedValueOnce(new Error("boom"));
+
+    try {
+      const response = await POST(
+        signUpRequest("failure@example.test", "failure-token", "Failure User"),
+      );
+
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({ message: "Unable to create account." });
+      expect(consoleError).toHaveBeenCalledWith("Unable to create account.", expect.any(Error));
+    } finally {
+      createAccountMock.mockRestore();
+      consoleError.mockRestore();
+    }
   });
 });
