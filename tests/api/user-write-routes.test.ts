@@ -86,6 +86,7 @@ async function fillRateLimitBucket({
 
 async function expectTooManyRequests(response: Response) {
   expect(response.status).toBe(429);
+  expect(response.headers.has("Retry-After")).toBe(true);
   await expect(response.json()).resolves.toEqual({
     message: "Too many attempts. Please try again shortly.",
   });
@@ -96,6 +97,36 @@ describe("user write route handlers", () => {
     await resetDatabase();
     authState.user = null;
     vi.mocked(revalidatePath).mockClear();
+  });
+
+  test("PATCH /api/theme returns 401 when unauthenticated", async () => {
+    const response = await patchTheme(
+      jsonRequest(
+        "/api/theme",
+        { themePreference: "night" },
+        { method: "PATCH" },
+      ),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      message: "Authentication is required.",
+    });
+  });
+
+  test("PATCH /api/theme returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await patchTheme(
+      jsonRequest(
+        "/api/theme",
+        { themePreference: "twilight" },
+        { method: "PATCH" },
+      ),
+    );
+
+    expect(response.status).toBe(400);
   });
 
   test("PATCH /api/theme updates a real user and rate-limits theme writes", async () => {
@@ -133,6 +164,58 @@ describe("user write route handlers", () => {
     });
 
     await expectTooManyRequests(await patchTheme(rateLimitedRequest));
+  });
+
+  test("PATCH /api/boards/[slug]/note returns 401 when unauthenticated", async () => {
+    const response = await patchBoardNote(
+      jsonRequest(
+        "/api/boards/missing-board/note",
+        { content: "Launch notes" },
+        { method: "PATCH" },
+      ),
+      boardParams("missing-board"),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      message: "Authentication is required.",
+    });
+  });
+
+  test("PATCH /api/boards/[slug]/note returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await patchBoardNote(
+      jsonRequest(
+        "/api/boards/missing-board/note",
+        { content: "x".repeat(5001) },
+        { method: "PATCH" },
+      ),
+      boardParams("missing-board"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      message: "Notes should stay under 5000 characters.",
+    });
+  });
+
+  test("PATCH /api/boards/[slug]/note returns 400 when the board is not found", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await patchBoardNote(
+      jsonRequest(
+        "/api/boards/missing-board/note",
+        { content: "Launch notes" },
+        { method: "PATCH" },
+      ),
+      boardParams("missing-board"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ message: "Board not found." });
   });
 
   test("PATCH /api/boards/[slug]/note updates a board note and rate-limits note writes", async () => {
@@ -199,6 +282,28 @@ describe("user write route handlers", () => {
     });
 
     await expectTooManyRequests(await patchProfile(request));
+  });
+
+  test("PATCH /api/profile returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await patchProfile(
+      jsonRequest(
+        "/api/profile",
+        {
+          email: "invalid-email",
+          name: "Profile User",
+          themePreference: "day",
+        },
+        { method: "PATCH" },
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      message: "Enter a valid email address.",
+    });
   });
 
   test("PATCH /api/profile rejects unauthenticated profile writes", async () => {

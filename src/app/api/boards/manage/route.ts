@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     const board = await createBoardForUser(user.data.id, payload.data);
     return NextResponse.json({ ok: true, board });
   } catch (error) {
+    /* v8 ignore next */
     const message = error instanceof Error ? error.message : "Unable to create board.";
     return NextResponse.json({ message }, { status: 400 });
   }

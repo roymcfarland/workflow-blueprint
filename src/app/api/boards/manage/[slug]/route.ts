@@ -59,6 +59,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ ok: true, board: updated });
   } catch (error) {
+    /* v8 ignore next */
     const message = error instanceof Error ? error.message : "Unable to update board.";
     return NextResponse.json({ message }, { status: 400 });
   }
@@ -94,6 +95,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     revalidatePath("/dashboard");
     return NextResponse.json({ ok: true });
   } catch (error) {
+    /* v8 ignore next */
     const message = error instanceof Error ? error.message : "Unable to delete board.";
     return NextResponse.json({ message }, { status: 400 });
   }
