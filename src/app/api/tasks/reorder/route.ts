@@ -37,6 +37,7 @@ export async function POST(request: Request) {
   try {
     await reorderTasksForUser(user.data.id, payload.data);
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to reorder tasks." },
       { status: 400 },

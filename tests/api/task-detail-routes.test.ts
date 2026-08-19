@@ -163,6 +163,50 @@ beforeEach(async () => {
 });
 
 describe("task detail routes", () => {
+  test("PATCH returns 401 when unauthenticated", async () => {
+    const response = await updateTask(
+      jsonRequest("/api/tasks/nonexistent", validTaskPatchBody(), { method: "PATCH" }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("PATCH returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await updateTask(
+      jsonRequest("/api/tasks/nonexistent", validTaskPatchBody(), {
+        headers: { origin: "https://evil.example" },
+        method: "PATCH",
+      }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("PATCH returns 429 when the tasks-update rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await prisma.rateLimitBucket.create({
+      data: {
+        key: `tasks-update:local:${user.id.toLowerCase()}`,
+        count: 120,
+        resetAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const response = await updateTask(
+      jsonRequest("/api/tasks/nonexistent", validTaskPatchBody(), { method: "PATCH" }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
+  });
+
   test("PATCH updates title, status, and priority", async () => {
     const { task, user } = await seedTask();
     authenticate(user);
@@ -217,6 +261,51 @@ describe("task detail routes", () => {
       400,
       "Task not found.",
     );
+  });
+
+  test("DELETE returns 401 when unauthenticated", async () => {
+    const response = await deleteTask(
+      requestWithoutBody("/api/tasks/nonexistent", "DELETE"),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("DELETE returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await deleteTask(
+      jsonRequest(
+        "/api/tasks/nonexistent",
+        {},
+        { method: "DELETE", headers: { origin: "https://evil.example" } },
+      ),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("DELETE returns 429 when the tasks-delete rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await prisma.rateLimitBucket.create({
+      data: {
+        key: `tasks-delete:local:${user.id.toLowerCase()}`,
+        count: 120,
+        resetAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const response = await deleteTask(
+      requestWithoutBody("/api/tasks/nonexistent", "DELETE"),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
   });
 
   test("DELETE removes the task and returns only the success flag", async () => {

@@ -199,6 +199,51 @@ describe("dashboard route handlers", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
+  test("POST /api/tasks/[taskId]/done returns 401 when unauthenticated", async () => {
+    const response = await markTaskDone(
+      requestWithoutBody("/api/tasks/nonexistent/done", "POST"),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("POST /api/tasks/[taskId]/done returns 403 for a cross-origin request", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await markTaskDone(
+      jsonRequest(
+        "/api/tasks/nonexistent/done",
+        {},
+        { headers: { origin: "https://evil.example" } },
+      ),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("POST /api/tasks/[taskId]/done returns 429 when the tasks-done rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await prisma.rateLimitBucket.create({
+      data: {
+        key: `tasks-done:local:${user.id.toLowerCase()}`,
+        count: 120,
+        resetAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const response = await markTaskDone(
+      requestWithoutBody("/api/tasks/nonexistent/done", "POST"),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
+  });
+
   test("POST /api/tasks/[taskId]/done moves a task to the board done column", async () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);
