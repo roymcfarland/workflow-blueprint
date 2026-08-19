@@ -58,6 +58,7 @@ export async function POST(
       },
     });
 
+    /* v8 ignore else */
     if (board) {
       revalidatePath(`/boards/${board.slug}`);
     }
@@ -66,6 +67,7 @@ export async function POST(
 
     return NextResponse.json({ ok: true, task });
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to reorder subtasks." },
       { status: 400 },

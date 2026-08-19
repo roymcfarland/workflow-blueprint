@@ -111,6 +111,16 @@ function authenticate(user: TestUser) {
   };
 }
 
+async function seedRateLimit(scope: string, user: TestUser) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key: `${scope}:local:${user.id.toLowerCase()}`,
+      count: 120,
+      resetAt: new Date(Date.now() + 60_000),
+    },
+  });
+}
+
 async function seedTask(email = "alex@example.test") {
   const user = await createTestUser({ email });
   const board = await createTestBoard(user.id);
@@ -202,6 +212,11 @@ async function expectErrorResponse(response: Response, status: number, message: 
   await expect(response.json()).resolves.toEqual({ message });
 }
 
+function expectRateLimited(response: Response) {
+  expect(response.status).toBe(429);
+  expect(response.headers.has("Retry-After")).toBe(true);
+}
+
 beforeEach(async () => {
   await resetDatabase();
   authState.user = null;
@@ -231,6 +246,19 @@ describe("attachment routes", () => {
       fileName: "launch-notes.pdf",
     });
     expect(createSignedDownloadUrl).toHaveBeenCalledWith(attachment.storagePath);
+  });
+
+  test("GET returns 429 when the attachments-download rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("attachments-download", user);
+
+    const response = await getAttachmentDownloadUrl(
+      requestWithoutBody("/api/attachments/nonexistent", "GET"),
+      attachmentParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
   });
 
   test("GET hides an attachment owned by another user", async () => {
@@ -276,6 +304,19 @@ describe("attachment routes", () => {
     ]);
     expect(removeStorageObject).toHaveBeenCalledWith(removed.storagePath);
     await expect(prisma.attachment.findUnique({ where: { id: removed.id } })).resolves.toBeNull();
+  });
+
+  test("DELETE returns 429 when the attachments-delete rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("attachments-delete", user);
+
+    const response = await deleteAttachment(
+      requestWithoutBody("/api/attachments/nonexistent", "DELETE"),
+      attachmentParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
   });
 
   test("DELETE hides an attachment owned by another user", async () => {
@@ -345,6 +386,23 @@ describe("checklist item routes", () => {
     ]);
   });
 
+  test("PATCH returns 429 when the checklist-update rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("checklist-update", user);
+
+    const response = await updateChecklistItem(
+      jsonRequest(
+        "/api/checklist/nonexistent",
+        { text: "Rate limited" },
+        { method: "PATCH" },
+      ),
+      checklistItemParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("PATCH rejects an empty body", async () => {
     const { task, user } = await seedTask();
     const item = await seedChecklistItem(task.id);
@@ -377,6 +435,19 @@ describe("checklist item routes", () => {
       }),
     ]);
     await expect(prisma.checklistItem.findUnique({ where: { id: removed.id } })).resolves.toBeNull();
+  });
+
+  test("DELETE returns 429 when the checklist-delete rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("checklist-delete", user);
+
+    const response = await deleteChecklistItem(
+      requestWithoutBody("/api/checklist/nonexistent", "DELETE"),
+      checklistItemParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
   });
 
   test("PATCH hides a checklist item owned by another user", async () => {
@@ -457,6 +528,19 @@ describe("label routes", () => {
       }),
     ]);
     await expect(prisma.taskLabel.findUnique({ where: { id: removed.id } })).resolves.toBeNull();
+  });
+
+  test("DELETE returns 429 when the labels-delete rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("labels-delete", user);
+
+    const response = await deleteLabel(
+      requestWithoutBody("/api/labels/nonexistent", "DELETE"),
+      labelParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
   });
 
   test("DELETE hides a label owned by another user", async () => {

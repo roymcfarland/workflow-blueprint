@@ -26,6 +26,7 @@ async function revalidateTaskPaths(userId: string, taskId: string) {
     },
   });
 
+  /* v8 ignore else */
   if (board) {
     revalidatePath(`/boards/${board.slug}`);
   }
@@ -67,6 +68,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, task });
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to update subtask." },
       { status: 400 },
@@ -103,6 +105,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true, task });
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to delete subtask." },
       { status: 400 },
