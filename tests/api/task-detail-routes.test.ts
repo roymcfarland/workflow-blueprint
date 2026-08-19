@@ -132,6 +132,16 @@ function authenticate(user: TestUser) {
   };
 }
 
+async function seedRateLimit(scope: string, user: TestUser) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key: `${scope}:local:${user.id.toLowerCase()}`,
+      count: 120,
+      resetAt: new Date(Date.now() + 60_000),
+    },
+  });
+}
+
 function requestWithoutBody(path: string, method: string) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
 
@@ -153,6 +163,11 @@ async function expectTaskResponse(response: Response) {
 async function expectErrorResponse(response: Response, status: number, message: string) {
   expect(response.status).toBe(status);
   await expect(response.json()).resolves.toEqual({ message });
+}
+
+function expectRateLimited(response: Response) {
+  expect(response.status).toBe(429);
+  expect(response.headers.has("Retry-After")).toBe(true);
 }
 
 beforeEach(async () => {
@@ -339,6 +354,28 @@ describe("task detail routes", () => {
 });
 
 describe("checklist item creation", () => {
+  test("POST returns 401 when unauthenticated", async () => {
+    const response = await createChecklistItem(
+      jsonRequest("/api/tasks/nonexistent/checklist", { text: "No access" }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("POST returns 429 when the checklist-create rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("checklist-create", user);
+
+    const response = await createChecklistItem(
+      jsonRequest("/api/tasks/nonexistent/checklist", { text: "Rate limited" }),
+      taskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("POST creates a checklist item", async () => {
     const { task, user } = await seedTask();
     authenticate(user);
@@ -388,6 +425,31 @@ describe("checklist item creation", () => {
 });
 
 describe("label creation", () => {
+  test("POST returns 401 when unauthenticated", async () => {
+    const response = await createLabel(
+      jsonRequest("/api/tasks/nonexistent/labels", { text: "No access", color: "#ef4444" }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("POST returns 429 when the labels-create rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("labels-create", user);
+
+    const response = await createLabel(
+      jsonRequest("/api/tasks/nonexistent/labels", {
+        text: "Rate limited",
+        color: "#ef4444",
+      }),
+      taskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("POST creates a label", async () => {
     const { task, user } = await seedTask();
     authenticate(user);
@@ -472,6 +534,50 @@ describe("label creation", () => {
 });
 
 describe("attachment record creation", () => {
+  test("POST returns 401 when unauthenticated", async () => {
+    const response = await createAttachmentRecord(
+      jsonRequest("/api/tasks/nonexistent/attachments", {
+        fileName: "launch-plan.pdf",
+        contentType: "application/pdf",
+        size: 2048,
+        storagePath: "tasks/nonexistent/launch-plan.pdf",
+      }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("POST returns 429 when the attachments-create rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("attachments-create", user);
+
+    const response = await createAttachmentRecord(
+      jsonRequest("/api/tasks/nonexistent/attachments", {
+        fileName: "launch-plan.pdf",
+        contentType: "application/pdf",
+        size: 2048,
+        storagePath: "tasks/nonexistent/launch-plan.pdf",
+      }),
+      taskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
+  test("POST returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await createAttachmentRecord(
+      jsonRequest("/api/tasks/nonexistent/attachments", {}),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   test("POST creates an attachment record for the task's storage path", async () => {
     const { task, user } = await seedTask();
     const storagePath = `tasks/${task.id}/launch-plan.pdf`;
@@ -548,6 +654,36 @@ describe("attachment record creation", () => {
 });
 
 describe("attachment upload URL creation", () => {
+  test("POST returns 401 when unauthenticated", async () => {
+    const response = await createAttachmentUploadUrl(
+      jsonRequest("/api/tasks/nonexistent/attachments/upload-url", {
+        fileName: "launch-plan.pdf",
+        contentType: "application/pdf",
+        size: 2048,
+      }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("POST returns 429 when the attachments-upload-url rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("attachments-upload-url", user);
+
+    const response = await createAttachmentUploadUrl(
+      jsonRequest("/api/tasks/nonexistent/attachments/upload-url", {
+        fileName: "launch-plan.pdf",
+        contentType: "application/pdf",
+        size: 2048,
+      }),
+      taskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("POST returns upload credentials for a task-scoped storage path", async () => {
     const { task, user } = await seedTask();
     authenticate(user);

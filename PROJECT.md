@@ -227,10 +227,12 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | `#203` | Docs: post-roadmap hygiene sweep | `#203` | A "what are we forgetting" sweep after the 6-slice UX/dashboard roadmap (`#196`-`#202`) surfaced two doc-drift findings, both fixed here. `PROJECT.md`'s Stack section still said "Next.js 16.2.10" one version behind the `16.2.11` `#197` shipped — corrected to `16.2.11` (the ledger rows for `#127`/`#197` are untouched, since those are accurate historical snapshots of their own time, not live claims). README's Environment section was missing two genuinely-used env vars present in `.env.example`: `DIRECT_URL` (`src/lib/database-url.ts`, preferred by Prisma CLI commands over `POSTGRES_URL_NON_POOLING`) and `ADMIN_EMAILS` (`scripts/admin-promote.ts`'s allowlist) — both predate this session, unrelated to `#196`-`#202`. Docs-only, no `src/**`/test change. |
 | **#204** | Test coverage: task-core API route guard branches (CV1) | `#204` | Extends the task detail, task reorder, task-done, and board-task route suites with unauthenticated, cross-origin, real database-backed rate-limit, and invalid-payload coverage where applicable. Adds narrowly traced V8 pragmas for three impossible missing-board false arms and five non-`Error` catch arms; no route logic changes. CV1 — slice 1 of a 13-slice campaign targeting 100% Codecov. |
 | **#205** | Security override bumps (D1) | `#205` | Added within-major overrides for 10 vulnerable transitive dependency groups, including major-specific `brace-expansion` selectors and Prisma CLI transitives. `npm audit` fell from 15 vulnerabilities to 3 (12 cleared); the remaining `deepmerge-ts` advisory through `@prisma/config`/`prisma` requires a major crossing and is deliberately deferred to D2. Dependency/config-only; no direct dependency or source/test change. |
+| **#206** | Test coverage: task-child-resource API route guards (CV2) | `#206` | Extends the subtask, checklist, label, and attachment child-resource route suites with unauthenticated, real database-backed rate-limit, and invalid-payload coverage where applicable. Adds narrowly traced V8 pragmas for nine impossible missing-board false arms and thirteen non-`Error` catch arms; no route logic changes. CV2 — slice 2 of a 13-slice campaign targeting 100% Codecov. |
 
 ### Active phase
 
-- **13-slice coverage campaign:** CV1 (`#204`) is slice 1 of a campaign targeting 100% Codecov.
+- **13-slice coverage campaign:** CV1 (`#204`) and CV2 (`#206`) are slices 1–2 of a campaign targeting 100% Codecov.
+- **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (the deferred `deepmerge-ts` major) is queued.
 
 ### Standing Builder guardrails (post-PR-1)
 

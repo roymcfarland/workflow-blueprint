@@ -87,6 +87,16 @@ function authenticate(user: TestUser) {
   };
 }
 
+async function seedRateLimit(scope: string, user: TestUser) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key: `${scope}:local:${user.id.toLowerCase()}`,
+      count: 120,
+      resetAt: new Date(Date.now() + 60_000),
+    },
+  });
+}
+
 async function seedTask(email = "alex@example.test") {
   const user = await createTestUser({ email });
   const board = await createTestBoard(user.id);
@@ -142,11 +152,38 @@ async function expectBadRequest(response: Response, message: string) {
   await expect(response.json()).resolves.toEqual({ message });
 }
 
+function expectRateLimited(response: Response) {
+  expect(response.status).toBe(429);
+  expect(response.headers.has("Retry-After")).toBe(true);
+}
+
 describe("subtask route handlers", () => {
   beforeEach(async () => {
     await resetDatabase();
     authState.user = null;
     vi.mocked(revalidatePath).mockClear();
+  });
+
+  test("POST /api/tasks/[taskId]/subtasks returns 401 when unauthenticated", async () => {
+    const response = await createSubtask(
+      jsonRequest("/api/tasks/nonexistent/subtasks", { title: "No access" }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("POST /api/tasks/[taskId]/subtasks returns 429 when the subtasks-create rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("subtasks-create", user);
+
+    const response = await createSubtask(
+      jsonRequest("/api/tasks/nonexistent/subtasks", { title: "Rate limited" }),
+      taskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
   });
 
   test("POST /api/tasks/[taskId]/subtasks appends the next sort order", async () => {
@@ -197,6 +234,36 @@ describe("subtask route handlers", () => {
     await expectBadRequest(response, "Tasks can include up to 50 subtasks.");
   });
 
+  test("PATCH /api/subtasks/[subtaskId] returns 401 when unauthenticated", async () => {
+    const response = await updateSubtask(
+      jsonRequest(
+        "/api/subtasks/nonexistent",
+        { title: "No access" },
+        { method: "PATCH" },
+      ),
+      subtaskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("PATCH /api/subtasks/[subtaskId] returns 429 when the subtasks-update rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("subtasks-update", user);
+
+    const response = await updateSubtask(
+      jsonRequest(
+        "/api/subtasks/nonexistent",
+        { title: "Rate limited" },
+        { method: "PATCH" },
+      ),
+      subtaskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("PATCH /api/subtasks/[subtaskId] updates title and completion", async () => {
     const { task, user } = await seedTask();
     const subtask = await seedSubtask(task.id, {
@@ -239,6 +306,28 @@ describe("subtask route handlers", () => {
     await expectBadRequest(response, "Provide at least one field to update.");
   });
 
+  test("DELETE /api/subtasks/[subtaskId] returns 401 when unauthenticated", async () => {
+    const response = await deleteSubtask(
+      requestWithoutBody("/api/subtasks/nonexistent", "DELETE"),
+      subtaskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("DELETE /api/subtasks/[subtaskId] returns 429 when the subtasks-delete rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("subtasks-delete", user);
+
+    const response = await deleteSubtask(
+      requestWithoutBody("/api/subtasks/nonexistent", "DELETE"),
+      subtaskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
   test("DELETE /api/subtasks/[subtaskId] removes the subtask from the task payload", async () => {
     const { task, user } = await seedTask();
     const removed = await seedSubtask(task.id, { title: "Remove me", sortOrder: 0 });
@@ -258,6 +347,40 @@ describe("subtask route handlers", () => {
       }),
     ]);
     await expect(prisma.subtask.findUnique({ where: { id: removed.id } })).resolves.toBeNull();
+  });
+
+  test("POST /api/tasks/[taskId]/subtasks/reorder returns 401 when unauthenticated", async () => {
+    const response = await reorderSubtasks(
+      jsonRequest("/api/tasks/nonexistent/subtasks/reorder", { subtaskIds: [randomUUID()] }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("POST /api/tasks/[taskId]/subtasks/reorder returns 429 when the subtasks-reorder rate limit is exceeded", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+    await seedRateLimit("subtasks-reorder", user);
+
+    const response = await reorderSubtasks(
+      jsonRequest("/api/tasks/nonexistent/subtasks/reorder", { subtaskIds: [randomUUID()] }),
+      taskParams("nonexistent"),
+    );
+
+    expectRateLimited(response);
+  });
+
+  test("POST /api/tasks/[taskId]/subtasks/reorder returns 400 for an invalid payload", async () => {
+    const user = await createTestUser();
+    authenticate(user);
+
+    const response = await reorderSubtasks(
+      jsonRequest("/api/tasks/nonexistent/subtasks/reorder", { subtaskIds: "invalid" }),
+      taskParams("nonexistent"),
+    );
+
+    expect(response.status).toBe(400);
   });
 
   test("POST /api/tasks/[taskId]/subtasks/reorder assigns sort orders by id order", async () => {

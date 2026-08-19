@@ -28,6 +28,7 @@ async function revalidateTaskPaths(userId: string, taskId: string) {
     },
   });
 
+  /* v8 ignore else */
   if (board) {
     revalidatePath(`/boards/${board.slug}`);
   }
@@ -63,6 +64,7 @@ export async function GET(
 
     return NextResponse.json({ ok: true, url, fileName: attachment.fileName });
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to create attachment download URL." },
       { status: 400 },
@@ -99,6 +101,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true, task });
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to delete attachment." },
       { status: 400 },

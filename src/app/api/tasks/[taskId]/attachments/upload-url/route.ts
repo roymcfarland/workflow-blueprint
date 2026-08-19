@@ -58,6 +58,7 @@ export async function POST(
       contentType: payload.data.contentType,
     });
   } catch (error) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to create attachment upload URL." },
       { status: 400 },
