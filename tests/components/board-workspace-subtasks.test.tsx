@@ -350,6 +350,11 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(url).toBe("/api/tasks/task-active");
     expect(init.method).toBe("PATCH");
     expect(requestJsonBody(init)?.priority).toBe("URGENT");
+
+    // The server response is applied asynchronously, and the task renders in both
+    // the card and the open detail modal. Await the re-render so PriorityBadge's
+    // non-NONE branch is exercised deterministically rather than racing teardown.
+    expect((await screen.findAllByText("Urgent")).length).toBeGreaterThan(0);
   });
 
   test("editing recurrence in the detail modal patches the task", async () => {
