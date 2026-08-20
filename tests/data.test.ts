@@ -49,6 +49,8 @@ import {
   updateBoardForUser,
   updateChecklistItemForUser,
   revokeApiToken,
+  updateSubtaskForUser,
+  updateTaskFieldsForUser,
   updateTaskForUser,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
@@ -645,6 +647,91 @@ describe("src/lib/data.ts", () => {
     ).resolves.toEqual({ recurrence: "WEEKLY" });
   });
 
+  test("adds a new subtask without an id when updating a task", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Add a launch step",
+    });
+
+    const updatedTask = await updateTaskForUser(user.id, task.id, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [{ isComplete: false, title: "Confirm the launch owner" }],
+      title: task.title,
+    });
+
+    expect(updatedTask.subtasks).toEqual([
+      expect.objectContaining({
+        isComplete: false,
+        title: "Confirm the launch owner",
+      }),
+    ]);
+    expect(updatedTask.subtasks[0]?.id).toEqual(expect.any(String));
+  });
+
+  test("preserves a due date when updating another task field", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: "2026-05-05",
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Keep the launch date",
+    });
+
+    const updatedTask = await updateTaskFieldsForUser(user.id, task.id, {
+      title: "Keep the confirmed launch date",
+    });
+
+    expect(updatedTask).toMatchObject({
+      dueDate: "2026-05-05T00:00:00.000Z",
+      title: "Keep the confirmed launch date",
+    });
+  });
+
+  test("updates a subtask title without changing its completion state", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [{ isComplete: false, title: "Original step" }],
+      title: "Rename a launch step",
+    });
+    const subtaskId = task.subtasks[0]?.id;
+    if (!subtaskId) {
+      throw new Error("Expected a serialized subtask id.");
+    }
+
+    const updatedTask = await updateSubtaskForUser(user.id, subtaskId, {
+      title: "Renamed step",
+    });
+
+    expect(updatedTask.subtasks).toEqual([
+      expect.objectContaining({
+        id: subtaskId,
+        isComplete: false,
+        title: "Renamed step",
+      }),
+    ]);
+  });
+
   test("archives a task while keeping its completion date clear", async () => {
     const user = await createTestUser();
     await createTestBoard(user.id);
@@ -901,6 +988,47 @@ describe("src/lib/data.ts", () => {
       "Recently used",
       "Never used",
     ]);
+  });
+
+  test("sorts a used dashboard token ahead of two never-used tokens", async () => {
+    const user = await createTestUser();
+
+    await prisma.apiToken.createMany({
+      data: [
+        {
+          createdById: user.id,
+          id: randomUUID(),
+          label: "Never used first",
+          prefix: "wbat_unused_1",
+          scopes: [ApiTokenScope.BOARDS_READ],
+          tokenHash: sha256("unused-token-1"),
+        },
+        {
+          createdById: user.id,
+          id: randomUUID(),
+          label: "Used",
+          lastUsedAt: new Date("2026-08-01T00:00:00.000Z"),
+          prefix: "wbat_used",
+          scopes: [ApiTokenScope.TASKS_READ],
+          tokenHash: sha256("used-token"),
+        },
+        {
+          createdById: user.id,
+          id: randomUUID(),
+          label: "Never used second",
+          prefix: "wbat_unused_2",
+          scopes: [ApiTokenScope.SUBTASKS_READ],
+          tokenHash: sha256("unused-token-2"),
+        },
+      ],
+    });
+
+    const snapshot = await getDashboardSnapshot(user.id);
+
+    expect(snapshot.activeTokens[0]?.label).toBe("Used");
+    expect(new Set(snapshot.activeTokens.slice(1).map((token) => token.label))).toEqual(
+      new Set(["Never used first", "Never used second"]),
+    );
   });
 
   test("ranks board health by overdue count then open count, excluding caught-up boards", async () => {
@@ -1535,6 +1663,72 @@ describe("src/lib/data.ts", () => {
       isComplete: true,
       text: "Updated item",
     });
+  });
+
+  test("updates checklist completion without changing its text", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Checklist completion task",
+    });
+    const checklistTask = await createChecklistItemForTask(user.id, task.id, {
+      text: "Keep this text",
+    });
+    const itemId = checklistTask.checklist?.[0]?.id;
+    if (!itemId) {
+      throw new Error("Expected a serialized checklist item id.");
+    }
+
+    const updatedTask = await updateChecklistItemForUser(user.id, itemId, {
+      isComplete: true,
+    });
+
+    expect(updatedTask.checklist).toEqual([
+      expect.objectContaining({
+        id: itemId,
+        isComplete: true,
+        text: "Keep this text",
+      }),
+    ]);
+  });
+
+  test("updates checklist text without changing its completion state", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Checklist text task",
+    });
+    const checklistTask = await createChecklistItemForTask(user.id, task.id, {
+      text: "Original text",
+    });
+    const itemId = checklistTask.checklist?.[0]?.id;
+    if (!itemId) {
+      throw new Error("Expected a serialized checklist item id.");
+    }
+
+    const updatedTask = await updateChecklistItemForUser(user.id, itemId, {
+      text: "Updated text only",
+    });
+
+    expect(updatedTask.checklist).toEqual([
+      expect.objectContaining({
+        id: itemId,
+        isComplete: false,
+        text: "Updated text only",
+      }),
+    ]);
   });
 
   test("deletes task checklist items", async () => {
