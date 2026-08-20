@@ -88,9 +88,10 @@ npx vercel@latest env pull .env.local --environment=development
 Prisma CLI commands prefer `DIRECT_URL`, then `POSTGRES_URL_NON_POOLING`, when available.
 Use a durable PostgreSQL 14+ database for production account creation.
 `AUTH_SECRET` must be a long random secret in production.
-`NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata.
+`NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata; when it is unset the app falls back in order to `SITE_URL`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL` and `VERCEL_URL`, and finally a hard-coded default (`src/lib/site-config.ts`).
 `RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
 `ADMIN_EMAILS` is a comma-separated allowlist consulted by `npm run admin:bootstrap`/`admin:promote` (`scripts/admin-promote.ts`) when no email is passed explicitly; optional otherwise.
+`ADMIN_PROMOTE_ACTOR` and `ADMIN_PROMOTE_NONINTERACTIVE` are optional knobs for that same script: the first is recorded as the `actor` on the resulting `user.promote_admin` admin audit log entry (falling back to `$USER`, then `$LOGNAME`, then the literal `scripts/admin-promote`), and setting the second to exactly `true` skips the interactive confirmation prompt for scripted or CI runs.
 `EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to the seeded demo user.
 `CRON_SECRET` secures `/api/cron/recurring-tasks`. It is required in Vercel production for the scheduled rollover job, but local development can omit it unless you are manually testing the route. When `CRON_SECRET` is set on the Vercel project, Vercel cron invocations automatically send it as an `Authorization: Bearer <CRON_SECRET>` header; the endpoint returns `401` without the matching bearer token.
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` enable task attachments (`src/lib/storage.ts`). Local development can omit them unless you are testing that feature; the storage helper throws a clear error rather than failing silently when they're missing.
