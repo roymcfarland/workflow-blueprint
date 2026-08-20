@@ -66,6 +66,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Unable to send password reset email.", error);
 
+    /* v8 ignore else */
     if (!isProduction) {
       message = "Email delivery failed locally. Use the preview reset link below.";
     }

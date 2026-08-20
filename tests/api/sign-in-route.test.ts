@@ -33,14 +33,49 @@ async function createUserWithPassword(email = "alex@example.test") {
   });
 }
 
-function signInRequest(email: string, password: string) {
-  return jsonRequest("/api/auth/sign-in", { email, password });
+function signInRequest(email: string, password: string, init?: RequestInit) {
+  return jsonRequest("/api/auth/sign-in", { email, password }, init);
+}
+
+async function seedRateLimit(key: string, count: number) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key,
+      count,
+      resetAt: new Date(Date.now() + 60_000),
+    },
+  });
 }
 
 describe("POST /api/auth/sign-in", () => {
   beforeEach(async () => {
     cookieMock.set.mockClear();
     await resetDatabase();
+  });
+
+  test("returns 403 for a cross-origin request", async () => {
+    const response = await POST(
+      signInRequest("cross-origin@example.test", validPassword, {
+        headers: { origin: "https://evil.example" },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("rejects an invalid payload", async () => {
+    const response = await POST(signInRequest("not-an-email", validPassword));
+
+    expect(response.status).toBe(400);
+  });
+
+  test("returns 429 when the sign-in rate limit is exceeded", async () => {
+    await seedRateLimit("sign-in:local:rate-limit@example.test", 8);
+
+    const response = await POST(signInRequest("RATE-LIMIT@EXAMPLE.TEST", validPassword));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
   });
 
   test("rejects an unknown email", async () => {

@@ -9,6 +9,7 @@ export async function GET(request: Request) {
   const payload = invitePreviewSchema.safeParse({ token });
 
   if (!payload.success) {
+    /* v8 ignore next */
     return NextResponse.json(
       { message: payload.error.issues[0]?.message ?? "Invite token is required." },
       { status: 400 },

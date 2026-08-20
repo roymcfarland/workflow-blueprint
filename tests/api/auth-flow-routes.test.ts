@@ -25,11 +25,22 @@ import { GET as previewInvitation } from "@/app/api/auth/invitations/preview/rou
 import { POST as resetPassword } from "@/app/api/auth/reset-password/route";
 import { POST as signOut } from "@/app/api/auth/sign-out/route";
 import { createInvitation, createPasswordResetToken } from "@/lib/data";
+import { prisma } from "@/lib/db";
 import { sessionCookieName } from "@/lib/domain";
 import { createTestUser, resetDatabase } from "../helpers/database";
 import { jsonRequest } from "../helpers/requests";
 
 const genericResetMessage = "If that account exists, a reset link has been sent.";
+
+async function seedRateLimit(key: string, count: number) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key,
+      count,
+      resetAt: new Date(Date.now() + 60_000),
+    },
+  });
+}
 
 function requestWithoutBody(path: string, method = "GET") {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
@@ -51,6 +62,29 @@ beforeEach(async () => {
 });
 
 describe("POST /api/auth/forgot-password", () => {
+  test("returns 403 for a cross-origin request", async () => {
+    const response = await forgotPassword(
+      jsonRequest(
+        "/api/auth/forgot-password",
+        { email: "cross-origin@example.test" },
+        { headers: { origin: "https://evil.example" } },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("returns 429 when the forgot-password rate limit is exceeded", async () => {
+    await seedRateLimit("forgot-password:local:rate-limit@example.test", 5);
+
+    const response = await forgotPassword(
+      jsonRequest("/api/auth/forgot-password", { email: "RATE-LIMIT@EXAMPLE.TEST" }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
+  });
+
   test("returns the generic message without sending an email for an unknown address", async () => {
     const response = await forgotPassword(
       jsonRequest("/api/auth/forgot-password", { email: "missing@example.test" }),
@@ -116,6 +150,17 @@ describe("POST /api/auth/forgot-password", () => {
 });
 
 describe("GET /api/auth/invitations/preview", () => {
+  test("returns 429 when the invitation-preview rate limit is exceeded", async () => {
+    await seedRateLimit("invite-preview:local:rate-limit-token", 30);
+
+    const response = await previewInvitation(
+      requestWithoutBody("/api/auth/invitations/preview?token=RATE-LIMIT-TOKEN"),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
+  });
+
   test("returns the invitation for a valid pending token", async () => {
     const inviter = await createTestUser({ email: "admin@example.test" });
     const { token } = await createInvitation({
@@ -153,6 +198,37 @@ describe("GET /api/auth/invitations/preview", () => {
 });
 
 describe("POST /api/auth/reset-password", () => {
+  test("returns 403 for a cross-origin request", async () => {
+    const response = await resetPassword(
+      jsonRequest(
+        "/api/auth/reset-password",
+        {
+          token: "cross-origin-token",
+          password: "new secure password",
+          confirmPassword: "new secure password",
+        },
+        { headers: { origin: "https://evil.example" } },
+      ),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("returns 429 when the reset-password rate limit is exceeded", async () => {
+    await seedRateLimit("reset-password:local:rate-limit-token", 8);
+
+    const response = await resetPassword(
+      jsonRequest("/api/auth/reset-password", {
+        token: "RATE-LIMIT-TOKEN",
+        password: "new secure password",
+        confirmPassword: "new secure password",
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
+  });
+
   test("resets the password and establishes a session for a valid token", async () => {
     const user = await createTestUser({ email: "alex@example.test" });
     const { token } = await createPasswordResetToken(user.id);
@@ -213,6 +289,14 @@ describe("POST /api/auth/reset-password", () => {
 });
 
 describe("POST /api/auth/sign-out", () => {
+  test("returns 403 for a cross-origin request", async () => {
+    const response = await signOut(
+      jsonRequest("/api/auth/sign-out", {}, { headers: { origin: "https://evil.example" } }),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
   test("clears the session cookie", async () => {
     const response = await signOut(requestWithoutBody("/api/auth/sign-out", "POST"));
 

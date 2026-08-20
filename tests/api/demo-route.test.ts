@@ -19,14 +19,37 @@ import { prisma } from "@/lib/db";
 import { resetDatabase } from "../helpers/database";
 import { jsonRequest } from "../helpers/requests";
 
-function demoRequest() {
-  return jsonRequest("/api/auth/demo", {});
+function demoRequest(init?: RequestInit) {
+  return jsonRequest("/api/auth/demo", {}, init);
 }
 
 describe("POST /api/auth/demo", () => {
   beforeEach(async () => {
     cookieMock.set.mockClear();
     await resetDatabase();
+  });
+
+  test("returns 403 for a cross-origin request", async () => {
+    const response = await POST(
+      demoRequest({ headers: { origin: "https://evil.example" } }),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  test("returns 429 when the demo rate limit is exceeded", async () => {
+    await prisma.rateLimitBucket.create({
+      data: {
+        key: "demo:local",
+        count: 5,
+        resetAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const response = await POST(demoRequest());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
   });
 
   test("provisions a demo sandbox and sets a session cookie", async () => {
