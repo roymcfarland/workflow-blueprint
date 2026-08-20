@@ -5,7 +5,10 @@ import {
   POST as createInvitationRoute,
 } from "@/app/api/admin/invitations/route";
 import { POST as revokeInvitationRoute } from "@/app/api/admin/invitations/[id]/revoke/route";
-import { createInvitation as createInvitationData } from "@/lib/data";
+import {
+  createInvitation as createInvitationData,
+  revokeInvitation as revokeInvitationData,
+} from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { createTestUser, resetDatabase } from "../helpers/database";
 import { jsonRequest } from "../helpers/requests";
@@ -42,6 +45,7 @@ vi.mock("@/lib/data", async (importOriginal) => {
   return {
     ...actual,
     createInvitation: vi.fn(actual.createInvitation),
+    revokeInvitation: vi.fn(actual.revokeInvitation),
   };
 });
 
@@ -60,6 +64,16 @@ function requestWithoutBody(path: string, method = "GET") {
       origin,
     },
     method,
+  });
+}
+
+async function seedRateLimit(key: string, count: number) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key,
+      count,
+      resetAt: new Date(Date.now() + 60_000),
+    },
   });
 }
 
@@ -92,6 +106,7 @@ describe("admin invitation route handlers", () => {
     await resetDatabase();
     authState.user = null;
     vi.mocked(createInvitationData).mockClear();
+    vi.mocked(revokeInvitationData).mockClear();
     sendInviteEmailMock.mockReset().mockResolvedValue({ status: "sent" });
     vi.unstubAllEnvs();
   });
@@ -122,6 +137,17 @@ describe("admin invitation route handlers", () => {
     });
   });
 
+  test("GET /api/admin/invitations returns 401 for an unauthenticated request", async () => {
+    const response = await listInvitationsRoute(
+      requestWithoutBody("/api/admin/invitations"),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      message: "Authentication is required.",
+    });
+  });
+
   test("POST /api/admin/invitations rejects non-admin and anonymous users", async () => {
     const user = await createTestUser({
       email: "user@example.test",
@@ -140,6 +166,72 @@ describe("admin invitation route handlers", () => {
 
     expect(nonAdminResponse.status).toBe(403);
     expect(anonymousResponse.status).toBe(401);
+  });
+
+  test("POST /api/admin/invitations returns 400 for an invalid email payload", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+
+    const response = await createInvitationRoute(
+      jsonRequest("/api/admin/invitations", { email: "not-an-email" }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      message: "Enter a valid email address.",
+    });
+  });
+
+  test("POST /api/admin/invitations returns 429 with Retry-After at its rate limit", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+    const email = "Rate-Limit@Example.Test";
+
+    await seedRateLimit(
+      `admin-invitation:local:${admin.id}:${email}`.toLowerCase(),
+      10,
+    );
+
+    const response = await createInvitationRoute(
+      jsonRequest("/api/admin/invitations", { email }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+  });
+
+  test("POST /api/admin/invitations/[id]/revoke returns 401 for an unauthenticated request", async () => {
+    const response = await revokeInvitationRoute(
+      requestWithoutBody("/api/admin/invitations/invitation-id/revoke", "POST"),
+      invitationParams("invitation-id"),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      message: "Authentication is required.",
+    });
+  });
+
+  test("POST /api/admin/invitations/[id]/revoke returns 500 when revocation fails", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      vi.mocked(revokeInvitationData).mockRejectedValueOnce(new Error("boom"));
+
+      const response = await revokeInvitationRoute(
+        requestWithoutBody("/api/admin/invitations/invitation-id/revoke", "POST"),
+        invitationParams("invitation-id"),
+      );
+
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({
+        message: "Unable to revoke invitation.",
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   test("POST /api/admin/invitations/[id]/revoke rate-limits admin revokes", async () => {
@@ -168,6 +260,7 @@ describe("admin invitation route handlers", () => {
     }
 
     expect(rateLimitedResponse?.status).toBe(429);
+    expect(rateLimitedResponse?.headers.get("Retry-After")).toBeTruthy();
     await expect(rateLimitedResponse?.json()).resolves.toEqual({
       message: "Too many attempts. Please try again shortly.",
     });
@@ -217,6 +310,26 @@ describe("admin invitation route handlers", () => {
       inviteUrl: body.previewInviteUrl,
       to: "invitee@example.test",
     });
+  });
+
+  test("POST /api/admin/invitations hides the preview URL after successful production delivery", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    try {
+      const admin = await createAdmin();
+      authenticate(admin);
+
+      const response = await createInvitationRoute(
+        jsonRequest("/api/admin/invitations", { email: "production-success@example.test" }),
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.message).toBe("Invitation sent.");
+      expect(body.previewInviteUrl).toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   test("POST /api/admin/invitations rejects an email with an existing account", async () => {
