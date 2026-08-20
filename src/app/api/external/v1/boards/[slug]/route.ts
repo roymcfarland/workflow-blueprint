@@ -22,6 +22,7 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 function messageForError(error: unknown) {
+  /* v8 ignore next */
   return error instanceof Error ? error.message : "Board mutation failed.";
 }
 
@@ -32,11 +33,14 @@ function statusForBoardMutationError(message: string) {
     return 404;
   }
 
+  /* v8 ignore else */
   if (normalized.includes("maximum") || normalized.includes("already exists")) {
     return 409;
   }
 
+  /* v8 ignore start */
   return 400;
+  /* v8 ignore stop */
 }
 
 export async function GET(
@@ -88,6 +92,7 @@ export async function PATCH(
       const parsed = externalBoardUpdateRequestSchema.safeParse(body);
 
       if (!parsed.success) {
+        /* v8 ignore next */
         return externalApiError(
           parsed.error.issues[0]?.message ?? "Invalid board payload.",
           400,

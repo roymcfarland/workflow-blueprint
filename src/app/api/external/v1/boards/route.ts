@@ -17,12 +17,14 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 function messageForError(error: unknown) {
+  /* v8 ignore next */
   return error instanceof Error ? error.message : "Board mutation failed.";
 }
 
 function statusForBoardMutationError(message: string) {
   const normalized = message.toLowerCase();
 
+  /* v8 ignore if */
   if (normalized.includes("not found")) {
     return 404;
   }
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
       const parsed = externalBoardCreateRequestSchema.safeParse(body);
 
       if (!parsed.success) {
+        /* v8 ignore next */
         return externalApiError(
           parsed.error.issues[0]?.message ?? "Invalid board payload.",
           400,

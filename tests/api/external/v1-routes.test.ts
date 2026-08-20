@@ -843,6 +843,147 @@ describe("external v1 route contracts", () => {
       });
     });
 
+    test("POST /api/external/v1/tasks returns 409 when the board has 1000 tasks", async () => {
+      const owner = await createTestUser({
+        email: "task-cap-owner@example.test",
+        name: "Task Cap Owner",
+      });
+      const board = await createNamedBoard(
+        owner.id,
+        "Full task board",
+        "full-task-board",
+      );
+      await prisma.task.createMany({
+        data: Array.from({ length: 1000 }, (_, index) => ({
+          boardId: board.id,
+          id: randomUUID(),
+          sortOrder: index,
+          status: PrismaTaskStatus.ON_DECK,
+          title: `Task ${index + 1}`,
+        })),
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Task cap writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await postTask(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/tasks",
+          { boardSlug: board.slug, title: "One task too many" },
+          token,
+        ),
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({
+        error: "This board has reached the maximum of 1000 tasks.",
+        ok: false,
+      });
+    });
+
+    test("PATCH /api/external/v1/tasks/[id] rejects malformed JSON", async () => {
+      const owner = await createTestUser({
+        email: "task-malformed-owner@example.test",
+        name: "Task Malformed Owner",
+      });
+      const board = await createNamedBoard(
+        owner.id,
+        "Malformed task board",
+        "malformed-task",
+      );
+      const task = await createRouteTask(board.id, "Malformed patch target");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Malformed task patcher",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await patchTask(
+        externalRawJsonRequest(
+          "PATCH",
+          `/api/external/v1/tasks/${task.id}`,
+          "{",
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid JSON body.",
+        ok: false,
+      });
+    });
+
+    test("PATCH /api/external/v1/tasks/[id] stores a text description", async () => {
+      const owner = await createTestUser({
+        email: "task-description-owner@example.test",
+        name: "Task Description Owner",
+      });
+      const board = await createNamedBoard(
+        owner.id,
+        "Task description board",
+        "task-description",
+      );
+      const task = await createRouteTask(board.id, "Describe me");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Task description writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await patchTask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/tasks/${task.id}`,
+          { description: "some text" },
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const body = await expectJsonContract(response, externalTaskResponseSchema);
+
+      expect(body.data.description).toBe("some text");
+    });
+
+    test("PATCH /api/external/v1/tasks/[id] stores a null description", async () => {
+      const owner = await createTestUser({
+        email: "task-null-description-owner@example.test",
+        name: "Task Null Description Owner",
+      });
+      const board = await createNamedBoard(
+        owner.id,
+        "Null task description board",
+        "null-task-description",
+      );
+      const task = await createRouteTask(board.id, "Clear my description");
+      await prisma.task.update({
+        data: { description: "Current description" },
+        where: { id: task.id },
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Task null description writer",
+        scopes: [ApiTokenScope.TASKS_WRITE],
+      });
+
+      const response = await patchTask(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/tasks/${task.id}`,
+          { description: null },
+          token,
+        ),
+        { params: Promise.resolve({ id: task.id }) },
+      );
+      const body = await expectJsonContract(response, externalTaskResponseSchema);
+
+      expect(body.data.description).toBeNull();
+    });
+
     test("POST /api/external/v1/boards creates a board with an auto-generated slug", async () => {
       const owner = await createTestUser({
         email: "board-create-owner@example.test",
@@ -937,6 +1078,168 @@ describe("external v1 route contracts", () => {
         description: "Updated externally",
         name: "Updated Board",
       });
+    });
+
+    test("POST /api/external/v1/boards returns 400 when the name has no slug characters", async () => {
+      const owner = await createTestUser({
+        email: "board-slug-owner@example.test",
+        name: "Board Slug Owner",
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Invalid board slug writer",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await postBoard(
+        externalJsonRequest(
+          "POST",
+          "/api/external/v1/boards",
+          { name: "!!!" },
+          token,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Board name must produce a valid URL slug.",
+        ok: false,
+      });
+    });
+
+    test("PATCH /api/external/v1/boards/[slug] returns 409 for a duplicate board name", async () => {
+      const owner = await createTestUser({
+        email: "board-conflict-owner@example.test",
+        name: "Board Conflict Owner",
+      });
+      const source = await createNamedBoard(owner.id, "Source board", "source-board");
+      await createNamedBoard(owner.id, "Existing board", "existing-board");
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Conflicting board renamer",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoard(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${source.slug}`,
+          { name: "Existing board" },
+          token,
+        ),
+        { params: Promise.resolve({ slug: source.slug }) },
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({
+        error: "A board with that name already exists.",
+        ok: false,
+      });
+    });
+
+    test("GET /api/external/v1/boards/[slug] returns 404 for another user's board", async () => {
+      const owner = await createTestUser({
+        email: "board-read-owner@example.test",
+        name: "Board Read Owner",
+      });
+      const otherUser = await createTestUser({
+        email: "board-read-other@example.test",
+        name: "Board Read Other",
+      });
+      const otherBoard = await createNamedBoard(
+        otherUser.id,
+        "Other private board",
+        "other-private-board",
+      );
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Scoped board reader",
+        scopes: [ApiTokenScope.BOARDS_READ],
+      });
+
+      const response = await getBoard(
+        externalGetRequest(
+          `/api/external/v1/boards/${otherBoard.slug}`,
+          token,
+        ),
+        { params: Promise.resolve({ slug: otherBoard.slug }) },
+      );
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toEqual({
+        error: "Board not found.",
+        ok: false,
+      });
+    });
+
+    test("PATCH /api/external/v1/boards/[slug] rejects malformed JSON", async () => {
+      const owner = await createTestUser({
+        email: "board-malformed-owner@example.test",
+        name: "Board Malformed Owner",
+      });
+      const board = await createNamedBoard(
+        owner.id,
+        "Malformed board",
+        "malformed-board",
+      );
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Malformed board patcher",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoard(
+        externalRawJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}`,
+          "{",
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid JSON body.",
+        ok: false,
+      });
+    });
+
+    test("PATCH /api/external/v1/boards/[slug] stores a null description", async () => {
+      const owner = await createTestUser({
+        email: "board-null-description-owner@example.test",
+        name: "Board Null Description Owner",
+      });
+      const board = await createNamedBoard(
+        owner.id,
+        "Null board description",
+        "null-board-description",
+      );
+      await prisma.board.update({
+        data: { description: "Current board description" },
+        where: { id: board.id },
+      });
+      const { token } = await createApiToken({
+        createdById: owner.id,
+        label: "Board null description writer",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoard(
+        externalJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${board.slug}`,
+          { description: null },
+          token,
+        ),
+        { params: Promise.resolve({ slug: board.slug }) },
+      );
+      const updated = await prisma.board.findUniqueOrThrow({
+        where: { id: board.id },
+      });
+
+      await expectJsonContract(response, externalBoardWriteResponseSchema);
+      expect(updated.description).toBeNull();
     });
 
     test("DELETE /api/external/v1/boards/[slug] deletes a board for the token owner", async () => {

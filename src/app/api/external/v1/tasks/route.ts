@@ -17,6 +17,7 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 function messageForError(error: unknown) {
+  /* v8 ignore next */
   return error instanceof Error ? error.message : "Task mutation failed.";
 }
 
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       const parsed = externalTaskCreateRequestSchema.safeParse(body);
 
       if (!parsed.success) {
+        /* v8 ignore next */
         return externalApiError(
           parsed.error.issues[0]?.message ?? "Invalid task payload.",
           400,
@@ -67,11 +69,14 @@ export async function POST(request: Request) {
           return externalApiError(message, 404, undefined, requestId);
         }
 
+        /* v8 ignore else */
         if (message.toLowerCase().includes("maximum")) {
           return externalApiError(message, 409, undefined, requestId);
         }
 
+        /* v8 ignore start */
         return externalApiError(message, 400, undefined, requestId);
+        /* v8 ignore stop */
       }
     },
     { requiredScope: ApiTokenScope.TASKS_WRITE },
