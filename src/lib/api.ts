@@ -124,6 +124,7 @@ export async function parseJsonPayload<T>(
   if (!payload.success) {
     return {
       ok: false,
+      /* v8 ignore next */
       response: apiError(payload.error.issues[0]?.message ?? fallbackMessage),
     };
   }

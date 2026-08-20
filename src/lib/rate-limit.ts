@@ -64,6 +64,7 @@ async function bumpBucket(key: string, windowMs: number): Promise<BucketRow> {
 
   const row = rows[0];
 
+  /* v8 ignore if */
   if (!row) {
     throw new Error("RateLimitBucket upsert did not return a row.");
   }

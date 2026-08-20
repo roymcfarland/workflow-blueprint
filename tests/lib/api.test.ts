@@ -44,6 +44,18 @@ describe("assertSameOriginRequest", () => {
     expect(assertSameOriginRequest(request)).toBeNull();
   });
 
+  test("defaults a forwarded request's protocol to https", () => {
+    const request = new Request("https://preview-xyz.vercel.app/api/auth/demo", {
+      headers: {
+        origin: "https://preview-xyz.vercel.app",
+        "x-forwarded-host": "preview-xyz.vercel.app",
+      },
+      method: "POST",
+    });
+
+    expect(assertSameOriginRequest(request)).toBeNull();
+  });
+
   test("rejects unsafe requests with a cross-origin origin header", () => {
     const request = new Request(routeUrl, {
       headers: {
@@ -92,6 +104,33 @@ describe("assertSameOriginRequest", () => {
 
   test("rejects unsafe requests without origin or referer headers", () => {
     const request = new Request(routeUrl, { method: "POST" });
+
+    expectBlocked(assertSameOriginRequest(request));
+  });
+
+  test("rejects a malformed origin header", () => {
+    const request = new Request(routeUrl, {
+      headers: { origin: "not-a-url" },
+      method: "POST",
+    });
+
+    expectBlocked(assertSameOriginRequest(request));
+  });
+
+  test("rejects a forwarded-host list whose first entry is empty", () => {
+    const request = new Request(routeUrl, {
+      headers: { "x-forwarded-host": "," },
+      method: "POST",
+    });
+
+    expectBlocked(assertSameOriginRequest(request));
+  });
+
+  test("rejects a forwarded host that cannot form a URL", () => {
+    const request = new Request(routeUrl, {
+      headers: { "x-forwarded-host": "[" },
+      method: "POST",
+    });
 
     expectBlocked(assertSameOriginRequest(request));
   });
