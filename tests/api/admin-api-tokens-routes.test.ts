@@ -5,7 +5,10 @@ import {
   POST as createApiTokenRoute,
 } from "@/app/api/admin/api-tokens/route";
 import { POST as revokeApiTokenRoute } from "@/app/api/admin/api-tokens/[id]/revoke/route";
-import { createApiToken as createApiTokenData } from "@/lib/data";
+import {
+  createApiToken as createApiTokenData,
+  revokeApiToken as revokeApiTokenData,
+} from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { createTestUser, resetDatabase } from "../helpers/database";
 import { jsonRequest } from "../helpers/requests";
@@ -55,6 +58,7 @@ vi.mock("@/lib/data", async (importOriginal) => {
   return {
     ...actual,
     createApiToken: vi.fn(actual.createApiToken),
+    revokeApiToken: vi.fn(actual.revokeApiToken),
   };
 });
 
@@ -73,6 +77,16 @@ function requestWithoutBody(path: string, method = "GET") {
       origin,
     },
     method,
+  });
+}
+
+async function seedRateLimit(key: string, count: number) {
+  await prisma.rateLimitBucket.create({
+    data: {
+      key,
+      count,
+      resetAt: new Date(Date.now() + 60_000),
+    },
   });
 }
 
@@ -115,6 +129,7 @@ describe("admin API token route handlers", () => {
     await resetDatabase();
     authState.user = null;
     vi.mocked(createApiTokenData).mockClear();
+    vi.mocked(revokeApiTokenData).mockClear();
   });
 
   test("POST /api/admin/api-tokens creates an API token for admins", async () => {
@@ -187,6 +202,17 @@ describe("admin API token route handlers", () => {
     expect(body.apiTokens.every((apiToken) => !("tokenHash" in apiToken))).toBe(true);
   });
 
+  test("GET /api/admin/api-tokens returns 401 for an unauthenticated request", async () => {
+    const response = await listApiTokensRoute(
+      requestWithoutBody("/api/admin/api-tokens"),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      message: "Authentication is required.",
+    });
+  });
+
   test("POST /api/admin/api-tokens rejects an empty scope list", async () => {
     const admin = await createAdmin();
     authenticate(admin);
@@ -202,6 +228,23 @@ describe("admin API token route handlers", () => {
     await expect(response.json()).resolves.toEqual({
       message: "Select at least one scope.",
     });
+  });
+
+  test("POST /api/admin/api-tokens returns 429 with Retry-After at its rate limit", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+
+    await seedRateLimit(`admin-api-token:local:${admin.id}`.toLowerCase(), 10);
+
+    const response = await createApiTokenRoute(
+      jsonRequest("/api/admin/api-tokens", {
+        label: "Rate-limited token",
+        scopes: defaultApiTokenScopes,
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
   });
 
   test("POST /api/admin/api-tokens/[id]/revoke revokes tokens and handles errors", async () => {
@@ -250,6 +293,28 @@ describe("admin API token route handlers", () => {
     expect(forbiddenResponse.status).toBe(403);
   });
 
+  test("POST /api/admin/api-tokens/[id]/revoke returns 500 when revocation fails", async () => {
+    const admin = await createAdmin();
+    authenticate(admin);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      vi.mocked(revokeApiTokenData).mockRejectedValueOnce(new Error("boom"));
+
+      const response = await revokeApiTokenRoute(
+        requestWithoutBody("/api/admin/api-tokens/api-token-id/revoke", "POST"),
+        apiTokenParams("api-token-id"),
+      );
+
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({
+        message: "Unable to revoke API token.",
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   test("POST /api/admin/api-tokens/[id]/revoke rate-limits admin revokes", async () => {
     const admin = await createAdmin();
     authenticate(admin);
@@ -269,6 +334,7 @@ describe("admin API token route handlers", () => {
     }
 
     expect(rateLimitedResponse?.status).toBe(429);
+    expect(rateLimitedResponse?.headers.get("Retry-After")).toBeTruthy();
     await expect(rateLimitedResponse?.json()).resolves.toEqual({
       message: "Too many attempts. Please try again shortly.",
     });

@@ -230,10 +230,11 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#206** | Test coverage: task-child-resource API route guards (CV2) | `#206` | Extends the subtask, checklist, label, and attachment child-resource route suites with unauthenticated, real database-backed rate-limit, and invalid-payload coverage where applicable. Adds narrowly traced V8 pragmas for nine impossible missing-board false arms and thirteen non-`Error` catch arms; no route logic changes. CV2 — slice 2 of a 13-slice campaign targeting 100% Codecov. |
 | **#207** | Test coverage: board/dashboard/theme/profile API route guards (CV3) | `#207` | Extends the board management, dashboard reorder, board reorder, board note, theme, and profile route suites with unauthenticated, cross-origin, real database-backed rate-limit, invalid-payload, and missing-board coverage where applicable. Adds narrowly traced V8 pragmas for six non-`Error` catch arms; no route logic changes. CV3 — slice 3 of a 13-slice campaign targeting 100% Codecov. |
 | **#208** | Test coverage: auth API route guards (CV4a) | `#208` | Extends the sign-up, sign-in, demo, forgot-password, reset-password, invitation-preview, and sign-out route suites with 15 cross-origin, invalid-payload, real database-backed rate-limit, and generic-error tests. Adds two narrowly traced V8 pragmas for unreachable branches; no route logic changes. CV4a — slice 4 of a 14-slice campaign targeting 100% Codecov after CV4 split into CV4a (auth) and CV4b (admin). |
+| **#TBD** | Test coverage: admin API route guards (CV4b) | `#TBD` | Extends the invitation and API-token admin route suites with nine unauthenticated, invalid-payload, real database-backed rate-limit, production-success, and generic-error tests. No V8 pragmas or route logic changes. CV4b — slice 5 of a 14-slice campaign targeting 100% Codecov. |
 
 ### Active phase
 
-- **14-slice coverage campaign:** CV1 (`#204`), CV2 (`#206`), CV3 (`#207`), and CV4a (`#208`) are slices 1–4 of a campaign targeting 100% Codecov. CV4 was split into CV4a (auth, shipped) and CV4b (admin, queued).
+- **14-slice coverage campaign:** CV1 (`#204`), CV2 (`#206`), CV3 (`#207`), CV4a (`#208`), and CV4b (`#TBD`) are slices 1–5 of a campaign targeting 100% Codecov. CV4 was split into CV4a (auth) and CV4b (admin), both shipped.
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (the deferred `deepmerge-ts` major) is queued.
 
 ### Standing Builder guardrails (post-PR-1)
