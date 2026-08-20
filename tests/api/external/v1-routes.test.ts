@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { z, type ZodType } from "zod";
 
+import { POST as postExternalMcp } from "@/app/api/external/v1/[transport]/route";
 import {
   DELETE as deleteBoard,
   GET as getBoard,
@@ -163,6 +164,27 @@ function externalRawJsonRequest(
   });
 }
 
+function externalMcpRequest(transport: string, apiKey: string) {
+  return new Request(externalUrl(`/api/external/v1/${transport}`), {
+    body: JSON.stringify({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: {
+        capabilities: {},
+        clientInfo: { name: "workflow-blueprint-test", version: "1.0.0" },
+        protocolVersion: "2025-03-26",
+      },
+    }),
+    headers: {
+      accept: "application/json, text/event-stream",
+      authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+}
+
 function structuredLogLine(index = 0) {
   const call = consoleLogSpy.mock.calls[index];
 
@@ -309,6 +331,42 @@ describe("external v1 route contracts", () => {
     );
 
     await expectJsonContract(response, externalDailySummaryResponseSchema);
+  });
+
+  test("POST /api/external/v1/sse returns 404 for a non-MCP transport", async () => {
+    const { token } = await createApiToken({
+      createdById: demoUser.id,
+      label: "Non-MCP transport caller",
+      scopes: defaultReadApiTokenScopes,
+    });
+
+    const response = await postExternalMcp(externalMcpRequest("sse", token), {
+      params: Promise.resolve({ transport: "sse" }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  test("POST /api/external/v1/mcp returns 429 with Retry-After at its rate limit", async () => {
+    const { token } = await createApiToken({
+      createdById: demoUser.id,
+      label: "Rate-limited MCP caller",
+      scopes: defaultReadApiTokenScopes,
+    });
+    await prisma.rateLimitBucket.create({
+      data: {
+        count: externalRateLimit.limit,
+        key: "external-mcp:local",
+        resetAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const response = await postExternalMcp(externalMcpRequest("mcp", token), {
+      params: Promise.resolve({ transport: "mcp" }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.has("Retry-After")).toBe(true);
   });
 
   test("GET /api/external/v1/dashboard returns rate-limit headers on success", async () => {
@@ -1337,6 +1395,55 @@ describe("external v1 route contracts", () => {
   });
 
   describe("external v1 mutation-error status mapping", () => {
+    test("PATCH /api/external/v1/boards/[slug]/note rejects invalid JSON", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Board note JSON validator",
+        scopes: [ApiTokenScope.BOARDS_WRITE],
+      });
+
+      const response = await patchBoardNote(
+        externalRawJsonRequest(
+          "PATCH",
+          `/api/external/v1/boards/${starterBoard.slug}/note`,
+          "{",
+          token,
+        ),
+        { params: Promise.resolve({ slug: starterBoard.slug }) },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid JSON body.",
+        ok: false,
+      });
+    });
+
+    test("PATCH /api/external/v1/subtasks/[id] rejects invalid JSON", async () => {
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Subtask JSON validator",
+        scopes: [ApiTokenScope.SUBTASKS_WRITE],
+      });
+      const subtaskId = randomUUID();
+
+      const response = await patchSubtask(
+        externalRawJsonRequest(
+          "PATCH",
+          `/api/external/v1/subtasks/${subtaskId}`,
+          "{",
+          token,
+        ),
+        { params: Promise.resolve({ id: subtaskId }) },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid JSON body.",
+        ok: false,
+      });
+    });
+
     test("POST /api/external/v1/tasks rejects a payload missing the title", async () => {
       const { token } = await createApiToken({
         createdById: demoUser.id,

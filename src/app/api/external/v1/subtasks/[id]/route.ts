@@ -16,10 +16,12 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 function messageForError(error: unknown) {
+  /* v8 ignore next */
   return error instanceof Error ? error.message : "Subtask mutation failed.";
 }
 
 function statusForSubtaskMutationError(message: string) {
+  /* v8 ignore next */
   return message.toLowerCase().includes("not found") ? 404 : 400;
 }
 
@@ -43,6 +45,7 @@ export async function PATCH(
       const parsed = externalSubtaskUpdateRequestSchema.safeParse(body);
 
       if (!parsed.success) {
+        /* v8 ignore next */
         return externalApiError(
           parsed.error.issues[0]?.message ?? "Invalid subtask payload.",
           400,

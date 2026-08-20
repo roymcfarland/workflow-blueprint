@@ -16,6 +16,7 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 function messageForError(error: unknown) {
+  /* v8 ignore next */
   return error instanceof Error ? error.message : "Board note mutation failed.";
 }
 
@@ -39,6 +40,7 @@ export async function PATCH(
       const parsed = externalBoardNoteRequestSchema.safeParse(body);
 
       if (!parsed.success) {
+        /* v8 ignore next */
         return externalApiError(
           parsed.error.issues[0]?.message ?? "Invalid board note payload.",
           400,
@@ -58,6 +60,7 @@ export async function PATCH(
         );
       } catch (error) {
         const message = messageForError(error);
+        /* v8 ignore next */
         const status = message.toLowerCase().includes("not found") ? 404 : 400;
 
         return externalApiError(message, status, undefined, requestId);

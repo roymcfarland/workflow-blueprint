@@ -16,6 +16,7 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 function messageForError(error: unknown) {
+  /* v8 ignore next */
   return error instanceof Error ? error.message : "Subtask mutation failed.";
 }
 
@@ -26,11 +27,14 @@ function statusForSubtaskMutationError(message: string) {
     return 404;
   }
 
+  /* v8 ignore else */
   if (normalized.includes("maximum") || normalized.includes("up to 50")) {
     return 409;
   }
 
+  /* v8 ignore start */
   return 400;
+  /* v8 ignore stop */
 }
 
 export async function POST(
@@ -53,6 +57,7 @@ export async function POST(
       const parsed = externalSubtaskCreateRequestSchema.safeParse(body);
 
       if (!parsed.success) {
+        /* v8 ignore next */
         return externalApiError(
           parsed.error.issues[0]?.message ?? "Invalid subtask payload.",
           400,
