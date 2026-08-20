@@ -116,6 +116,30 @@ describe("database URL environment resolution", () => {
       expect(process.env.DATABASE_URL).toBe(configuredUrl);
     });
   });
+
+  test("prefers the direct connection URL when requested", () => {
+    const directUrl = "postgresql://user:password@direct.example.com:5432/workflows";
+
+    withDatabaseUrlEnvironment(
+      {
+        DATABASE_URL: "postgresql://user:password@pooler.example.com:5432/workflows",
+        DIRECT_URL: directUrl,
+      },
+      () => {
+        expect(resolveDatabaseUrl({ preferDirectConnection: true })).toBe(directUrl);
+      },
+    );
+  });
+
+  test("leaves DATABASE_URL unset when no configured URL exists", () => {
+    withDatabaseUrlEnvironment({}, () => {
+      expect(process.env.DATABASE_URL).toBeUndefined();
+
+      hydrateDatabaseUrlEnv();
+
+      expect(process.env.DATABASE_URL).toBeUndefined();
+    });
+  });
 });
 
 describe("isLocalDatabaseHost fallback", () => {

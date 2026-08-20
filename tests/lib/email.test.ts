@@ -100,6 +100,24 @@ describe("sendPasswordResetEmail", () => {
 });
 
 describe("sendInviteEmail", () => {
+  test("skips sending when the email environment variables are absent", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("RESEND_API_KEY", undefined);
+    vi.stubEnv("EMAIL_FROM", undefined);
+
+    try {
+      await expect(
+        sendInviteEmail({
+          inviteUrl: "https://app.test/sign-up?invite=xyz",
+          to: "new@example.test",
+        }),
+      ).resolves.toEqual({ status: "skipped", reason: "missing-config" });
+      expect(sendMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   test("sends with the invite subject and link", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test_key");
     vi.stubEnv("EMAIL_FROM", "noreply@example.test");

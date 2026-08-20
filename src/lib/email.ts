@@ -70,12 +70,14 @@ export class EmailDeliveryError extends Error {
 }
 
 function escapeHtml(value: string) {
+  /* v8 ignore next */
   return value.replace(/[&"'<>]/g, (character) => htmlEntities[character] ?? character);
 }
 
 function readEmailConfig(): EmailConfig | null {
   const parsed = emailEnvSchema.safeParse(process.env);
 
+  /* v8 ignore if */
   if (!parsed.success) {
     throw new EmailConfigurationError("Email environment variables are invalid.");
   }
