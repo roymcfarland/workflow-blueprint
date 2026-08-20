@@ -146,6 +146,25 @@ describe("src/lib/validators.ts", () => {
     expect(updateBoardSchema.safeParse({ accentColor: "red" }).success).toBe(false);
   });
 
+  test("preserves non-empty task and board descriptions", () => {
+    const task = taskInputSchema.parse({
+      description: "  Confirm launch readiness  ",
+      dueDate: null,
+      priority: "NONE",
+      status: "ON_DECK",
+      subtasks: [],
+      title: "Launch",
+    });
+    const board = createBoardSchema.parse({
+      description: "  Launch planning  ",
+      iconKey: "briefcase",
+      name: "Launch Board",
+    });
+
+    expect(task.description).toBe("Confirm launch readiness");
+    expect(board.description).toBe("Launch planning");
+  });
+
   test("validates label creation against text limits and the preset palette", () => {
     const result = labelCreateSchema.safeParse({
       color: "#3b82f6",

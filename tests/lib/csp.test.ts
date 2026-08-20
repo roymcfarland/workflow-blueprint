@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { buildContentSecurityPolicy } from "@/lib/csp";
 
@@ -7,6 +7,27 @@ function directive(csp: string, name: string) {
     .split(";")
     .map((part) => part.trim())
     .find((part) => part === name || part.startsWith(`${name} `));
+}
+
+async function withCspEnvironment(
+  environment: Partial<Record<"NODE_ENV" | "VERCEL_ENV", string>>,
+  assertion: (
+    build: typeof import("@/lib/csp")["buildContentSecurityPolicy"],
+  ) => void,
+) {
+  vi.resetModules();
+
+  try {
+    for (const [key, value] of Object.entries(environment)) {
+      vi.stubEnv(key, value);
+    }
+
+    const { buildContentSecurityPolicy: build } = await import("@/lib/csp");
+    assertion(build);
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
 }
 
 describe("buildContentSecurityPolicy", () => {
@@ -33,5 +54,22 @@ describe("buildContentSecurityPolicy", () => {
 
     expect(directive(csp, "style-src")).toBe("style-src 'self' 'unsafe-inline'");
     expect(directive(csp, "script-src")).toBe("script-src 'self'");
+  });
+
+  test("allows eval in development with and without a nonce", async () => {
+    await withCspEnvironment({ NODE_ENV: "development" }, (build) => {
+      expect(directive(build({ nonce: "testnonce123" }), "script-src")).toContain(
+        "'unsafe-eval'",
+      );
+      expect(directive(build(), "script-src")).toContain("'unsafe-eval'");
+    });
+  });
+
+  test("upgrades insecure requests on production deployments", async () => {
+    await withCspEnvironment({ VERCEL_ENV: "production" }, (build) => {
+      expect(directive(build(), "upgrade-insecure-requests")).toBe(
+        "upgrade-insecure-requests",
+      );
+    });
   });
 });

@@ -41,6 +41,7 @@ let validated = false;
 function readableIssues(error: z.ZodError) {
   return error.issues
     .map((issue) => {
+      /* v8 ignore next */
       const key = issue.path.join(".") || "(root)";
       return `${key}: ${issue.message}`;
     })

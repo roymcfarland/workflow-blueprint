@@ -60,6 +60,14 @@ describe("createSignedUploadUrl", () => {
 
     await expect(createSignedUploadUrl("attachments/a.pdf")).rejects.toThrow("quota exceeded");
   });
+
+  test("throws the fallback error when Supabase returns no upload data", async () => {
+    createSignedUploadUrlMock.mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(createSignedUploadUrl("attachments/a.pdf")).rejects.toThrow(
+      "Unable to create upload URL.",
+    );
+  });
 });
 
 describe("createSignedDownloadUrl", () => {
@@ -79,6 +87,14 @@ describe("createSignedDownloadUrl", () => {
     createSignedUrlMock.mockResolvedValueOnce({ data: null, error: { message: "not found" } });
 
     await expect(createSignedDownloadUrl("attachments/a.pdf")).rejects.toThrow("not found");
+  });
+
+  test("throws the fallback error when Supabase returns no download data", async () => {
+    createSignedUrlMock.mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(createSignedDownloadUrl("attachments/a.pdf")).rejects.toThrow(
+      "Unable to create download URL.",
+    );
   });
 });
 
