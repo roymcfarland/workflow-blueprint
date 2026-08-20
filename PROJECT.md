@@ -234,7 +234,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 
 ### Active phase
 
-- **14-slice coverage campaign:** CV1 (`#204`), CV2 (`#206`), CV3 (`#207`), CV4a (`#208`), and CV4b (`#209`) are slices 1–5 of a campaign targeting 100% Codecov. CV4 was split into CV4a (auth) and CV4b (admin), both shipped.
+- **15-slice coverage campaign:** CV1 (`#204`), CV2 (`#206`), CV3 (`#207`), CV4a (`#208`), and CV4b (`#209`) are slices 1–5, and CV5a is slice 6, of a campaign targeting 100% Codecov. CV4 was split into CV4a (auth) and CV4b (admin), both shipped. CV5 was split into CV5a (the four external v1 simple-route files) and CV5b (the four mapper-heavy external v1 files: `boards`, `boards/[slug]`, `tasks`, and `tasks/[id]`, queued).
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (the deferred `deepmerge-ts` major) is queued.
 
 ### Standing Builder guardrails (post-PR-1)
