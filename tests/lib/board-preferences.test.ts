@@ -133,12 +133,18 @@ describe("board preferences", () => {
   test("readers and writers are safe without window", () => {
     vi.stubGlobal("window", undefined);
 
-    expect(readArchiveMode("alpha")).toBeNull();
-    expect(readViewMode("alpha")).toBeNull();
-    expect(readNotesOpen("alpha")).toBeNull();
-    expect(() => writeArchiveMode("alpha", "on")).not.toThrow();
-    expect(() => writeViewMode("alpha", "list")).not.toThrow();
-    expect(() => writeNotesOpen("alpha", true)).not.toThrow();
+    try {
+      expect(readArchiveMode("alpha")).toBeNull();
+      expect(readViewMode("alpha")).toBeNull();
+      expect(readNotesOpen("alpha")).toBeNull();
+      expect(readDashboardSectionOrder()).toBeNull();
+      expect(() => writeArchiveMode("alpha", "on")).not.toThrow();
+      expect(() => writeViewMode("alpha", "list")).not.toThrow();
+      expect(() => writeNotesOpen("alpha", true)).not.toThrow();
+      expect(() => writeDashboardSectionOrder(DASHBOARD_SECTION_ORDER_DEFAULT)).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   test("DASHBOARD_SECTION_ORDER_DEFAULT contains the dashboard sections in default order", () => {
@@ -155,6 +161,12 @@ describe("board preferences", () => {
   });
 
   test("readDashboardSectionOrder returns null when localStorage is empty", () => {
+    expect(readDashboardSectionOrder()).toBeNull();
+  });
+
+  test("readDashboardSectionOrder returns null when stored JSON is not an array", () => {
+    localStorage.setItem("wb.dashboard.section-order", JSON.stringify({ a: 1 }));
+
     expect(readDashboardSectionOrder()).toBeNull();
   });
 

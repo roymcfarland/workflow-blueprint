@@ -332,6 +332,18 @@ describe("external MCP tools", () => {
     const createdTask = await prisma.task.findFirstOrThrow({
       where: { boardId: board.id, title: "Created via MCP" },
     });
+    const describedCreateResult = await executeExternalMcpTool(
+      "create_task",
+      {
+        boardSlug: board.slug,
+        description: "Created through the MCP tool.",
+        title: "Described via MCP",
+      },
+      { authInfo },
+    );
+    const describedTask = await prisma.task.findFirstOrThrow({
+      where: { boardId: board.id, title: "Described via MCP" },
+    });
 
     expect(jsonContent(createResult)).toMatchObject({
       description: null,
@@ -340,6 +352,11 @@ describe("external MCP tools", () => {
       status: PrismaTaskStatus.ON_DECK,
       subtasks: [],
       title: "Created via MCP",
+    });
+    expect(jsonContent(describedCreateResult)).toMatchObject({
+      description: "Created through the MCP tool.",
+      id: describedTask.id,
+      title: "Described via MCP",
     });
 
     const deleteResult = await executeExternalMcpTool(
@@ -374,6 +391,17 @@ describe("external MCP tools", () => {
     const createdBoard = await prisma.board.findFirstOrThrow({
       where: { name: "MCP Created Board", userId: owner.id },
     });
+    const describedCreateResult = await executeExternalMcpTool(
+      "create_board",
+      {
+        description: "Created through the MCP tool.",
+        name: "MCP Described Board",
+      },
+      { authInfo },
+    );
+    const describedBoard = await prisma.board.findFirstOrThrow({
+      where: { name: "MCP Described Board", userId: owner.id },
+    });
 
     expect(jsonContent(createResult)).toMatchObject({
       iconKey: "briefcase",
@@ -381,6 +409,11 @@ describe("external MCP tools", () => {
       slug: "mcp-created-board",
     });
     expect(createdBoard.description).toBeNull();
+    expect(jsonContent(describedCreateResult)).toMatchObject({
+      name: "MCP Described Board",
+      slug: "mcp-described-board",
+    });
+    expect(describedBoard.description).toBe("Created through the MCP tool.");
 
     const updateResult = await executeExternalMcpTool(
       "update_board",

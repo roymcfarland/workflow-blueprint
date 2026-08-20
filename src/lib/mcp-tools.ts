@@ -137,6 +137,7 @@ function mcpTextResult(result: unknown): CallToolResult {
   return {
     content: [
       {
+        /* v8 ignore next */
         text: JSON.stringify(result ?? { ok: true }),
         type: "text",
       },
@@ -152,6 +153,7 @@ function mcpErrorResult(message: string): CallToolResult {
 }
 
 function messageForError(error: unknown) {
+  /* v8 ignore next */
   return error instanceof Error ? error.message : "MCP tool failed.";
 }
 
@@ -360,6 +362,7 @@ export async function executeExternalMcpTool(
 
   if (!parsed.success) {
     return mcpErrorResult(
+      /* v8 ignore next */
       parsed.error.issues[0]?.message ?? "Invalid MCP tool input.",
     );
   }

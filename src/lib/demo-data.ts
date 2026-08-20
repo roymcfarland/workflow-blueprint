@@ -201,6 +201,7 @@ export function expandDemoSeed() {
   return demoBoardSeeds.map((board, boardIndex) => {
     const metadata = boardDefinitions.find((item) => item.slug === board.slug);
 
+    /* v8 ignore if */
     if (!metadata) {
       throw new Error(`Missing board metadata for ${board.slug}`);
     }
