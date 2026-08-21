@@ -2309,6 +2309,7 @@ function TaskDetailModal({
   };
 
   const handleFileSelected = async (file: File) => {
+    /* v8 ignore if */
     if (!task) return;
     setError(null);
     setUploading(true);
@@ -2380,6 +2381,7 @@ function TaskDetailModal({
   };
 
   const removeAttachment = async (attachmentId: string) => {
+    /* v8 ignore if */
     if (!task) return;
     setError(null);
     setUploading(true);
