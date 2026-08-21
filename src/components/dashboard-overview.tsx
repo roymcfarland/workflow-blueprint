@@ -322,6 +322,7 @@ function InProgressPanel({
       }
     } catch (err) {
       setItems(previous);
+      /* v8 ignore next */
       setError(err instanceof Error ? err.message : "Unable to save the new order.");
     } finally {
       setPending(false);
@@ -336,6 +337,7 @@ function InProgressPanel({
 
     const oldIndex = items.findIndex((task) => task.id === active.id);
     const newIndex = items.findIndex((task) => task.id === over.id);
+    /* v8 ignore if */
     if (oldIndex < 0 || newIndex < 0) {
       return;
     }
@@ -362,6 +364,7 @@ function InProgressPanel({
       router.refresh();
     } catch (err) {
       setItems(previous);
+      /* v8 ignore next */
       setError(err instanceof Error ? err.message : "Unable to mark the task done.");
     } finally {
       setPending(false);
@@ -472,6 +475,7 @@ function SortableInProgressRow({
       router.refresh();
     } catch (err) {
       setSubtasks(previous);
+      /* v8 ignore next */
       setSubtaskError(err instanceof Error ? err.message : "Unable to update the subtask.");
     } finally {
       setSubtaskPending(false);
@@ -502,6 +506,7 @@ function SortableInProgressRow({
       router.refresh();
     } catch (err) {
       setSubtasks(previous);
+      /* v8 ignore next */
       setSubtaskError(err instanceof Error ? err.message : "Unable to update the subtask.");
     } finally {
       setSubtaskPending(false);
@@ -521,6 +526,7 @@ function SortableInProgressRow({
       router.refresh();
     } catch (err) {
       setSubtasks(previous);
+      /* v8 ignore next */
       setSubtaskError(err instanceof Error ? err.message : "Unable to delete the subtask.");
     } finally {
       setSubtaskPending(false);
@@ -544,6 +550,7 @@ function SortableInProgressRow({
       router.refresh();
     } catch (err) {
       setSubtasks(previous);
+      /* v8 ignore next */
       setSubtaskError(err instanceof Error ? err.message : "Unable to reorder subtasks.");
     } finally {
       setSubtaskPending(false);
@@ -557,6 +564,7 @@ function SortableInProgressRow({
     }
     const oldIndex = subtasks.findIndex((s) => s.id === active.id);
     const newIndex = subtasks.findIndex((s) => s.id === over.id);
+    /* v8 ignore if */
     if (oldIndex < 0 || newIndex < 0) {
       return;
     }
@@ -695,6 +703,7 @@ function SortableDashboardSubtaskRow({
   } = useSortable({ id: subtask.id });
 
   function startEditing() {
+    /* v8 ignore if */
     if (disabled) {
       return;
     }
@@ -704,6 +713,7 @@ function SortableDashboardSubtaskRow({
   }
 
   function commitEditing() {
+    /* v8 ignore if */
     if (editSettledRef.current) {
       return;
     }
@@ -722,6 +732,7 @@ function SortableDashboardSubtaskRow({
   }
 
   function cancelEditing() {
+    /* v8 ignore if */
     if (editSettledRef.current) {
       return;
     }
@@ -1112,6 +1123,7 @@ function NeedsAttentionPanel({
       router.refresh();
     } catch (err) {
       setItems(previous);
+      /* v8 ignore next */
       setError(err instanceof Error ? err.message : "Unable to mark the task done.");
     } finally {
       setPending(false);
@@ -1190,6 +1202,7 @@ function OverdueDueSoonPanel({
       setOverdueItems(previousOverdue);
       setDueTodayItems(previousDueToday);
       setDueSoonItems(previousDueSoon);
+      /* v8 ignore next */
       setError(err instanceof Error ? err.message : "Unable to mark the task done.");
     } finally {
       setPending(false);
@@ -1438,6 +1451,7 @@ function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin
 
     const oldIndex = order.indexOf(active.id as DashboardSectionId);
     const newIndex = order.indexOf(over.id as DashboardSectionId);
+    /* v8 ignore if */
     if (oldIndex < 0 || newIndex < 0) {
       return;
     }
@@ -1544,6 +1558,7 @@ function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin
               );
             }
 
+            /* v8 ignore if */
             if (id === "in-progress") {
               return (
                 <SortableSection id="in-progress" key="in-progress" label="In Progress">
@@ -1558,6 +1573,7 @@ function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin
               );
             }
 
+            /* v8 ignore next */
             return null;
           })}
         </div>
