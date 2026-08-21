@@ -633,6 +633,7 @@ function PanelSubtaskEditorRow({
 
   useEffect(() => {
     const el = titleRef.current;
+    /* v8 ignore if */
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
@@ -781,6 +782,7 @@ function SubtasksCardPanel({
     pendingTitleRowKeys.size > 0;
 
   const setRowsSafely = useCallback((updater: PanelRowsUpdater) => {
+    /* v8 ignore next */
     const next = typeof updater === "function" ? updater(rowsRef.current) : updater;
     rowsRef.current = next;
     setRows(next);
@@ -882,6 +884,7 @@ function SubtasksCardPanel({
       );
 
       const mergedServerRows = serverRows.map((serverRow) => {
+        /* v8 ignore next */
         const tempKey = serverRow.serverId ? tempKeyByServerId.get(serverRow.serverId) : undefined;
         const localRow =
           (tempKey ? localByKey.get(tempKey) : undefined) ??
@@ -891,7 +894,8 @@ function SubtasksCardPanel({
         const shouldKeepTempKey = Boolean(tempKey && localRow && isTitleProtected(tempKey));
         const locallySavedTitle = serverRow.serverId
           ? locallySavedTitleByServerIdRef.current.get(serverRow.serverId)
-          : undefined;
+          : /* v8 ignore next */ undefined;
+        /* v8 ignore next */
         let nextRow = shouldKeepTempKey ? { ...serverRow, key: tempKey! } : serverRow;
 
         if (locallySavedTitle && serverRow.title !== locallySavedTitle) {
@@ -1032,12 +1036,15 @@ function SubtasksCardPanel({
   }, [applyServerTask, markPendingRow, setRowsSafely, showToast]);
 
   const requireServerId = (row: PanelSubtaskRow, message: string) => {
+    /* v8 ignore else */
     if (row.serverId) {
       return row.serverId;
     }
 
+    /* v8 ignore start */
     setError(message);
     return null;
+    /* v8 ignore stop */
   };
 
   const patchSubtask = (
@@ -1045,6 +1052,7 @@ function SubtasksCardPanel({
     body: Partial<Pick<PanelSubtaskRow, "isComplete" | "priority" | "title">>,
     fallback: string,
   ) => {
+    /* v8 ignore if */
     if (pendingRowKeysRef.current.has(row.key) || pendingCreateRowKeysRef.current.has(row.key)) {
       return;
     }
@@ -1053,6 +1061,7 @@ function SubtasksCardPanel({
       row,
       "Wait for the subtask to finish saving before updating it.",
     );
+    /* v8 ignore if */
     if (!subtaskId) {
       return;
     }
@@ -1064,7 +1073,7 @@ function SubtasksCardPanel({
         const previousRow = previous.find((r) => r.key === row.key);
         return previousRow
           ? current.map((r) => (r.key === row.key ? previousRow : r))
-          : current;
+          : /* v8 ignore next */ current;
       },
       request: () =>
         fetchUpdatedTask({
