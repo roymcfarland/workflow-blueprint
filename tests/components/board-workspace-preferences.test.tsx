@@ -95,6 +95,17 @@ async function flushMicrotasks() {
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, reject, resolve };
+}
+
 async function renderListWorkspace() {
   localStorage.setItem("wb.board.alpha.viewMode", "list");
   const result = renderWorkspace();
@@ -457,6 +468,95 @@ describe("BoardWorkspace note autosave", () => {
         method: "PATCH",
       }),
     );
+  });
+
+  test("preserves a newer save status when the prior saved reset fires", async () => {
+    const secondSave = deferred<Response>();
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockImplementationOnce(() => secondSave.promise);
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+    const textarea = screen.getByPlaceholderText(notesPlaceholder);
+
+    fireEvent.change(textarea, { target: { value: "First saved draft" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    expect(screen.getByRole("status").textContent).toContain("Saved");
+
+    fireEvent.change(textarea, { target: { value: "Newer pending draft" } });
+    expect(screen.getByRole("status").textContent).toContain("Saving");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1600);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status").textContent).toContain("Saving");
+
+    await act(async () => {
+      secondSave.resolve(new Response(null, { status: 200 }));
+      await secondSave.promise;
+    });
+    expect(screen.getByRole("status").textContent).toContain("Saved");
+  });
+
+  test.each([
+    { expected: "Note request failed", reason: new Error("Note request failed") },
+    { expected: "Unable to save notes.", reason: "network down" },
+  ])("shows $expected when the note request rejects", async ({ expected, reason }) => {
+    fetchMock.mockRejectedValueOnce(reason);
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+
+    fireEvent.change(screen.getByPlaceholderText(notesPlaceholder), {
+      target: { value: `Rejected note: ${expected}` },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status").textContent).toContain(expected);
+  });
+
+  test("ignores an aborted failure after a newer save replaces its controller", async () => {
+    const firstSave = deferred<Response>();
+    const secondSave = deferred<Response>();
+    fetchMock
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementationOnce(() => secondSave.promise);
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+    const textarea = screen.getByPlaceholderText(notesPlaceholder);
+
+    fireEvent.change(textarea, { target: { value: "Superseded draft" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status").textContent).toContain("Saving");
+
+    fireEvent.change(textarea, { target: { value: "Replacement draft" } });
+    await act(async () => {
+      firstSave.reject(new Error("Superseded request failed"));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("status").textContent).toContain("Saving");
+    expect(screen.queryByText("Superseded request failed")).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      secondSave.resolve(new Response(null, { status: 200 }));
+      await secondSave.promise;
+    });
+    expect(screen.getByRole("status").textContent).toContain("Saved");
   });
 
   test("shows the server message when saving fails", async () => {

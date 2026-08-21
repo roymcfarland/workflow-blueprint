@@ -2917,6 +2917,7 @@ export function BoardWorkspace({
     }, 800);
 
     return () => {
+      /* v8 ignore else */
       if (noteTimerRef.current) {
         clearTimeout(noteTimerRef.current);
       }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardWorkspace } from "@/components/board-workspace";
@@ -107,7 +107,19 @@ type FiberNode = {
   return: FiberNode | null;
 };
 
-function findDndHandler(node: HTMLElement, name: "onDragEnd") {
+type DndEvent = {
+  active: { id: string };
+  over: { id: string } | null;
+};
+
+type DndHandlers = {
+  onDragCancel: () => void;
+  onDragEnd: (event: DndEvent) => Promise<void>;
+  onDragOver: (event: DndEvent) => void;
+  onDragStart: (event: Pick<DndEvent, "active">) => void;
+};
+
+function findDndHandler<Name extends keyof DndHandlers>(node: HTMLElement, name: Name) {
   const fiberKey = Object.keys(node).find((key) => key.startsWith("__reactFiber$"));
   if (!fiberKey) {
     throw new Error("Could not find the rendered DnD tree");
@@ -123,15 +135,23 @@ function findDndHandler(node: HTMLElement, name: "onDragEnd") {
       typeof Reflect.get(props, "onDragStart") === "function" &&
       typeof Reflect.get(props, "onDragOver") === "function"
     ) {
-      return Reflect.get(props, name) as (event: {
-        active: { id: string };
-        over: { id: string } | null;
-      }) => Promise<void>;
+      return Reflect.get(props, name) as DndHandlers[Name];
     }
     fiber = fiber.return;
   }
 
   throw new Error(`Could not find DnD handler ${name}`);
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, reject, resolve };
 }
 
 beforeEach(() => {
@@ -163,6 +183,184 @@ afterEach(() => {
 });
 
 describe("BoardWorkspace drag and drop", () => {
+  test("deeply restores a drag snapshot and treats a repeated cancel as a no-op", () => {
+    const draggedTask = task({
+      id: "task-1",
+      subtasks: [
+        {
+          id: "subtask-1",
+          isComplete: false,
+          priority: "NONE",
+          sortOrder: 0,
+          title: "Original subtask",
+        },
+      ],
+      title: "First task",
+    });
+    render(
+      <BoardWorkspace
+        board={boardSnapshot([
+          draggedTask,
+          task({ id: "task-2", status: "IN_PROGRESS", title: "Second task" }),
+        ])}
+      />,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Open subtasks menu" })[0]);
+    expect(screen.getByDisplayValue("Original subtask")).toBeDefined();
+
+    const handle = screen.getByRole("button", { name: "Drag First task" });
+    const onDragStart = findDndHandler(handle, "onDragStart");
+    const onDragOver = findDndHandler(handle, "onDragOver");
+    const onDragCancel = findDndHandler(handle, "onDragCancel");
+
+    act(() => onDragStart({ active: { id: "task-1" } }));
+    draggedTask.subtasks[0].title = "Mutated during drag";
+    act(() =>
+      onDragOver({ active: { id: "task-1" }, over: { id: "task-2" } }),
+    );
+    expect(screen.getByDisplayValue("Mutated during drag")).toBeDefined();
+
+    act(() => onDragCancel());
+    expect(screen.getByDisplayValue("Original subtask")).toBeDefined();
+
+    act(() => onDragCancel());
+    expect(screen.getByDisplayValue("Original subtask")).toBeDefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("restores a drag with no drop target and ignores one without a baseline", async () => {
+    render(
+      <BoardWorkspace
+        board={boardSnapshot([
+          task({ id: "task-1", title: "First task" }),
+          task({ id: "task-2", status: "IN_PROGRESS", title: "Second task" }),
+        ])}
+      />,
+    );
+
+    const handle = screen.getByRole("button", { name: "Drag First task" });
+    const onDragStart = findDndHandler(handle, "onDragStart");
+    const onDragOver = findDndHandler(handle, "onDragOver");
+    const onDragEnd = findDndHandler(handle, "onDragEnd");
+
+    act(() => onDragStart({ active: { id: "task-1" } }));
+    act(() =>
+      onDragOver({ active: { id: "task-1" }, over: { id: "task-2" } }),
+    );
+    expect(findColumnDroppable("In Progress").textContent).toContain("First task");
+    expect(findColumnDroppable("Up Next").textContent).not.toContain("First task");
+
+    await act(async () => {
+      await onDragEnd({ active: { id: "task-1" }, over: null });
+    });
+    expect(findColumnDroppable("Up Next").textContent).toContain("First task");
+    expect(findColumnDroppable("In Progress").textContent).not.toContain("First task");
+
+    await act(async () => {
+      await onDragEnd({ active: { id: "task-1" }, over: null });
+    });
+    expect(findColumnDroppable("Up Next").textContent).toContain("First task");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("preserves a newer reorder after a stale failure and resets a generic error", async () => {
+    vi.useFakeTimers();
+    try {
+      const firstPersist = deferred<Response>();
+      const secondPersist = deferred<Response>();
+      fetchMock
+        .mockImplementationOnce(() => firstPersist.promise)
+        .mockImplementationOnce(() => secondPersist.promise);
+      render(
+        <BoardWorkspace
+          board={boardSnapshot([
+            task({ id: "task-1", title: "First task" }),
+            task({ id: "task-2", status: "IN_PROGRESS", title: "Second task" }),
+          ])}
+        />,
+      );
+
+      const handle = screen.getByRole("button", { name: "Drag First task" });
+      const onDragStart = findDndHandler(handle, "onDragStart");
+      const onDragEnd = findDndHandler(handle, "onDragEnd");
+      let firstReorder!: Promise<void>;
+      let secondReorder!: Promise<void>;
+
+      await act(async () => {
+        onDragStart({ active: { id: "task-1" } });
+        firstReorder = onDragEnd({ active: { id: "task-1" }, over: { id: "task-2" } });
+        await Promise.resolve();
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(findColumnDroppable("In Progress").textContent).toContain("First task");
+
+      await act(async () => {
+        onDragStart({ active: { id: "task-2" } });
+        secondReorder = onDragEnd({
+          active: { id: "task-2" },
+          over: { id: "column:DONE" },
+        });
+        await Promise.resolve();
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(findColumnDroppable("Done").textContent).toContain("Second task");
+
+      await act(async () => {
+        firstPersist.reject(new Error("First reorder failed"));
+        await firstReorder;
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(findColumnDroppable("In Progress").textContent).toContain("First task");
+      expect(findColumnDroppable("Done").textContent).toContain("Second task");
+
+      await act(async () => {
+        secondPersist.reject("network down");
+        await secondReorder;
+      });
+      const errorMessage = screen.getByText("Unable to reorder tasks.");
+      expect(errorMessage.closest('[role="status"]')).not.toBeNull();
+      expect(findColumnDroppable("In Progress").textContent).toContain("First task");
+      expect(findColumnDroppable("In Progress").textContent).toContain("Second task");
+      expect(findColumnDroppable("Done").textContent).not.toContain("Second task");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2400);
+      });
+      expect(screen.queryByText("Unable to reorder tasks.")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("removes the drag preview when the active task is deleted from its open modal", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<BoardWorkspace board={boardSnapshot([task()])} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    expect(screen.getByRole("dialog", { name: "Details for First task" })).toBeDefined();
+
+    const handle = screen.getByRole("button", { name: "Drag First task" });
+    handle.focus();
+    fireEvent.keyDown(handle, { code: "Space", key: " " });
+
+    await waitFor(() => expect(document.querySelector(".rotate-3")).toBeInstanceOf(HTMLElement));
+    const preview = document.querySelector(".rotate-3") as HTMLElement;
+    expect(within(preview as HTMLElement).getByText("First task")).toBeDefined();
+
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Delete task" }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+      await waitFor(() =>
+        expect(within(preview as HTMLElement).queryByText("First task")).toBeNull(),
+      );
+
+      expect(preview.isConnected).toBe(true);
+      expect(screen.queryByRole("button", { name: "Drag First task" })).toBeNull();
+    } finally {
+      fireEvent.keyDown(document, { code: "Escape", key: "Escape" });
+    }
+  });
+
   test("dragging a card into a different column persists the new status", async () => {
     render(
       <BoardWorkspace
