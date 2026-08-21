@@ -518,6 +518,21 @@ describe("TaskDetailModal remaining CRUD", () => {
     expect(screen.getByRole("button", { name: "Add attachment" })).toBeDefined();
   });
 
+  test("shows the server message for an Error attachment download failure", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Signed URL expired." }, 500));
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<BoardWorkspace board={boardSnapshot(taskWithAttachment())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "spec.pdf" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Signed URL expired."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
   test("shows the exact fallback for a non-Error attachment download failure", async () => {
     fetchMock.mockRejectedValueOnce("network down");
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
@@ -531,6 +546,20 @@ describe("TaskDetailModal remaining CRUD", () => {
       expect(screen.getByRole("alert").textContent).toBe("Unable to download the attachment."),
     );
     expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  test("shows the server message for an Error attachment removal failure", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Attachment is locked." }, 500));
+    render(<BoardWorkspace board={boardSnapshot(taskWithAttachment())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove attachment spec.pdf" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Attachment is locked."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "spec.pdf" })).toBeDefined();
   });
 
   test("shows the exact fallback for a non-Error attachment removal failure", async () => {
@@ -550,6 +579,18 @@ describe("TaskDetailModal remaining CRUD", () => {
         name: "Remove attachment spec.pdf",
       }) as HTMLButtonElement).disabled,
     ).toBe(false);
+  });
+
+  test("shows the server message for an Error task deletion failure", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Task is locked." }, 500));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete task" }));
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Task is locked."));
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
   });
 
   test("shows the exact fallback for a non-Error task deletion failure", async () => {
