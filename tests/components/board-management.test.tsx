@@ -72,6 +72,16 @@ describe("BoardManagement", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  test("closes the form through its Cancel action", () => {
+    render(<BoardManagement />);
+
+    openCreateForm();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByRole("button", { name: "New Board" })).toBeDefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test("creates a board with the default icon and no accent color", async () => {
     fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
     render(<BoardManagement />);
@@ -131,6 +141,19 @@ describe("BoardManagement", () => {
     expect(await screen.findByText("A board with that name already exists.")).toBeDefined();
     expect(screen.getByPlaceholderText("Board name")).toBeDefined();
     expect(navigationMock.refresh).not.toHaveBeenCalled();
+  });
+
+  test("shows the fallback message when creation fails without a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    render(<BoardManagement />);
+
+    openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText("Board name"), {
+      target: { value: "Launch Plan" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText("Unable to create board.")).toBeDefined();
   });
 
   test("shows a success toast after creating a board", async () => {

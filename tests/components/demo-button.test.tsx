@@ -58,4 +58,16 @@ describe("DemoButton", () => {
     await waitFor(() => expect(screen.getByText("Too many requests.")).toBeTruthy());
     expect(routerMock.push).not.toHaveBeenCalled();
   });
+
+  test("shows the fallback message when the demo response omits a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<DemoButton />);
+    fireEvent.click(screen.getByRole("button", { name: /view live demo/i }));
+
+    expect(
+      await screen.findByText("Unable to start the demo. Please try again."),
+    ).toBeTruthy();
+    expect(routerMock.push).not.toHaveBeenCalled();
+  });
 });

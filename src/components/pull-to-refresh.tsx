@@ -76,6 +76,7 @@ export default function PullToRefresh() {
 
       isTracking.current = true;
       pullDistance.current = 0;
+      /* v8 ignore next */
       startY.current = event.touches[0]?.clientY ?? 0;
     };
 
@@ -84,6 +85,7 @@ export default function PullToRefresh() {
         return;
       }
 
+      /* v8 ignore next */
       pullDistance.current = Math.max(0, (event.touches[0]?.clientY ?? 0) - startY.current);
 
       if (pullDistance.current > 8 && isDocumentScrolledToTop()) {

@@ -86,6 +86,24 @@ describe("InvitationsAdmin", () => {
     expect(within(row as HTMLElement).queryByRole("button", { name: "Revoke" })).toBeNull();
   });
 
+  test("renders an expired invitation with the accent status treatment", () => {
+    render(
+      <InvitationsAdmin
+        initialInvitations={[
+          invitation({
+            email: "expired@example.test",
+            status: "EXPIRED",
+          }),
+        ]}
+      />,
+    );
+
+    const row = screen.getByText("expired@example.test").closest("tr");
+    const status = within(row as HTMLElement).getByText("Expired");
+
+    expect(status.className).toContain("border-accent/40");
+  });
+
   test("creates an invitation, shows its preview link, and refreshes the ledger", async () => {
     const previewInviteUrl = "http://127.0.0.1:3000/sign-up?invite=preview-token";
     const refreshedInvitation = invitation({
@@ -125,6 +143,22 @@ describe("InvitationsAdmin", () => {
     expect(screen.queryByText("old-teammate@example.test")).toBeNull();
   });
 
+  test("uses the success fallback and omits the preview link when both fields are absent", async () => {
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({}))
+      .mockResolvedValueOnce(apiResponse({ invitations: [] }));
+
+    render(<InvitationsAdmin initialInvitations={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "new-teammate@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
+
+    expect(await screen.findByText("Invitation created.")).toBeDefined();
+    expect(screen.queryByText("Local preview link")).toBeNull();
+  });
+
   test("preserves the email and shows the API message when creation fails", async () => {
     fetchMock.mockResolvedValueOnce(
       apiResponse({ message: "An active invitation already exists." }, 409),
@@ -141,6 +175,19 @@ describe("InvitationsAdmin", () => {
     expect(await screen.findByText("An active invitation already exists.")).toBeDefined();
     expect(emailInput.value).toBe("existing@example.test");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("shows the fallback message when invitation creation fails without a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 400));
+
+    render(<InvitationsAdmin initialInvitations={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Email"), {
+      target: { value: "existing@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
+
+    expect(await screen.findByText("Unable to create invitation.")).toBeDefined();
   });
 
   test("revokes a pending invitation and refreshes the ledger", async () => {
@@ -186,6 +233,16 @@ describe("InvitationsAdmin", () => {
     expect(screen.getByRole("button", { name: "Revoke" })).toBeDefined();
   });
 
+  test("shows the fallback message when invitation revocation fails without a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 400));
+
+    render(<InvitationsAdmin initialInvitations={[invitation()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    expect(await screen.findByText("Unable to revoke invitation.")).toBeDefined();
+  });
+
   test("shows an error when the post-revoke ledger refresh fails", async () => {
     fetchMock
       .mockResolvedValueOnce(apiResponse({ message: "Revoked by admin." }))
@@ -197,5 +254,17 @@ describe("InvitationsAdmin", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByText("Refresh unavailable.")).toBeDefined());
+  });
+
+  test("shows the fallback message when a ledger refresh fails without a message", async () => {
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ message: "Revoked by admin." }))
+      .mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<InvitationsAdmin initialInvitations={[invitation()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    expect(await screen.findByText("Unable to refresh invitations.")).toBeDefined();
   });
 });

@@ -61,6 +61,19 @@ describe("ForgotPasswordForm", () => {
     expect(screen.queryByRole("link", { name: "Open preview reset link" })).toBeNull();
   });
 
+  test("shows the fallback response when the API omits a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}));
+    render(<ForgotPasswordForm />);
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "alex@example.test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
+
+    expect(
+      await screen.findByText("If that account exists, a reset link has been prepared."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Open preview reset link" })).toBeNull();
+  });
+
   test("shows a preview link when the response includes one", async () => {
     fetchMock.mockResolvedValueOnce(
       apiResponse({
