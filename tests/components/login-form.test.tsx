@@ -112,4 +112,17 @@ describe("LoginForm", () => {
     expect(routerMock.push).not.toHaveBeenCalled();
     expect(routerMock.refresh).not.toHaveBeenCalled();
   });
+
+  test("shows the fallback message when sign-in fails without a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 401));
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "alex@example.test" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByText("Unable to sign in.")).toBeTruthy();
+    expect(routerMock.push).not.toHaveBeenCalled();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
 });

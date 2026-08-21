@@ -82,6 +82,18 @@ describe("ProfileForm", () => {
     expect(routerMock.refresh).not.toHaveBeenCalled();
   });
 
+  test("shows the fallback message when a failed save omits a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    renderForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toContain("Unable to save profile."),
+    );
+    expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
+
   test("selecting a different theme includes it in the submitted payload", async () => {
     fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
     renderForm();

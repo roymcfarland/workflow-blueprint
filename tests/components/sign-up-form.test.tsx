@@ -49,6 +49,14 @@ function expectDashboardNavigation() {
   );
 }
 
+function fillValidRegistrationFields() {
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Alex Example" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } });
+  fireEvent.change(screen.getByLabelText("Confirm password"), {
+    target: { value: "password123" },
+  });
+}
+
 describe("SignUpForm", () => {
   test("renders invitation details and prefilled account fields", () => {
     render(<SignUpForm {...formProps} />);
@@ -84,6 +92,16 @@ describe("SignUpForm", () => {
     expect(await screen.findByText("Name is required.")).toBeTruthy();
     expect(screen.getByText("Password is required.")).toBeTruthy();
     expect(screen.getByText("Please confirm the password.")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("marks an empty invited email as invalid", async () => {
+    const { container } = render(<SignUpForm {...formProps} invitedEmail="" />);
+
+    fireEvent.submit(container.querySelector("form")!);
+
+    expect(await screen.findByText("Email is required.")).toBeTruthy();
+    expect(screen.getByLabelText("Email").getAttribute("aria-invalid")).toBe("true");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -135,6 +153,18 @@ describe("SignUpForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(await screen.findByText("This invitation has expired.")).toBeTruthy();
+    expect(routerMock.push).not.toHaveBeenCalled();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
+
+  test("shows the fallback message when registration fails without a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 400));
+    render(<SignUpForm {...formProps} />);
+
+    fillValidRegistrationFields();
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(await screen.findByText("Unable to create account.")).toBeTruthy();
     expect(routerMock.push).not.toHaveBeenCalled();
     expect(routerMock.refresh).not.toHaveBeenCalled();
   });

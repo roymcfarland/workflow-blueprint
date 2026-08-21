@@ -39,6 +39,7 @@ function isDarkTheme(preference: ThemePreference) {
 }
 
 function applyTheme(preference: ThemePreference) {
+  /* v8 ignore if */
   if (typeof document === "undefined") {
     return;
   }

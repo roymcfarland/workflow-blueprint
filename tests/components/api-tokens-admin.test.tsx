@@ -230,6 +230,39 @@ describe("ApiTokensAdmin", () => {
     expect(within(tokenRow as HTMLElement).queryByRole("button", { name: /revoke/i })).toBeNull();
   });
 
+  test("renders revoked tokens with the danger status treatment", () => {
+    render(
+      <ApiTokensAdmin
+        initialApiTokens={[
+          apiToken({
+            id: "token-revoked",
+            label: "Revoked integration",
+            revokedAt: "2026-07-01T12:00:00.000Z",
+            status: "REVOKED",
+          }),
+        ]}
+      />,
+    );
+
+    const tokenRow = screen.getByText("Revoked integration").closest("tr");
+    const status = within(tokenRow as HTMLElement).getAllByText("Revoked")[0];
+
+    expect(status.className).toContain("border-danger/30");
+  });
+
+  test("renders an em dash for a token without scopes", () => {
+    render(
+      <ApiTokensAdmin
+        initialApiTokens={[apiToken({ label: "Legacy integration", scopes: [] })]}
+      />,
+    );
+
+    const tokenRow = screen.getByText("Legacy integration").closest("tr");
+
+    expect(tokenRow).not.toBeNull();
+    expect(within(tokenRow as HTMLElement).getByText("—")).toBeDefined();
+  });
+
   test("shows the server message when token creation fails", async () => {
     fetchMock.mockResolvedValueOnce(apiResponse({ message: "Label already in use." }, 400));
 
@@ -243,6 +276,19 @@ describe("ApiTokensAdmin", () => {
     expect(await screen.findByText("Label already in use.")).toBeDefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Copy your API token now")).toBeNull();
+  });
+
+  test("shows the fallback message when token creation fails without a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 400));
+
+    render(<ApiTokensAdmin initialApiTokens={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Label"), {
+      target: { value: "Rejected agent" },
+    });
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText("Unable to create API token.")).toBeDefined();
   });
 
   test("shows a refresh failure after token creation succeeds", async () => {
@@ -263,6 +309,36 @@ describe("ApiTokensAdmin", () => {
     expect(screen.getByText("wbp_secret")).toBeDefined();
     expect(await screen.findByText("Unable to refresh API tokens.")).toBeDefined();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("shows the fallback message when refreshing tokens fails without a message", async () => {
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ message: "API token created.", token: "wbp_secret" }))
+      .mockResolvedValueOnce(apiResponse({}, 500));
+
+    render(<ApiTokensAdmin initialApiTokens={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Label"), {
+      target: { value: "Ops agent" },
+    });
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText("Unable to refresh API tokens.")).toBeDefined();
+  });
+
+  test("shows the fallback success message when creation omits a message", async () => {
+    fetchMock
+      .mockResolvedValueOnce(apiResponse({ token: "wbp_secret" }))
+      .mockResolvedValueOnce(apiResponse({ apiTokens: [] }));
+
+    render(<ApiTokensAdmin initialApiTokens={[]} />);
+
+    fireEvent.change(screen.getByLabelText("Label"), {
+      target: { value: "Ops agent" },
+    });
+    fireEvent.click(submitButton());
+
+    expect(await screen.findByText("API token created.")).toBeDefined();
   });
 
   test("ignores a direct form submission when the label is empty", () => {
@@ -351,5 +427,16 @@ describe("ApiTokensAdmin", () => {
 
     expect(await screen.findByText("Token already revoked.")).toBeDefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("shows the fallback message when token revocation fails without a message", async () => {
+    const token = apiToken();
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 400));
+
+    render(<ApiTokensAdmin initialApiTokens={[token]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    expect(await screen.findByText("Unable to revoke API token.")).toBeDefined();
   });
 });

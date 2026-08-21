@@ -119,4 +119,21 @@ describe("ResetPasswordForm", () => {
     expect(routerMock.push).not.toHaveBeenCalled();
     expect(routerMock.refresh).not.toHaveBeenCalled();
   });
+
+  test("shows the fallback message when resetting fails without a message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 400));
+    render(<ResetPasswordForm token="reset-token-abc" />);
+
+    fireEvent.change(screen.getByLabelText("New password"), {
+      target: { value: "password123" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Set new password" }));
+
+    expect(await screen.findByText("Unable to reset the password.")).toBeTruthy();
+    expect(routerMock.push).not.toHaveBeenCalled();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
 });

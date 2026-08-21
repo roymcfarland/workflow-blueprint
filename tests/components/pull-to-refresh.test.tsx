@@ -77,6 +77,69 @@ describe("PullToRefresh", () => {
     expect(window.location.reload).not.toHaveBeenCalled();
   });
 
+  test("recognizes an iOS standalone app when the display-mode query does not match", () => {
+    const matchMediaSpy = vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          addEventListener: vi.fn(),
+          addListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+          matches: false,
+          media: query,
+          onchange: null,
+          removeEventListener: vi.fn(),
+          removeListener: vi.fn(),
+        }) satisfies MediaQueryList,
+    );
+
+    try {
+      render(<PullToRefresh />);
+
+      document.dispatchEvent(touchEvent("touchstart", 0));
+      document.dispatchEvent(touchEvent("touchmove", 150));
+      document.dispatchEvent(touchEvent("touchend", 150));
+
+      expect(window.location.reload).toHaveBeenCalledTimes(1);
+    } finally {
+      matchMediaSpy.mockRestore();
+    }
+  });
+
+  test("falls back to the document element when scrollingElement is null", () => {
+    const scrollingElementDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "scrollingElement",
+    );
+    Object.defineProperty(document, "scrollingElement", {
+      configurable: true,
+      value: null,
+    });
+
+    try {
+      render(<PullToRefresh />);
+
+      document.dispatchEvent(touchEvent("touchstart", 0));
+      document.dispatchEvent(touchEvent("touchmove", 150));
+      document.dispatchEvent(touchEvent("touchend", 150));
+
+      expect(window.location.reload).toHaveBeenCalledTimes(1);
+    } finally {
+      if (scrollingElementDescriptor) {
+        Object.defineProperty(document, "scrollingElement", scrollingElementDescriptor);
+      }
+    }
+  });
+
+  test("starts a pull when the event target is not an element", () => {
+    render(<PullToRefresh />);
+
+    document.dispatchEvent(touchEvent("touchstart", 0, document));
+    document.dispatchEvent(touchEvent("touchmove", 150, document));
+    document.dispatchEvent(touchEvent("touchend", 150, document));
+
+    expect(window.location.reload).toHaveBeenCalledTimes(1);
+  });
+
   test("ignores a pull started on an input element", () => {
     render(<PullToRefresh />);
     const input = document.createElement("input");
