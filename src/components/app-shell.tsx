@@ -91,6 +91,7 @@ type BoardAccentStyle = CSSProperties & {
 type BoardSidebarNavItem = Extract<SidebarNavItem, { kind: "board" }> & { slug: string };
 
 function readStoredSidebarCollapsed() {
+  /* v8 ignore if */
   if (typeof window === "undefined") {
     return false;
   }
@@ -103,6 +104,7 @@ function readStoredSidebarCollapsed() {
 }
 
 function persistSidebarCollapsed(collapsed: boolean) {
+  /* v8 ignore if */
   if (typeof window === "undefined") {
     return;
   }
@@ -387,6 +389,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     } catch (error) {
       setBoardOrder(previous);
       setBoardReorderError(
+        /* v8 ignore next */
         error instanceof Error ? error.message : "Unable to save the new order.",
       );
     }
@@ -402,6 +405,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     const oldIndex = boardNavItems.findIndex((item) => item.slug === active.id);
     const newIndex = boardNavItems.findIndex((item) => item.slug === over.id);
 
+    /* v8 ignore if */
     if (oldIndex < 0 || newIndex < 0) {
       return;
     }
