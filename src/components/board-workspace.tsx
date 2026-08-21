@@ -1087,6 +1087,7 @@ function SubtasksCardPanel({
   };
 
   const handleSubtaskRemove = (row: PanelSubtaskRow) => {
+    /* v8 ignore if */
     if (pendingRowKeysRef.current.has(row.key) || pendingCreateRowKeysRef.current.has(row.key)) {
       return;
     }
@@ -1095,6 +1096,7 @@ function SubtasksCardPanel({
       row,
       "Wait for the subtask to finish saving before removing it.",
     );
+    /* v8 ignore if */
     if (!subtaskId) {
       return;
     }

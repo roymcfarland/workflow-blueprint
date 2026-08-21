@@ -250,6 +250,340 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  test("skips an unchanged subtask title and leaves the row available for reconciliation", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const reconciledTask = task({
+      subtasks: [
+        subtask({ title: "Server-reconciled title" }),
+        { ...secondSubtask, isComplete: true },
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: reconciledTask }));
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    openSubtasksPanel();
+
+    const unchangedTitle = screen.getByDisplayValue("Draft outline");
+    expect(fireEvent.keyDown(unchangedTitle, { key: "Enter" })).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const siblingRow = screen.getByDisplayValue("Check copy").closest(".group") as HTMLElement;
+    fireEvent.click(within(siblingRow).getByRole("button", { name: "Mark subtask complete" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-2");
+    expect(requestJsonBody(init)).toEqual({ isComplete: true });
+    expect(await screen.findByDisplayValue("Server-reconciled title")).toBeDefined();
+  });
+
+  test("ignores superseded subtask title successes and failures", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const firstRequest = deferred<Response>();
+    const secondRequest = deferred<Response>();
+    const thirdRequest = deferred<Response>();
+    fetchMock
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise)
+      .mockReturnValueOnce(thirdRequest.promise);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    openSubtasksPanel();
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "First rename" } });
+    fireEvent.keyDown(titleInput, { key: "Enter" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    expect(titleInput.disabled).toBe(false);
+    fireEvent.change(titleInput, { target: { value: "Second rename" } });
+    fireEvent.keyDown(titleInput, { key: "Enter" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      firstRequest.resolve(
+        apiResponse({
+          ok: true,
+          task: task({
+            subtasks: [
+              subtask({ title: "First rename" }),
+              { ...secondSubtask, title: "Stale sibling title" },
+            ],
+          }),
+        }),
+      );
+      await firstRequest.promise;
+    });
+
+    expect(screen.getByDisplayValue("Second rename")).toBe(titleInput);
+    expect(screen.getByDisplayValue("Check copy")).toBeDefined();
+    expect(screen.queryByDisplayValue("Stale sibling title")).toBeNull();
+
+    fireEvent.change(titleInput, { target: { value: "Final rename" } });
+    fireEvent.keyDown(titleInput, { key: "Enter" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      secondRequest.reject(new Error("Superseded rename failed."));
+      await secondRequest.promise.catch(() => undefined);
+    });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByDisplayValue("Final rename")).toBe(titleInput);
+
+    await act(async () => {
+      thirdRequest.resolve(
+        apiResponse({
+          ok: true,
+          task: task({ subtasks: [subtask({ title: "Final rename" }), secondSubtask] }),
+        }),
+      );
+      await thirdRequest.promise;
+    });
+
+    expect(await screen.findByDisplayValue("Final rename")).toBe(titleInput);
+  });
+
+  test("reverts a failed subtask title without changing sibling rows", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const request = deferred<Response>();
+    fetchMock.mockReturnValueOnce(request.promise);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    openSubtasksPanel();
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "Rejected rename" } });
+    fireEvent.keyDown(titleInput, { key: "Enter" });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByDisplayValue("Rejected rename")).toBe(titleInput);
+    expect(screen.getByDisplayValue("Check copy")).toBeDefined();
+
+    await act(async () => {
+      request.reject(new Error("Rename request failed."));
+      await request.promise.catch(() => undefined);
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Rename request failed.");
+    expect(screen.getByDisplayValue("Draft outline")).toBe(titleInput);
+    expect(screen.getByDisplayValue("Check copy")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("uses a rollback row title when a server reconcile evicted its title cache", async () => {
+    vi.useFakeTimers();
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const removeRequest = deferred<Response>();
+    const siblingRequest = deferred<Response>();
+    fetchMock
+      .mockReturnValueOnce(removeRequest.promise)
+      .mockReturnValueOnce(siblingRequest.promise);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    openSubtasksPanel();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "Dirty rollback title" } });
+    const removedRow = titleInput.closest(".group") as HTMLElement;
+    fireEvent.click(within(removedRow).getByRole("button", { name: "Remove subtask" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByDisplayValue("Dirty rollback title")).toBeNull();
+
+    const siblingRow = screen.getByDisplayValue("Check copy").closest(".group") as HTMLElement;
+    fireEvent.click(within(siblingRow).getByRole("button", { name: "Mark subtask complete" }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      siblingRequest.resolve(
+        apiResponse({
+          ok: true,
+          task: task({ subtasks: [{ ...secondSubtask, isComplete: true }] }),
+        }),
+      );
+      await siblingRequest.promise;
+      await Promise.resolve();
+    });
+    expect(
+      within(siblingRow).getByRole("button", { name: "Mark subtask incomplete" }),
+    ).toBeDefined();
+
+    await act(async () => {
+      removeRequest.resolve(apiResponse({ message: "Subtask removal failed." }, 500));
+      await removeRequest.promise;
+      await Promise.resolve();
+    });
+
+    const restoredTitle = screen.getByDisplayValue("Dirty rollback title");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fireEvent.keyDown(restoredTitle, { key: "Enter" })).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("uses the generic rename error after a concurrent removal evicts the title cache", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const renameRequest = deferred<Response>();
+    fetchMock
+      .mockReturnValueOnce(renameRequest.promise)
+      .mockResolvedValueOnce(
+        apiResponse({
+          ok: true,
+          task: task({ subtasks: [{ ...secondSubtask, title: "Sibling after delete" }] }),
+        }),
+      );
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    openSubtasksPanel();
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "Rejected after removal" } });
+    fireEvent.keyDown(titleInput, { key: "Enter" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const renamedRow = screen.getByDisplayValue("Rejected after removal").closest(
+      ".group",
+    ) as HTMLElement;
+    const removeButton = within(renamedRow).getByRole("button", {
+      name: "Remove subtask",
+    }) as HTMLButtonElement;
+    expect(removeButton.disabled).toBe(false);
+    fireEvent.click(removeButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(await screen.findByDisplayValue("Sibling after delete")).toBeDefined();
+    expect(screen.queryByDisplayValue("Rejected after removal")).toBeNull();
+
+    await act(async () => {
+      renameRequest.reject("network down");
+      await renameRequest.promise.catch(() => undefined);
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Unable to rename subtask.");
+    expect(screen.queryByDisplayValue("Rejected after removal")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("keeps a newer dirty title through a vanished-row commit and failed removal", async () => {
+    vi.useFakeTimers();
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const renameRequest = deferred<Response>();
+    const removeRequest = deferred<Response>();
+    const reconcileRequest = deferred<Response>();
+    fetchMock
+      .mockReturnValueOnce(renameRequest.promise)
+      .mockReturnValueOnce(removeRequest.promise)
+      .mockReturnValueOnce(reconcileRequest.promise);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    openSubtasksPanel();
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "First saved title" } });
+    fireEvent.keyDown(titleInput, { key: "Enter" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(titleInput, { target: { value: "Newer local draft" } });
+    await act(async () => {
+      renameRequest.resolve(
+        apiResponse({
+          ok: true,
+          task: task({ subtasks: [subtask({ title: "First saved title" }), secondSubtask] }),
+        }),
+      );
+      await renameRequest.promise;
+      await Promise.resolve();
+    });
+    expect(screen.getByDisplayValue("Newer local draft")).toBe(titleInput);
+
+    const editedRow = titleInput.closest(".group") as HTMLElement;
+    const removeButton = within(editedRow).getByRole("button", {
+      name: "Remove subtask",
+    }) as HTMLButtonElement;
+    expect(removeButton.disabled).toBe(false);
+    fireEvent.click(removeButton);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByDisplayValue("Newer local draft")).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(650);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      removeRequest.resolve(apiResponse({ message: "Subtask removal failed." }, 500));
+      await removeRequest.promise;
+      await Promise.resolve();
+    });
+    expect(screen.getByDisplayValue("Newer local draft")).toBeDefined();
+
+    const siblingRow = screen.getByDisplayValue("Check copy").closest(".group") as HTMLElement;
+    fireEvent.click(within(siblingRow).getByRole("button", { name: "Mark subtask complete" }));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      reconcileRequest.resolve(
+        apiResponse({
+          ok: true,
+          task: task({
+            subtasks: [
+              subtask({ title: "Server-reconciled title" }),
+              { ...secondSubtask, isComplete: true },
+            ],
+          }),
+        }),
+      );
+      await reconcileRequest.promise;
+      await Promise.resolve();
+    });
+    expect(screen.getByDisplayValue("Newer local draft")).toBeDefined();
+    expect(screen.queryByDisplayValue("Server-reconciled title")).toBeNull();
+  });
+
   test("rolls back a failed subtask patch without changing sibling rows", async () => {
     const secondSubtask = subtask({
       id: "subtask-2",

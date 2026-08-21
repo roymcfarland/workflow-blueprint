@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardWorkspace } from "@/components/board-workspace";
@@ -178,6 +178,49 @@ describe("SubtasksCardPanel remove and reorder", () => {
 
     await waitFor(() => expect(screen.getByDisplayValue("Draft outline")).toBeDefined());
     expect(screen.getByRole("alert").textContent).toBe("Subtask removal failed.");
+  });
+
+  test("does not duplicate a removed row restored by a concurrent server reconcile", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const initialTask = task({ subtasks: [subtask(), secondSubtask] });
+    const reconciledTask = task({
+      subtasks: [subtask(), { ...secondSubtask, isComplete: true }],
+    });
+    let resolveDelete!: (response: Response) => void;
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveDelete = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(apiResponse({ ok: true, task: reconciledTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+
+    const removedRow = screen.getByDisplayValue("Draft outline").closest(".group") as HTMLElement;
+    fireEvent.click(within(removedRow).getByRole("button", { name: "Remove subtask" }));
+    await waitFor(() => expect(screen.queryByDisplayValue("Draft outline")).toBeNull());
+
+    const siblingRow = screen.getByDisplayValue("Check copy").closest(".group") as HTMLElement;
+    fireEvent.click(within(siblingRow).getByRole("button", { name: "Mark subtask complete" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getAllByDisplayValue("Draft outline")).toHaveLength(1));
+
+    resolveDelete(apiResponse({ message: "Subtask removal failed." }, 500));
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Subtask removal failed."));
+    expect(screen.getAllByDisplayValue("Draft outline")).toHaveLength(1);
+    expect(
+      within(siblingRow).getByRole("button", { name: "Mark subtask incomplete" }),
+    ).toBeDefined();
   });
 
   test("subtask rows don't carry a competing CSS transition alongside dnd-kit's own", async () => {
