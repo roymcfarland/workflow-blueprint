@@ -326,7 +326,7 @@ describe("BoardWorkspace list-view task row", () => {
     expect(screen.getByRole("region", { name: panelName })).toBeDefined();
   });
 
-  test("keeps list-row state unchanged when the drag handle is clicked", async () => {
+  test("suppresses the default action and event propagation when the drag handle is clicked", async () => {
     await renderListWorkspace();
     const dialogName = "Details for Visible task alpha";
     const panelName = "Subtasks for Visible task alpha";
@@ -337,7 +337,17 @@ describe("BoardWorkspace list-view task row", () => {
     expect(screen.queryByRole("dialog", { name: dialogName })).toBeNull();
     expect(screen.queryByRole("region", { name: panelName })).toBeNull();
 
-    fireEvent.click(dragButton);
+    const documentClickSpy = vi.fn();
+    document.addEventListener("click", documentClickSpy);
+
+    try {
+      // Returns false only because the handler called preventDefault().
+      expect(fireEvent.click(dragButton)).toBe(false);
+      // Never reaches document only because the handler called stopPropagation().
+      expect(documentClickSpy).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("click", documentClickSpy);
+    }
 
     expect(screen.getByRole("button", { name: "Open subtasks menu" }).getAttribute("aria-expanded")).toBe(
       "false",
