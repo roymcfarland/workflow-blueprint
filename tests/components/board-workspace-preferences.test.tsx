@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardWorkspace } from "@/components/board-workspace";
 import type { BoardSnapshot, SerializedTask } from "@/lib/data";
+
+const dndMockState = vi.hoisted(() => ({ overId: null as string | null }));
 
 vi.mock("@dnd-kit/core", () => ({
   closestCenter: vi.fn(),
@@ -15,8 +17,8 @@ vi.mock("@dnd-kit/core", () => ({
   MouseSensor: vi.fn(),
   pointerWithin: vi.fn(() => []),
   TouchSensor: vi.fn(),
-  useDroppable: () => ({
-    isOver: false,
+  useDroppable: ({ id }: { id: string }) => ({
+    isOver: id === dndMockState.overId,
     setNodeRef: vi.fn(),
   }),
   useSensor: vi.fn(() => ({})),
@@ -39,7 +41,7 @@ vi.mock("@dnd-kit/sortable", () => ({
     setActivatorNodeRef: vi.fn(),
     setNodeRef: vi.fn(),
     transform: null,
-    transition: undefined,
+    transition: "transform 200ms",
   }),
   verticalListSortingStrategy: {},
 }));
@@ -107,6 +109,7 @@ function getNotesToolbarToggle(name: "Show notes" | "Hide notes") {
 }
 
 beforeEach(() => {
+  dndMockState.overId = null;
   localStorage.clear();
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -152,6 +155,20 @@ describe("BoardWorkspace per-board preferences", () => {
     fireEvent.click(screen.getByRole("button", { name: "List" }));
 
     expect(localStorage.getItem("wb.board.alpha.viewMode")).toBe("list");
+  });
+
+  test("styles a transiently empty list destination while it is hovered", () => {
+    dndMockState.overId = "column:DONE";
+    renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+
+    const doneCard = screen.getByRole("heading", { name: "Done" }).closest(
+      ".blueprint-surface-flat",
+    );
+    const doneBody = doneCard?.lastElementChild;
+    expect(doneBody).toBeInstanceOf(HTMLElement);
+    expect((doneBody as HTMLElement).className).toContain("bg-brand-soft");
+    expect((doneBody as HTMLElement).className).not.toContain("outline-brand/35");
   });
 
   test("view mode ignores garbage stored values without overwriting them", async () => {
@@ -236,6 +253,39 @@ describe("BoardWorkspace per-board preferences", () => {
       ),
     );
     expect(hydrationWarnings).toHaveLength(0);
+  });
+
+  test("removes sortable-card transitions when reduced motion is requested", async () => {
+    const defaultRender = renderWorkspace();
+    const defaultCard = screen
+      .getByRole("button", { name: "Drag Visible task alpha" })
+      .closest(".relative.isolate") as HTMLElement;
+    expect(defaultCard.style.transition).toBe("transform 200ms");
+    defaultRender.unmount();
+
+    const matchMedia = vi.fn().mockImplementation((query: string) => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    vi.stubGlobal("matchMedia", matchMedia);
+
+    try {
+      renderWorkspace();
+      const reducedMotionCard = screen
+        .getByRole("button", { name: "Drag Visible task alpha" })
+        .closest(".relative.isolate") as HTMLElement;
+
+      await waitFor(() => expect(reducedMotionCard.style.transition).toBe(""));
+      expect(matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
@@ -328,5 +378,51 @@ describe("BoardWorkspace note autosave", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "Notes are temporarily unavailable",
     );
+  });
+
+  test.each([
+    { expected: "Notes are throttled Try again in 7s.", retryAfter: "7" },
+    { expected: "Notes are throttled", retryAfter: undefined },
+  ])("formats 429 note failures with Retry-After $retryAfter", async ({ expected, retryAfter }) => {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (retryAfter) {
+      headers.set("Retry-After", retryAfter);
+    }
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ message: "Notes are throttled" }), {
+        headers,
+        status: 429,
+      }),
+    );
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+
+    fireEvent.change(screen.getByPlaceholderText(notesPlaceholder), {
+      target: { value: `Rate-limited note ${retryAfter ?? "without retry"}` },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status").textContent).toBe(expected);
+  });
+
+  test("throws a clear error when abort support is unavailable", () => {
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+    vi.stubGlobal("AbortController", undefined);
+
+    try {
+      expect(globalThis.AbortController).toBeUndefined();
+      expect(() =>
+        fireEvent.change(screen.getByPlaceholderText(notesPlaceholder), {
+          target: { value: "Cannot create an abort handle" },
+        }),
+      ).toThrow("Abort support is unavailable.");
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

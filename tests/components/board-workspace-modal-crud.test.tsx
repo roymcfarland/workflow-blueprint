@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -71,7 +71,7 @@ function task(overrides: Partial<SerializedTask> = {}): SerializedTask {
   };
 }
 
-function boardSnapshot(nextTask: SerializedTask): BoardSnapshot {
+function boardSnapshot(nextTask: SerializedTask | SerializedTask[]): BoardSnapshot {
   return {
     description: null,
     iconKey: "briefcase",
@@ -79,7 +79,7 @@ function boardSnapshot(nextTask: SerializedTask): BoardSnapshot {
     name: "Test Board",
     noteContent: "",
     slug: "test-board",
-    tasks: [nextTask],
+    tasks: Array.isArray(nextTask) ? nextTask : [nextTask],
   };
 }
 
@@ -97,6 +97,15 @@ function requestJsonBody(init: unknown) {
 
   const body = (init as RequestInit).body;
   return typeof body === "string" ? JSON.parse(body) : null;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+
+  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -229,6 +238,27 @@ describe("TaskDetailModal remaining CRUD", () => {
     );
   });
 
+  test("formats attachment sizes in bytes, kilobytes, and megabytes", () => {
+    const attachments = [
+      { fileName: "bytes.txt", id: "att-bytes", size: 512 },
+      { fileName: "kilobytes.txt", id: "att-kilobytes", size: 2048 },
+      { fileName: "megabytes.txt", id: "att-megabytes", size: 5_000_000 },
+    ].map(({ fileName, id, size }) => ({
+      contentType: "text/plain",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      fileName,
+      id,
+      size,
+    }));
+
+    render(<BoardWorkspace board={boardSnapshot(task({ attachments }))} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+
+    expect(screen.getByText("512 B")).toBeDefined();
+    expect(screen.getByText("2 KB")).toBeDefined();
+    expect(screen.getByText("4.8 MB")).toBeDefined();
+  });
+
   test("removes an attachment", async () => {
     const initialTask = task({
       attachments: [
@@ -294,6 +324,31 @@ describe("TaskDetailModal remaining CRUD", () => {
   });
 });
 
+describe("TaskPreview card controls", () => {
+  test("stops pointer events from bubbling from card action controls", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    const editButton = screen.getByRole("button", { name: "Edit task details" });
+    const subtasksButton = screen.getByRole("button", { name: "Open subtasks menu" });
+    const dragButton = screen.getByRole("button", { name: "Drag Visible task" });
+    const mouseDownListener = vi.fn();
+    const clickListener = vi.fn();
+    document.addEventListener("mousedown", mouseDownListener);
+    document.addEventListener("click", clickListener);
+
+    try {
+      fireEvent.mouseDown(editButton);
+      fireEvent.mouseDown(subtasksButton);
+      expect(mouseDownListener).not.toHaveBeenCalled();
+
+      expect(fireEvent.click(dragButton)).toBe(false);
+      expect(clickListener).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("mousedown", mouseDownListener);
+      document.removeEventListener("click", clickListener);
+    }
+  });
+});
+
 describe("EditableTaskTitle inline rename", () => {
   test("enters edit mode with the current title focused", () => {
     render(<BoardWorkspace board={boardSnapshot(task())} />);
@@ -345,6 +400,34 @@ describe("EditableTaskTitle inline rename", () => {
     );
   });
 
+  test("renames a dated task without replacing its sibling", async () => {
+    const initialTask = task({ dueDate: "2026-08-20T00:00:00.000Z" });
+    const siblingTask = task({
+      id: "task-sibling",
+      sortOrder: 1,
+      title: "Sibling task",
+    });
+    const updatedTask = task({
+      dueDate: "2026-08-20T00:00:00.000Z",
+      title: "Dated task renamed",
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot([initialTask, siblingTask])} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+    const input = screen.getByLabelText("Task title for Visible task");
+    fireEvent.change(input, { target: { value: "Dated task renamed" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(requestJsonBody(init)?.dueDate).toBe("2026-08-20");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Rename Dated task renamed" })).toBeDefined(),
+    );
+    expect(screen.getByRole("button", { name: "Rename Sibling task" })).toBeDefined();
+  });
+
   test("rejects an empty title and stays in edit mode", () => {
     render(<BoardWorkspace board={boardSnapshot(task())} />);
     fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
@@ -392,5 +475,29 @@ describe("EditableTaskTitle inline rename", () => {
     await waitFor(() => expect(screen.getByText("Rename blocked.")).toBeDefined());
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText("Task title for Visible task")).toBeDefined();
+  });
+
+  test("ignores a second save action while an inline rename is pending", async () => {
+    const request = deferred<Response>();
+    fetchMock.mockReturnValueOnce(request.promise);
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename Visible task" }));
+    const input = screen.getByLabelText("Task title for Visible task") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Pending title" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(input.disabled).toBe(true));
+    expect(fetchMock).toHaveBeenCalledOnce();
+    fireEvent.blur(input);
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      request.resolve(apiResponse({ ok: true, task: task({ title: "Pending title" }) }));
+      await request.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Rename Pending title" })).toBeDefined(),
+    );
   });
 });
