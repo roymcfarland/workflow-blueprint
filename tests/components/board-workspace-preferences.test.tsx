@@ -95,6 +95,13 @@ async function flushMicrotasks() {
   });
 }
 
+async function renderListWorkspace() {
+  localStorage.setItem("wb.board.alpha.viewMode", "list");
+  const result = renderWorkspace();
+  await flushMicrotasks();
+  return result;
+}
+
 function expectViewMode(value: "board" | "list") {
   expect(screen.getByRole("button", { name: "Board" }).getAttribute("aria-pressed")).toBe(
     String(value === "board"),
@@ -282,6 +289,100 @@ describe("BoardWorkspace per-board preferences", () => {
         .closest(".relative.isolate") as HTMLElement;
 
       await waitFor(() => expect(reducedMotionCard.style.transition).toBe(""));
+      expect(matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("BoardWorkspace list-view task row", () => {
+  test("opens the task detail modal from the list-row pencil", async () => {
+    await renderListWorkspace();
+    const dialogName = "Details for Visible task alpha";
+    const editButton = screen.getByRole("button", { name: "Edit task details" });
+
+    expect(screen.queryByRole("dialog", { name: dialogName })).toBeNull();
+
+    fireEvent.mouseDown(editButton);
+    fireEvent.click(editButton);
+
+    expect(screen.getByRole("dialog", { name: dialogName })).toBeDefined();
+  });
+
+  test("opens the subtasks panel from the list-row toggle", async () => {
+    await renderListWorkspace();
+    const panelName = "Subtasks for Visible task alpha";
+    const openButton = screen.getByRole("button", { name: "Open subtasks menu" });
+
+    expect(openButton.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("region", { name: panelName })).toBeNull();
+
+    fireEvent.mouseDown(openButton);
+    fireEvent.click(openButton);
+
+    const closeButton = screen.getByRole("button", { name: "Close subtasks menu" });
+    expect(closeButton.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("region", { name: panelName })).toBeDefined();
+  });
+
+  test("suppresses the default action and event propagation when the drag handle is clicked", async () => {
+    await renderListWorkspace();
+    const dialogName = "Details for Visible task alpha";
+    const panelName = "Subtasks for Visible task alpha";
+    const dragButton = screen.getByRole("button", { name: "Drag Visible task alpha" });
+    const openButton = screen.getByRole("button", { name: "Open subtasks menu" });
+
+    expect(openButton.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("dialog", { name: dialogName })).toBeNull();
+    expect(screen.queryByRole("region", { name: panelName })).toBeNull();
+
+    const documentClickSpy = vi.fn();
+    document.addEventListener("click", documentClickSpy);
+
+    try {
+      // Returns false only because the handler called preventDefault().
+      expect(fireEvent.click(dragButton)).toBe(false);
+      // Never reaches document only because the handler called stopPropagation().
+      expect(documentClickSpy).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("click", documentClickSpy);
+    }
+
+    expect(screen.getByRole("button", { name: "Open subtasks menu" }).getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+    expect(screen.queryByRole("dialog", { name: dialogName })).toBeNull();
+    expect(screen.queryByRole("region", { name: panelName })).toBeNull();
+  });
+
+  test("removes list-row transitions when reduced motion is requested", async () => {
+    const defaultRender = await renderListWorkspace();
+    const defaultRow = screen
+      .getByRole("button", { name: "Drag Visible task alpha" })
+      .closest(".relative.isolate") as HTMLElement;
+    expect(defaultRow.style.transition).toBe("transform 200ms");
+    defaultRender.unmount();
+
+    const matchMedia = vi.fn().mockImplementation((query: string) => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    vi.stubGlobal("matchMedia", matchMedia);
+
+    try {
+      await renderListWorkspace();
+      const reducedMotionRow = screen
+        .getByRole("button", { name: "Drag Visible task alpha" })
+        .closest(".relative.isolate") as HTMLElement;
+
+      await waitFor(() => expect(reducedMotionRow.style.transition).toBe(""));
       expect(matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
     } finally {
       vi.unstubAllGlobals();

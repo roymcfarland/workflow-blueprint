@@ -97,6 +97,12 @@ function requestJsonBody(init: unknown) {
   return typeof body === "string" ? JSON.parse(body) : null;
 }
 
+function openQuickAddComposer() {
+  render(<BoardWorkspace board={emptyBoard()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Add task to Up Next" }));
+  return screen.getByRole("textbox", { name: "Add task to Up Next" });
+}
+
 describe("BoardWorkspace quick-add", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -164,6 +170,87 @@ describe("BoardWorkspace quick-add", () => {
       });
 
       expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("keeps the composer open when Enter is pressed with an empty title", () => {
+    const input = openQuickAddComposer();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Add task to Up Next" })).toBe(input);
+  });
+
+  test("closes the composer without creating when Escape is pressed", () => {
+    const input = openQuickAddComposer();
+    fireEvent.change(input, { target: { value: "Draft task" } });
+    expect((input as HTMLInputElement).value).toBe("Draft task");
+
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add task to Up Next" })).toBeDefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("closes the composer when an empty input blurs", () => {
+    const input = openQuickAddComposer();
+
+    fireEvent.blur(input);
+
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add task to Up Next" })).toBeDefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("keeps the composer open when an input with text blurs", () => {
+    const input = openQuickAddComposer();
+    fireEvent.change(input, { target: { value: "Keep drafting" } });
+    expect((input as HTMLInputElement).value).toBe("Keep drafting");
+
+    fireEvent.blur(input);
+
+    expect(screen.getByRole("textbox", { name: "Add task to Up Next" })).toBe(input);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("shows the server message and keeps the composer open when create fails", async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockResolvedValueOnce(apiResponse({ message: "Board is locked" }, 500));
+      const input = openQuickAddComposer();
+      fireEvent.change(input, { target: { value: "Blocked task" } });
+
+      await act(async () => {
+        fireEvent.keyDown(input, { key: "Enter" });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(screen.getByText(/Board is locked/)).toBeDefined();
+      expect(screen.getByRole("textbox", { name: "Add task to Up Next" })).toBe(input);
+      expect((input as HTMLInputElement).disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("shows the generic message for a non-Error create rejection", async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockRejectedValueOnce("network down");
+      const input = openQuickAddComposer();
+      fireEvent.change(input, { target: { value: "Offline task" } });
+
+      await act(async () => {
+        fireEvent.keyDown(input, { key: "Enter" });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(screen.getByText("Unable to create task.")).toBeDefined();
+      expect(screen.getByRole("textbox", { name: "Add task to Up Next" })).toBe(input);
     } finally {
       vi.useRealTimers();
     }

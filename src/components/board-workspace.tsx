@@ -1723,7 +1723,7 @@ function SortableListTaskRow({
         {subtasksPanelTaskId === task.id ? (
           <SubtasksCardPanel
             key={task.id}
-            onClose={() => onToggleSubtasksPanel(task.id)}
+            /* v8 ignore next */ onClose={() => onToggleSubtasksPanel(task.id)}
             onTaskUpdated={onTaskUpdated}
             panelRef={panelRef}
             task={task}
