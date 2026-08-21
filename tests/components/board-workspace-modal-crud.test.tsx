@@ -86,6 +86,18 @@ function taskWithAttachment(): SerializedTask {
   });
 }
 
+function taskWithLabel(): SerializedTask {
+  return task({
+    labels: [{ id: "label-1", text: "Urgent", color: "#ef4444", sortOrder: 0 }],
+  });
+}
+
+function taskWithChecklist(isComplete = false): SerializedTask {
+  return task({
+    checklist: [{ id: "check-1", text: "Verify copy", isComplete, sortOrder: 0 }],
+  });
+}
+
 function boardSnapshot(nextTask: SerializedTask | SerializedTask[]): BoardSnapshot {
   return {
     description: null,
@@ -648,6 +660,148 @@ describe("TaskDetailModal remaining CRUD", () => {
     expect(detailTaskDuringDelete).toBeNull();
   });
 
+  test("handles empty and whitespace-only label Enter without requesting", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New label text") as HTMLInputElement;
+
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(input.value).toBe("");
+
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(input.value).toBe("   ");
+  });
+
+  test("adds a label by Enter with the selected swatch color", async () => {
+    const request = deferred<Response>();
+    const updatedTask = task({
+      labels: [{ id: "label-blue", text: "Keyboard label", color: "#3b82f6", sortOrder: 0 }],
+    });
+    fetchMock.mockReturnValueOnce(request.promise);
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New label text") as HTMLInputElement;
+    const swatch = screen.getByRole("button", { name: "Label color #3b82f6" });
+
+    expect(swatch.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(swatch);
+    expect(swatch.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.change(input, { target: { value: "Keyboard label" } });
+    const addButton = screen.getByRole("button", { name: "Add label" }) as HTMLButtonElement;
+    expect(addButton.disabled).toBe(false);
+
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    expect(input.disabled).toBe(true);
+    expect(addButton.disabled).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active/labels");
+    expect(init.method).toBe("POST");
+    expect(requestJsonBody(init)).toEqual({ color: "#3b82f6", text: "Keyboard label" });
+
+    await act(async () => {
+      request.resolve(apiResponse({ ok: true, task: updatedTask }));
+      await request.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Remove label Keyboard label" })).toBeDefined(),
+    );
+    expect(input.value).toBe("");
+  });
+
+  test("ignores a non-Enter key in the label input", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New label text");
+    fireEvent.change(input, { target: { value: "Keyboard label" } });
+
+    expect(fireEvent.keyDown(input, { key: "ArrowLeft" })).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("shows the server message when adding a label fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Label limit reached." }, 500));
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New label text") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Blocked label" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Label limit reached."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(input.value).toBe("Blocked label");
+    expect(screen.queryByRole("button", { name: "Remove label Blocked label" })).toBeNull();
+  });
+
+  test("shows the exact fallback when adding a label returns no message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New label text") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Fallback label" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to add label."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(input.value).toBe("Fallback label");
+    expect(screen.queryByRole("button", { name: "Remove label Fallback label" })).toBeNull();
+  });
+
+  test("shows the exact fallback for a non-Error add-label failure", async () => {
+    fetchMock.mockRejectedValueOnce("network down");
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New label text") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Network label" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add label" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to add label."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(input.value).toBe("Network label");
+    expect(screen.queryByRole("button", { name: "Remove label Network label" })).toBeNull();
+  });
+
+  test("shows the server message when removing a label fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Label is pinned." }, 500));
+    render(<BoardWorkspace board={boardSnapshot(taskWithLabel())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove label Urgent" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Label is pinned."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Remove label Urgent" })).toBeDefined();
+  });
+
+  test("shows the exact fallback for a non-Error remove-label failure", async () => {
+    fetchMock.mockRejectedValueOnce("network down");
+    render(<BoardWorkspace board={boardSnapshot(taskWithLabel())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove label Urgent" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to remove label."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Remove label Urgent" })).toBeDefined();
+  });
+
   test("removes a label", async () => {
     const initialTask = task({
       labels: [{ id: "label-1", text: "Urgent", color: "#ef4444", sortOrder: 0 }],
@@ -667,6 +821,180 @@ describe("TaskDetailModal remaining CRUD", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Remove label Urgent" })).toBeNull(),
     );
+  });
+
+  test("handles empty and whitespace-only checklist Enter without requesting", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New checklist item") as HTMLInputElement;
+
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(input.value).toBe("");
+
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(input.value).toBe("   ");
+  });
+
+  test("adds a checklist item by Enter", async () => {
+    const updatedTask = taskWithChecklist();
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: updatedTask }));
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New checklist item") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Verify copy" } });
+
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active/checklist");
+    expect(init.method).toBe("POST");
+    expect(requestJsonBody(init)).toEqual({ text: "Verify copy" });
+    await waitFor(() => expect(screen.getByText("Verify copy")).toBeDefined());
+    expect(input.value).toBe("");
+  });
+
+  test("ignores a non-Enter key in the checklist input", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New checklist item");
+    fireEvent.change(input, { target: { value: "Verify copy" } });
+
+    expect(fireEvent.keyDown(input, { key: "ArrowLeft" })).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("shows the server message when adding a checklist item fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Checklist is full." }, 500));
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New checklist item") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Blocked item" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add checklist item" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Checklist is full."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(input.value).toBe("Blocked item");
+    expect(screen.queryByText("Blocked item")).toBeNull();
+  });
+
+  test("shows the exact fallback when adding a checklist item returns no message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New checklist item") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Fallback item" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add checklist item" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to add checklist item."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(input.value).toBe("Fallback item");
+    expect(screen.queryByText("Fallback item")).toBeNull();
+  });
+
+  test("shows the exact fallback for a non-Error add-checklist failure", async () => {
+    fetchMock.mockRejectedValueOnce("network down");
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openTaskDetails();
+    const input = screen.getByLabelText("New checklist item") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Network item" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add checklist item" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to add checklist item."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(input.value).toBe("Network item");
+    expect(screen.queryByText("Network item")).toBeNull();
+  });
+
+  test("shows the server message when toggling a checklist item fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Item already updated." }, 500));
+    render(<BoardWorkspace board={boardSnapshot(taskWithChecklist())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark checklist item complete" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Item already updated."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Mark checklist item complete" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Mark checklist item incomplete" })).toBeNull();
+  });
+
+  test("shows the exact fallback when toggling a checklist item returns no message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    render(<BoardWorkspace board={boardSnapshot(taskWithChecklist())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark checklist item complete" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to update checklist item."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Mark checklist item complete" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Mark checklist item incomplete" })).toBeNull();
+  });
+
+  test("shows the exact fallback for a non-Error toggle-checklist failure", async () => {
+    fetchMock.mockRejectedValueOnce("network down");
+    render(<BoardWorkspace board={boardSnapshot(taskWithChecklist())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark checklist item complete" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to update checklist item."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Mark checklist item complete" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Mark checklist item incomplete" })).toBeNull();
+  });
+
+  test("shows the server message when removing a checklist item fails", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ message: "Item is locked." }, 500));
+    render(<BoardWorkspace board={boardSnapshot(taskWithChecklist())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove checklist item Verify copy" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Item is locked."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByText("Verify copy")).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Remove checklist item Verify copy" }),
+    ).toBeDefined();
+  });
+
+  test("shows the exact fallback for a non-Error remove-checklist failure", async () => {
+    fetchMock.mockRejectedValueOnce("network down");
+    render(<BoardWorkspace board={boardSnapshot(taskWithChecklist())} />);
+    openTaskDetails();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove checklist item Verify copy" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe("Unable to remove checklist item."),
+    );
+    expect(screen.getByRole("dialog", { name: "Details for Visible task" })).toBeDefined();
+    expect(screen.getByText("Verify copy")).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Remove checklist item Verify copy" }),
+    ).toBeDefined();
   });
 
   test("toggles a checklist item complete", async () => {
