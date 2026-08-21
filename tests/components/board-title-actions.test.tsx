@@ -127,6 +127,43 @@ describe("BoardTitleActions", () => {
     expect(navigationMock.refresh).not.toHaveBeenCalled();
   });
 
+  test("uses the update fallback when an edit failure has no message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    render(<BoardTitleActions board={board} />);
+
+    openEditDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Unable to update board.")).toBeDefined();
+    expect(screen.getByRole("dialog", { name: "Edit Launch Plan" })).toBeDefined();
+  });
+
+  test("submits selected icon and accent color and falls back to the current slug", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+    render(<BoardTitleActions board={board} />);
+
+    openEditDialog();
+    const calendarIcon = screen.getByTitle("Calendar");
+    const accentColor = screen.getAllByRole("button", { name: /Accent color/ })[0];
+    fireEvent.click(calendarIcon);
+    fireEvent.click(accentColor);
+
+    expect(calendarIcon.className).toContain("border-brand");
+    expect(accentColor.getAttribute("aria-pressed")).toBe("true");
+    expect(accentColor.className).toContain("border-text-primary");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(request.body as string)).toEqual({
+      accentColor: accentColor.getAttribute("title"),
+      iconKey: "calendar",
+      name: "Launch Plan",
+    });
+    await waitFor(() => expect(navigationMock.refresh).toHaveBeenCalledTimes(1));
+    expect(navigationMock.push).not.toHaveBeenCalled();
+  });
+
   test("deletes the board, returns to the dashboard, and refreshes", async () => {
     fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
     render(<BoardTitleActions board={board} />);
@@ -156,6 +193,17 @@ describe("BoardTitleActions", () => {
     expect(navigationMock.refresh).not.toHaveBeenCalled();
   });
 
+  test("uses the delete fallback when a deletion failure has no message", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({}, 500));
+    render(<BoardTitleActions board={board} />);
+
+    openDeleteDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Delete Board" }));
+
+    expect(await screen.findByText("Unable to delete board.")).toBeDefined();
+    expect(screen.getByRole("dialog", { name: "Delete Launch Plan" })).toBeDefined();
+  });
+
   test("closes an open dialog when Escape is pressed", () => {
     render(<BoardTitleActions board={board} />);
 
@@ -163,6 +211,15 @@ describe("BoardTitleActions", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("keeps an open dialog when a non-Escape key is pressed", () => {
+    render(<BoardTitleActions board={board} />);
+
+    openEditDialog();
+    fireEvent.keyDown(window, { key: "a" });
+
+    expect(screen.getByRole("dialog", { name: "Edit Launch Plan" })).toBeDefined();
   });
 
   test("keeps dialogs open for inner clicks and closes them from backdrop clicks", () => {

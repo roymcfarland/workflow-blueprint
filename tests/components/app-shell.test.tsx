@@ -119,6 +119,28 @@ function dragReleasePlanBeforeLaunchPlan() {
   fireEvent.mouseUp(document, { button: 0, clientX: 20, clientY: 20 });
 }
 
+function dragReleasePlanOntoItself() {
+  const launchPlan = screen.getByRole("link", { name: "Launch Plan" }).closest("div.relative");
+  const releasePlan = screen
+    .getByRole("link", { name: "Release Plan" })
+    .closest("div.relative");
+  if (!launchPlan || !releasePlan) {
+    throw new Error("Expected sortable board containers.");
+  }
+
+  stubRect(launchPlan, { bottom: 40, top: 0 });
+  stubRect(releasePlan, { bottom: 80, top: 40 });
+
+  const handle = screen.getByRole("button", { name: "Reorder Release Plan" });
+  fireEvent.mouseDown(handle, { button: 0, clientX: 20, clientY: 60 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 68 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 68 });
+  expect(releasePlan.className).toContain("opacity-60");
+  fireEvent.mouseUp(document, { button: 0, clientX: 20, clientY: 68 });
+
+  return releasePlan;
+}
+
 function boardLinkNames() {
   return screen
     .getAllByRole("link")
@@ -211,6 +233,30 @@ describe("AppShell collapsible sidebar", () => {
     expectWordmarkHidden();
   });
 
+  test("keeps the sidebar expanded when stored state cannot be read", () => {
+    const queuedMicrotasks: VoidFunction[] = [];
+    const queueMicrotask = vi
+      .spyOn(globalThis, "queueMicrotask")
+      .mockImplementation((callback) => queuedMicrotasks.push(callback));
+    const getItemSpy = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("denied");
+      });
+
+    try {
+      renderShell();
+      expect(queuedMicrotasks).toHaveLength(2);
+      act(() => queuedMicrotasks.forEach((callback) => callback()));
+      expect(getItemSpy).toHaveBeenCalled();
+    } finally {
+      getItemSpy.mockRestore();
+      queueMicrotask.mockRestore();
+    }
+
+    expectWordmarkVisible();
+  });
+
   test("keeps the mobile menu button path working below the lg breakpoint", () => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -248,6 +294,30 @@ describe("AppShell board reordering", () => {
     expect(screen.getByRole("link", { name: "Release Plan" }).getAttribute("href")).toBe(
       "/boards/release-plan",
     );
+  });
+
+  test("normalizes the root pathname without activating a navigation item", () => {
+    navigationMock.pathname = "/";
+
+    renderShell();
+
+    expect(screen.getByRole("link", { name: "Dashboard" }).className).not.toContain(
+      "blueprint-fill",
+    );
+    expect(screen.getByRole("link", { name: "Launch Plan" }).className).not.toContain(
+      "blueprint-hatch",
+    );
+  });
+
+  test("applies active styling and the accent color to the current board", () => {
+    navigationMock.pathname = "/boards/launch-plan";
+
+    renderShell();
+
+    const activeBoard = screen.getByRole("link", { name: "Launch Plan" });
+    expect(activeBoard.className).toContain("blueprint-hatch");
+    expect(activeBoard.style.getPropertyValue("--board-accent")).not.toBe("");
+    expect(activeBoard.style.backgroundColor).not.toBe("");
   });
 });
 
@@ -412,6 +482,48 @@ describe("AppShell transition fallback", () => {
       }
     }
   });
+
+  test("does not enable transitions when a queued animation frame fires after unmount", () => {
+    let enableTransitions: FrameRequestCallback | undefined;
+    const requestAnimationFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        enableTransitions = callback;
+        return 17;
+      });
+    const cancelAnimationFrame = vi
+      .spyOn(window, "cancelAnimationFrame")
+      .mockImplementation(() => {});
+
+    try {
+      const { unmount } = renderShell();
+      unmount();
+      expect(cancelAnimationFrame).toHaveBeenCalledWith(17);
+      if (!enableTransitions) {
+        throw new Error("Expected AppShell to schedule a transition animation frame.");
+      }
+
+      act(() => enableTransitions!(0));
+    } finally {
+      requestAnimationFrame.mockRestore();
+      cancelAnimationFrame.mockRestore();
+    }
+
+    expect(screen.queryByText("Shell content")).toBeNull();
+  });
+});
+
+describe("AppShell mount cleanup", () => {
+  test("ignores queued mount microtasks after a synchronous unmount", async () => {
+    const { unmount } = renderShell();
+
+    unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Shell content")).toBeNull();
+  });
 });
 
 describe("AppShell theme switching", () => {
@@ -452,6 +564,37 @@ describe("AppShell theme switching", () => {
           method: "PATCH",
         }),
       );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("keeps an optimistic theme change when persistence succeeds", async () => {
+    vi.useRealTimers();
+    const request = deferred<Response>();
+    const fetchMock = vi.fn().mockReturnValue(request.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      renderShell();
+      fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+      navigationMock.setTheme.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: "Night" }));
+
+      await act(async () => {
+        request.resolve(new Response(null, { status: 200 }));
+        await request.promise;
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/theme",
+        expect.objectContaining({
+          body: JSON.stringify({ themePreference: "night" }),
+          method: "PATCH",
+        }),
+      );
+      expect(navigationMock.setTheme).toHaveBeenCalledWith("night");
+      expect(navigationMock.setTheme.mock.calls.some(([theme]) => theme === "day")).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -511,6 +654,27 @@ describe("AppShell board reorder interactions", () => {
 
       expect(await screen.findByText("Unable to save the new order.")).toBeDefined();
       await waitFor(() => expect(boardLinkNames()).toEqual(["Launch Plan", "Release Plan"]));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("does not persist a board dropped onto itself", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      renderShell();
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const draggedBoard = dragReleasePlanOntoItself();
+      act(() => vi.advanceTimersByTime(50));
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(draggedBoard.className).not.toContain("opacity-60");
+      expect(boardLinkNames()).toEqual(["Launch Plan", "Release Plan"]);
     } finally {
       vi.unstubAllGlobals();
     }
