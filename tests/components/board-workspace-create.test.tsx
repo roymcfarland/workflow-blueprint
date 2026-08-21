@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -126,33 +126,46 @@ describe("BoardWorkspace quick-add", () => {
   });
 
   test("creates a task via quick-add through the board endpoint", async () => {
-    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: createdTask() }));
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: createdTask() }));
 
-    render(<BoardWorkspace board={emptyBoard()} />);
+      render(<BoardWorkspace board={emptyBoard()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Add task to Up Next" }));
+      fireEvent.click(screen.getByRole("button", { name: "Add task to Up Next" }));
 
-    const input = screen.getByRole("textbox", { name: "Add task to Up Next" });
-    fireEvent.change(input, { target: { value: "Write spec" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+      const input = screen.getByRole("textbox", { name: "Add task to Up Next" });
+      fireEvent.change(input, { target: { value: "Write spec" } });
+      await act(async () => {
+        fireEvent.keyDown(input, { key: "Enter" });
+        await vi.advanceTimersByTimeAsync(0);
+      });
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/boards/test-board/tasks");
-    expect(init.method).toBe("POST");
-    expect(requestJsonBody(init)).toEqual({
-      title: "Write spec",
-      description: null,
-      status: "ON_DECK",
-      dueDate: null,
-      priority: "NONE",
-      recurrence: "NONE",
-      subtasks: [],
-    });
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Add task to Up Next" })).toBeTruthy(),
-    );
-    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/boards/test-board/tasks");
+      expect(init.method).toBe("POST");
+      expect(requestJsonBody(init)).toEqual({
+        title: "Write spec",
+        description: null,
+        status: "ON_DECK",
+        dueDate: null,
+        priority: "NONE",
+        recurrence: "NONE",
+        subtasks: [],
+      });
+      expect(screen.getByRole("status").textContent).toBe("Task created");
+      expect(screen.getByRole("button", { name: "Add task to Up Next" })).toBeTruthy();
+      expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1800);
+      });
+
+      expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

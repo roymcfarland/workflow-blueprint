@@ -167,6 +167,17 @@ function sortableSubtaskRow(title: string) {
   };
 }
 
+function sortableSection(label: string) {
+  const handle = screen.getByRole("button", { name: `Reorder ${label} section` });
+  const sectionGrid = handle.closest("div.grid.gap-6");
+  const row = Array.from(sectionGrid?.children ?? []).find((section) => section.contains(handle));
+  if (!row) {
+    throw new Error(`Could not find sortable dashboard section for ${label}.`);
+  }
+
+  return { handle, row: row as HTMLElement };
+}
+
 async function dragFirstRowAfterSecond(
   firstRow: HTMLElement,
   secondRow: HTMLElement,
@@ -193,6 +204,21 @@ async function dragFirstRowAfterSecond(
   await new Promise((resolve) => setTimeout(resolve, 50));
 }
 
+async function dragRowOntoItself(row: HTMLElement, handle: HTMLElement) {
+  row.getBoundingClientRect = vi.fn(() => rect({ left: 0, right: 200, top: 0, bottom: 50 }));
+  handle.getBoundingClientRect = vi.fn(() =>
+    rect({ left: 10, right: 30, top: 10, bottom: 30 }),
+  );
+
+  fireEvent.mouseDown(handle, { button: 0, clientX: 20, clientY: 20 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 35 });
+  fireEvent.mouseMove(document, { clientX: 20, clientY: 35 });
+  expect(row.className).toContain("opacity-60");
+  fireEvent.mouseUp(document, { button: 0, clientX: 20, clientY: 35 });
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+}
+
 function inProgressTaskOrder() {
   return screen
     .getAllByRole("button", { name: /^Reorder / })
@@ -201,6 +227,20 @@ function inProgressTaskOrder() {
       return label !== "Reorder subtask" && !label?.endsWith(" section");
     })
     .map((button) => button.getAttribute("aria-label")?.replace("Reorder ", ""));
+}
+
+function subtaskOrder() {
+  return screen
+    .getAllByRole("button", { name: /^Edit subtask / })
+    .map((button) => button.getAttribute("aria-label")?.replace("Edit subtask ", ""));
+}
+
+function sectionOrder() {
+  return screen
+    .getAllByRole("button", { name: /^Reorder .+ section$/ })
+    .map((button) =>
+      button.getAttribute("aria-label")?.replace(/^Reorder | section$/g, ""),
+    );
 }
 
 describe("DashboardOverview in-progress panel", () => {
@@ -247,6 +287,19 @@ describe("DashboardOverview in-progress panel", () => {
         "Draft launch checklist",
       ]),
     );
+  });
+
+  test("does not persist an in-progress task dropped onto itself", async () => {
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    const task = sortableTaskRow("Draft launch checklist");
+    await dragRowOntoItself(task.row, task.handle);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(inProgressTaskOrder()).toEqual([
+      "Draft launch checklist",
+      "Interview beta customer",
+    ]);
   });
 
   test("shows an error and restores the task order when reordering fails", async () => {
@@ -365,6 +418,7 @@ describe("DashboardOverview in-progress panel", () => {
             taskSummary({
               subtasks: [
                 { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+                { id: "subtask-review", isComplete: false, title: "Review launch notes" },
               ],
             }),
           ],
@@ -376,7 +430,9 @@ describe("DashboardOverview in-progress panel", () => {
       screen.getByRole("button", { name: "Show subtasks for Draft launch checklist" }),
     );
 
-    const toggle = screen.getByRole("button", { name: "Mark subtask complete" });
+    const changedRow = sortableSubtaskRow("Draft intro copy").row;
+    const untouchedRow = sortableSubtaskRow("Review launch notes").row;
+    const toggle = within(changedRow).getByRole("button", { name: "Mark subtask complete" });
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
 
     fireEvent.click(toggle);
@@ -389,6 +445,17 @@ describe("DashboardOverview in-progress panel", () => {
           .getAttribute("aria-pressed"),
       ).toBe("true"),
     );
+    expect(
+      within(untouchedRow)
+        .getByRole("button", { name: "Mark subtask complete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    const disabledEditor = within(untouchedRow).getByRole("button", {
+      name: "Edit subtask Review launch notes",
+    }) as HTMLButtonElement;
+    expect(disabledEditor.disabled).toBe(true);
+    fireEvent.click(disabledEditor);
+    expect(screen.queryByRole("textbox", { name: "Subtask title for Review launch notes" })).toBeNull();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/subtasks/subtask-brief");
@@ -438,6 +505,7 @@ describe("DashboardOverview in-progress panel", () => {
 
     renderExpandedSubtasks([
       { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+      { id: "subtask-review", isComplete: false, title: "Review launch notes" },
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: "Edit subtask Draft intro copy" }));
@@ -451,6 +519,7 @@ describe("DashboardOverview in-progress panel", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("button", { name: "Edit subtask Revise intro copy" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Edit subtask Review launch notes" })).toBeDefined();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/subtasks/subtask-brief");
@@ -519,6 +588,24 @@ describe("DashboardOverview in-progress panel", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Edit subtask Draft intro copy" })).toBeDefined();
+  });
+
+  test("keeps editing when an unhandled subtask title key is pressed", () => {
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit subtask Draft intro copy" }));
+    const input = screen.getByRole("textbox", {
+      name: "Subtask title for Draft intro copy",
+    }) as HTMLInputElement;
+
+    fireEvent.change(input, { target: { value: "Revise intro copy" } });
+    fireEvent.keyDown(input, { key: "a" });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(input.value).toBe("Revise intro copy");
+    expect(screen.getByRole("textbox", { name: "Subtask title for Draft intro copy" })).toBe(input);
   });
 
   test("reverts an unchanged subtask title without patching", () => {
@@ -605,6 +692,48 @@ describe("DashboardOverview in-progress panel", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       subtaskIds: ["subtask-review", "subtask-brief"],
     });
+  });
+
+  test("does not persist a subtask dropped onto itself", async () => {
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+      { id: "subtask-review", isComplete: false, title: "Review launch notes" },
+    ]);
+
+    const subtask = sortableSubtaskRow("Draft intro copy");
+    await dragRowOntoItself(subtask.row, subtask.handle);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(subtaskOrder()).toEqual(["Draft intro copy", "Review launch notes"]);
+  });
+
+  test("shows an error and restores the subtask order when reordering fails", async () => {
+    let resolveFetch!: (response: Response) => void;
+    fetchMock.mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+    renderExpandedSubtasks([
+      { id: "subtask-brief", isComplete: false, title: "Draft intro copy" },
+      { id: "subtask-review", isComplete: false, title: "Review launch notes" },
+    ]);
+
+    const first = sortableSubtaskRow("Draft intro copy");
+    const second = sortableSubtaskRow("Review launch notes");
+    await dragFirstRowAfterSecond(first.row, second.row, first.handle);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(subtaskOrder()).toEqual(["Review launch notes", "Draft intro copy"]),
+    );
+
+    resolveFetch(apiResponse({}, 500));
+
+    expect(await screen.findByText("Unable to reorder subtasks.")).toBeDefined();
+    await waitFor(() =>
+      expect(subtaskOrder()).toEqual(["Draft intro copy", "Review launch notes"]),
+    );
   });
 
   test("does not render a subtask caret for tasks without subtasks", () => {
@@ -918,6 +1047,7 @@ describe("DashboardOverview this week panel", () => {
             taskSummary({ id: "task-today", dueDate: "2026-07-14T00:00:00.000Z" }),
             taskSummary({ id: "task-today-2", dueDate: "2026-07-14T00:00:00.000Z" }),
             taskSummary({ id: "task-thursday", dueDate: "2026-07-16T00:00:00.000Z" }),
+            taskSummary({ id: "task-unscheduled", dueDate: null }),
           ],
         })}
       />,
@@ -947,6 +1077,12 @@ describe("DashboardOverview recently completed panel", () => {
               status: "DONE",
               title: "Ship the release notes",
             }),
+            taskSummary({
+              completedAt: null,
+              id: "task-missing-date",
+              status: "DONE",
+              title: "Close the follow-up",
+            }),
           ],
         })}
       />,
@@ -954,6 +1090,8 @@ describe("DashboardOverview recently completed panel", () => {
 
     expect(screen.getByText("Ship the release notes")).toBeDefined();
     expect(screen.getByText("Jul 12")).toBeDefined();
+    const undatedTask = screen.getByText("Close the follow-up").closest("div.flex.items-center");
+    expect(undatedTask?.querySelector("span")).toBeNull();
   });
 
   test("shows an empty state when nothing has been completed recently", () => {
@@ -1139,6 +1277,32 @@ describe("DashboardOverview new task menu", () => {
     expect(screen.queryByRole("button", { name: "New Task" })).toBeNull();
   });
 
+  test("renders the empty dashboard with and without a board available", () => {
+    const emptyDashboard = {
+      activeTaskCount: 0,
+      doneCount: 0,
+      inProgressCount: 0,
+      inProgressTasks: [],
+      totalTaskCount: 0,
+    };
+
+    render(<DashboardOverview data={dashboardSnapshot(emptyDashboard)} />);
+
+    expect(screen.getByText("Your blueprint is blank")).toBeDefined();
+    expect(screen.getByRole("button", { name: "New Task" })).toBeDefined();
+
+    cleanup();
+
+    render(
+      <DashboardOverview
+        data={dashboardSnapshot({ ...emptyDashboard, boardBreakdown: [] })}
+      />,
+    );
+
+    expect(screen.getByText("Your blueprint is blank")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "New Task" })).toBeNull();
+  });
+
   test("opens the board picker and closes it via the backdrop", () => {
     const { container } = render(<DashboardOverview data={dashboardSnapshot()} />);
 
@@ -1179,32 +1343,46 @@ describe("DashboardOverview section reordering", () => {
     window.localStorage.clear();
   });
 
+  test("hydrates the complete section order stored in localStorage", async () => {
+    const { DASHBOARD_SECTION_ORDER_DEFAULT, writeDashboardSectionOrder } = await import(
+      "@/lib/board-preferences"
+    );
+    const storedOrder = [...DASHBOARD_SECTION_ORDER_DEFAULT].reverse();
+    writeDashboardSectionOrder(storedOrder);
+
+    render(<DashboardOverview data={dashboardSnapshot()} isAdmin />);
+
+    await waitFor(() =>
+      expect(sectionOrder()).toEqual([
+        "Active Tokens",
+        "Board Health",
+        "Needs Attention",
+        "Recently Completed",
+        "This Week",
+        "Overdue & Due Soon",
+        "In Progress",
+        "Snapshot",
+      ]),
+    );
+  });
+
+  test("does not persist a dashboard section dropped onto itself", async () => {
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    const section = sortableSection("Snapshot");
+    await dragRowOntoItself(section.row, section.handle);
+
+    const { readDashboardSectionOrder } = await import("@/lib/board-preferences");
+    expect(readDashboardSectionOrder()).toBeNull();
+    expect(sectionOrder().slice(0, 2)).toEqual(["Snapshot", "In Progress"]);
+  });
+
   test("reorders sections and persists the complete order", async () => {
     render(<DashboardOverview data={dashboardSnapshot()} />);
 
-    const snapshotHandle = screen.getByRole("button", {
-      name: "Reorder Snapshot section",
-    });
-    const inProgressHandle = screen.getByRole("button", {
-      name: "Reorder In Progress section",
-    });
-    const sectionGrid = snapshotHandle.closest("div.grid.gap-6");
-    const snapshotSection = Array.from(sectionGrid?.children ?? []).find((section) =>
-      section.contains(snapshotHandle),
-    );
-    const inProgressSection = Array.from(sectionGrid?.children ?? []).find((section) =>
-      section.contains(inProgressHandle),
-    );
-
-    expect(sectionGrid).not.toBeNull();
-    expect(snapshotSection).toBeDefined();
-    expect(inProgressSection).toBeDefined();
-
-    await dragFirstRowAfterSecond(
-      snapshotSection as HTMLElement,
-      inProgressSection as HTMLElement,
-      snapshotHandle,
-    );
+    const snapshot = sortableSection("Snapshot");
+    const inProgress = sortableSection("In Progress");
+    await dragFirstRowAfterSecond(snapshot.row, inProgress.row, snapshot.handle);
 
     await waitFor(() =>
       expect(
