@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -101,6 +101,16 @@ function apiResponse(body: unknown, status = 200) {
   });
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
 function selectAttachmentForUpload() {
   const file = new File(["pdf-bytes"], "spec.pdf", { type: "application/pdf" });
   fireEvent.change(screen.getByLabelText("Upload attachment"), {
@@ -126,6 +136,11 @@ function usedWholeTaskSubtaskPatch(taskId: string) {
       Array.isArray(requestJsonBody(request)?.subtasks)
     );
   });
+}
+
+function openSubtasksPanel() {
+  fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+  return screen.getByRole("region", { name: "Subtasks for Visible task" });
 }
 
 beforeEach(() => {
@@ -189,6 +204,115 @@ describe("BoardWorkspace subtask panel granular API", () => {
 
     expect(screen.queryByRole("region", { name: panelName })).toBeNull();
     expect(screen.getByRole("button", { name: "Open subtasks menu" })).toBeDefined();
+  });
+
+  test("flushes an edited subtask title on Enter", async () => {
+    const initialTask = task();
+    const renamedTask = task({
+      subtasks: [subtask({ title: "Ready for review" })],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: renamedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+    openSubtasksPanel();
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "Ready for review" } });
+
+    expect(fireEvent.keyDown(titleInput, { key: "Enter" })).toBe(false);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/subtasks/subtask-1");
+    expect(init.method).toBe("PATCH");
+    expect(requestJsonBody(init)).toEqual({ title: "Ready for review" });
+    expect(await screen.findByDisplayValue("Ready for review")).toBeDefined();
+  });
+
+  test("reverts an edited subtask title on Escape", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.focus(titleInput);
+    fireEvent.change(titleInput, { target: { value: "Discard this edit" } });
+    expect(titleInput.value).toBe("Discard this edit");
+
+    const keepPanelOpen = (event: KeyboardEvent) => event.stopPropagation();
+    document.addEventListener("keydown", keepPanelOpen);
+    try {
+      expect(fireEvent.keyDown(titleInput, { key: "Escape" })).toBe(false);
+    } finally {
+      document.removeEventListener("keydown", keepPanelOpen);
+    }
+
+    expect(screen.getByDisplayValue("Draft outline")).toBe(titleInput);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("rolls back a failed subtask patch without changing sibling rows", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const request = deferred<Response>();
+    fetchMock.mockReturnValueOnce(request.promise);
+
+    render(<BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />);
+    openSubtasksPanel();
+
+    const changedRow = screen.getByDisplayValue("Draft outline").closest(".group") as HTMLElement;
+    const siblingRow = screen.getByDisplayValue("Check copy").closest(".group") as HTMLElement;
+    fireEvent.click(within(changedRow).getByRole("button", { name: "Mark subtask complete" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(
+      within(changedRow)
+        .getByRole("button", { name: "Mark subtask incomplete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      within(siblingRow)
+        .getByRole("button", { name: "Mark subtask complete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+
+    await act(async () => {
+      request.reject(new Error("Subtask patch failed."));
+      await request.promise.catch(() => undefined);
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Subtask patch failed.");
+    expect(
+      within(changedRow)
+        .getByRole("button", { name: "Mark subtask complete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(
+      within(siblingRow)
+        .getByRole("button", { name: "Mark subtask complete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+  });
+
+  test("shows the generic error and rolls back a non-Error subtask patch rejection", async () => {
+    fetchMock.mockRejectedValueOnce("network down");
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const row = screen.getByDisplayValue("Draft outline").closest(".group") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: "Mark subtask complete" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Unable to save.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      within(row)
+        .getByRole("button", { name: "Mark subtask complete" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
   });
 
   test("toggles and adds subtasks through granular endpoints", async () => {
