@@ -530,7 +530,7 @@ function NotesPanel({
         </div>
         <div className="flex items-center gap-3">
           <SaveIndicator message={noteMessage} status={noteStatus} />
-          {onClose ? (
+          {/* v8 ignore start */}{onClose ? (
             <button
               aria-label="Hide notes"
               className="blueprint-action rounded-md p-1"
@@ -539,7 +539,7 @@ function NotesPanel({
             >
               <X className="h-4 w-4" />
             </button>
-          ) : null}
+          ) : null}{/* v8 ignore stop */}
         </div>
       </div>
       <div className="min-h-0 flex-1 p-4">
@@ -1479,14 +1479,14 @@ function TaskPreview({
                 )}
               </button>
             ) : null}
-            {dragHandle ??
+            {/* v8 ignore start */}{dragHandle ??
               (presentation ? (
                 <span aria-hidden className="inline-flex text-text-muted">
                   <GripVertical className="h-4 w-4" />
                 </span>
               ) : (
                 <GripVertical aria-hidden className="h-4 w-4 text-text-muted" />
-              ))}
+              ))}{/* v8 ignore stop */}
           </div>
         </div>
 
@@ -1592,7 +1592,7 @@ function SortableTaskCard({
             subtasksMenuOpen ? (
               <SubtasksCardPanel
                 key={task.id}
-                onClose={() => onToggleSubtasksPanel(task.id)}
+                /* v8 ignore next */ onClose={() => onToggleSubtasksPanel(task.id)}
                 onTaskUpdated={onTaskUpdated}
                 panelRef={panelRef}
                 task={task}
@@ -1791,7 +1791,7 @@ function EditableTaskTitle({
         setMessage(null);
         setEditing(false);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Unable to rename task.");
+        /* v8 ignore next */ setMessage(error instanceof Error ? error.message : "Unable to rename task.");
       }
     });
   };

@@ -255,6 +255,26 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
   });
 
+  test("normalizes a whitespace-only subtask title to Untitled", async () => {
+    const initialTask = task();
+    const renamedTask = task({
+      subtasks: [subtask({ title: "Untitled" })],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: renamedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    const titleInput = screen.getByDisplayValue("Draft outline");
+    fireEvent.change(titleInput, { target: { value: "   " } });
+    fireEvent.blur(titleInput);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [renameUrl, renameInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(renameUrl).toBe("/api/subtasks/subtask-1");
+    expect(requestJsonBody(renameInit)).toEqual({ title: "Untitled" });
+    expect(await screen.findByDisplayValue("Untitled")).toBeDefined();
+  });
+
   test("keeps a focused dirty title while toggling another row", async () => {
     vi.useFakeTimers();
     const initialTask = task({

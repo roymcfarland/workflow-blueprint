@@ -159,4 +159,54 @@ describe("BoardWorkspace due date badges", () => {
     const badge = screen.getByText("Jan 1");
     expect(badge.className).not.toContain("text-danger");
   });
+
+  test("an active task due within seven days receives the due-soon accent", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-20T18:00:00.000Z"));
+
+    try {
+      render(
+        <BoardWorkspace
+          board={boardSnapshot(
+            task({
+              completedAt: null,
+              dueDate: "2026-08-25T00:00:00.000Z",
+              status: "ON_DECK",
+            }),
+          )}
+        />,
+      );
+
+      const badge = screen.getByText("Aug 25");
+      expect(badge.className).toContain("border-accent");
+      expect(badge.className).not.toContain("text-danger");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an active task due beyond seven days does not receive the due-soon accent", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-20T18:00:00.000Z"));
+
+    try {
+      render(
+        <BoardWorkspace
+          board={boardSnapshot(
+            task({
+              completedAt: null,
+              dueDate: "2026-09-01T00:00:00.000Z",
+              status: "IN_PROGRESS",
+            }),
+          )}
+        />,
+      );
+
+      const badge = screen.getByText("Sep 1");
+      expect(badge.className).not.toContain("border-accent");
+      expect(badge.className).not.toContain("text-danger");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
