@@ -131,6 +131,57 @@ describe("BoardWorkspace quick-add", () => {
     localStorage.clear();
   });
 
+  test("opens the default composer on first paint when autoOpenNewTask is enabled", () => {
+    const defaultRender = render(<BoardWorkspace board={emptyBoard()} />);
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+    defaultRender.unmount();
+
+    render(<BoardWorkspace autoOpenNewTask board={emptyBoard()} />);
+
+    expect(screen.getByRole("textbox", { name: "Add task to Up Next" })).toBeDefined();
+  });
+
+  test("opens the default composer from the header New task button", () => {
+    render(<BoardWorkspace board={emptyBoard()} />);
+    const newTaskButtons = screen.getAllByRole("button", { name: "New task" });
+
+    expect(newTaskButtons).toHaveLength(2);
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+
+    fireEvent.click(newTaskButtons[0]);
+
+    expect(screen.getByRole("textbox", { name: "Add task to Up Next" })).toBeDefined();
+  });
+
+  test("opens the default composer from the empty-state New task button", () => {
+    render(<BoardWorkspace board={emptyBoard()} />);
+    const newTaskButtons = screen.getAllByRole("button", { name: "New task" });
+
+    expect(newTaskButtons).toHaveLength(2);
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+
+    fireEvent.click(newTaskButtons[1]);
+
+    expect(screen.getByRole("textbox", { name: "Add task to Up Next" })).toBeDefined();
+  });
+
+  test("opens and closes the list-view quick-add composer", () => {
+    render(<BoardWorkspace board={emptyBoard()} />);
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    const addButton = screen.getByRole("button", { name: "Add task to Up Next" });
+
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+    fireEvent.click(addButton);
+
+    const input = screen.getByRole("textbox", { name: "Add task to Up Next" });
+    expect(input).toBeDefined();
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(screen.queryByRole("textbox", { name: "Add task to Up Next" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add task to Up Next" })).toBeDefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test("creates a task via quick-add through the board endpoint", async () => {
     vi.useFakeTimers();
     try {

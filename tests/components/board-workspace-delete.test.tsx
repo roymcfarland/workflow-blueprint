@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -121,6 +121,33 @@ afterEach(() => {
 });
 
 describe("BoardWorkspace task detail modal delete", () => {
+  test("returns the visible task-removed status to idle after its delay", async () => {
+    vi.useFakeTimers();
+    try {
+      render(<BoardWorkspace board={boardSnapshot([task()])} />);
+
+      expect(screen.queryByRole("status")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+      const deleteButton = screen.getByRole("button", { name: "Delete task" });
+
+      await act(async () => {
+        fireEvent.click(deleteButton);
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(screen.getByRole("status").textContent).toBe("Task removed");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1800);
+      });
+
+      expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("deleting one task does not leave the delete button disabled for the next task", async () => {
     render(
       <BoardWorkspace

@@ -157,6 +157,40 @@ afterEach(() => {
 });
 
 describe("BoardWorkspace subtask panel granular API", () => {
+  test("keeps the panel open for other keys and closes it on Escape", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    const panelName = "Subtasks for Visible task";
+
+    expect(screen.queryByRole("region", { name: panelName })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    expect(screen.getByRole("region", { name: panelName })).toBeDefined();
+
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(screen.getByRole("region", { name: panelName })).toBeDefined();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("region", { name: panelName })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open subtasks menu" })).toBeDefined();
+  });
+
+  test("closes the subtask panel when its toggle is clicked a second time", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    const panelName = "Subtasks for Visible task";
+    const openButton = screen.getByRole("button", { name: "Open subtasks menu" });
+
+    expect(openButton.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("region", { name: panelName })).toBeNull();
+    fireEvent.click(openButton);
+
+    const closeButton = screen.getByRole("button", { name: "Close subtasks menu" });
+    expect(closeButton.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("region", { name: panelName })).toBeDefined();
+    fireEvent.click(closeButton);
+
+    expect(screen.queryByRole("region", { name: panelName })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open subtasks menu" })).toBeDefined();
+  });
+
   test("toggles and adds subtasks through granular endpoints", async () => {
     const initialTask = task();
     const toggledTask = task({

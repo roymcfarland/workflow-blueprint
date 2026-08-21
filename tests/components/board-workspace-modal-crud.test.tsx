@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardWorkspace } from "@/components/board-workspace";
@@ -108,6 +109,46 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+type FiberNode = {
+  child: FiberNode | null;
+  memoizedProps: unknown;
+  return: FiberNode | null;
+  sibling: FiberNode | null;
+  stateNode?: { current?: FiberNode };
+};
+
+function findTaskDetailProps(node: HTMLElement) {
+  const fiberKey = Object.keys(node).find((key) => key.startsWith("__reactFiber$"));
+  if (!fiberKey) {
+    throw new Error("Could not find the rendered BoardWorkspace tree");
+  }
+
+  let fiber = (node as unknown as Record<string, FiberNode>)[fiberKey];
+  while (fiber.return) {
+    fiber = fiber.return;
+  }
+
+  const stack = [fiber.stateNode?.current ?? fiber];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const props = current.memoizedProps;
+    if (
+      props &&
+      typeof props === "object" &&
+      "task" in props &&
+      typeof Reflect.get(props, "onDelete") === "function" &&
+      typeof Reflect.get(props, "onSave") === "function" &&
+      typeof Reflect.get(props, "onTaskUpdated") === "function"
+    ) {
+      return props as { task: SerializedTask | null | undefined };
+    }
+    if (current.sibling) stack.push(current.sibling);
+    if (current.child) stack.push(current.child);
+  }
+
+  throw new Error("Could not find TaskDetailModal props");
+}
+
 beforeEach(() => {
   localStorage.clear();
   Object.defineProperty(window, "matchMedia", {
@@ -137,6 +178,43 @@ afterEach(() => {
 });
 
 describe("TaskDetailModal remaining CRUD", () => {
+  test("normalizes a deleted open task to null before the modal closes", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true }));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const realSetTimeout = globalThis.setTimeout;
+    let workspace: HTMLElement | null = null;
+    let detailTaskDuringDelete: SerializedTask | null | undefined;
+    let forceWorkspaceRender: () => void = () => {
+      throw new Error("Workspace render harness is not ready");
+    };
+
+    function WorkspaceHarness() {
+      const [, setVersion] = useState(0);
+      forceWorkspaceRender = () => setVersion((version) => version + 1);
+      return <BoardWorkspace board={boardSnapshot(task())} />;
+    }
+
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((callback, delay, ...args) => {
+      if (delay === 1800 && workspace) {
+        flushSync(forceWorkspaceRender);
+        detailTaskDuringDelete = findTaskDetailProps(workspace).task;
+      }
+      return realSetTimeout(callback, delay, ...args);
+    });
+    const { container } = render(<WorkspaceHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit task details" }));
+    workspace = container.firstElementChild as HTMLElement;
+
+    expect(findTaskDetailProps(workspace).task?.id).toBe("task-active");
+    fireEvent.click(screen.getByRole("button", { name: "Delete task" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Details for Visible task" })).toBeNull(),
+    );
+    expect(detailTaskDuringDelete).toBeNull();
+  });
+
   test("removes a label", async () => {
     const initialTask = task({
       labels: [{ id: "label-1", text: "Urgent", color: "#ef4444", sortOrder: 0 }],
