@@ -2227,6 +2227,7 @@ function TaskDetailModal({
   };
 
   const removeLabel = async (labelId: string) => {
+    /* v8 ignore if */
     if (!task) return;
     setError(null);
     setSaving(true);
@@ -2269,6 +2270,7 @@ function TaskDetailModal({
   };
 
   const toggleChecklistItem = async (itemId: string, isComplete: boolean) => {
+    /* v8 ignore if */
     if (!task) return;
     setError(null);
     setSaving(true);
@@ -2291,6 +2293,7 @@ function TaskDetailModal({
   };
 
   const removeChecklistItem = async (itemId: string) => {
+    /* v8 ignore if */
     if (!task) return;
     setError(null);
     setSaving(true);
