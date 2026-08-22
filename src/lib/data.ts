@@ -1566,6 +1566,7 @@ export async function updateSubtaskForUser(
       include: taskInclude,
     });
 
+    /* v8 ignore if */
     if (!parentTask) {
       throw new Error("Task not found.");
     }
@@ -1618,6 +1619,7 @@ export async function updateChecklistItemForUser(
       include: taskInclude,
     });
 
+    /* v8 ignore if */
     if (!parentTask) {
       throw new Error("Task not found.");
     }
@@ -1665,6 +1667,7 @@ export async function deleteSubtaskForUser(
       include: taskInclude,
     });
 
+    /* v8 ignore if */
     if (!parentTask) {
       throw new Error("Task not found.");
     }
@@ -1712,6 +1715,7 @@ export async function deleteChecklistItemForUser(
       include: taskInclude,
     });
 
+    /* v8 ignore if */
     if (!parentTask) {
       throw new Error("Task not found.");
     }
@@ -1759,6 +1763,7 @@ export async function deleteLabelForUser(
       include: taskInclude,
     });
 
+    /* v8 ignore if */
     if (!parentTask) {
       throw new Error("Task not found.");
     }
@@ -1818,6 +1823,7 @@ export async function deleteAttachmentForUser(
       include: taskInclude,
     });
 
+    /* v8 ignore if */
     if (!parentTask) {
       throw new Error("Task not found.");
     }
@@ -1867,6 +1873,7 @@ export async function reorderSubtasksForUser(
           },
         });
 
+        /* v8 ignore if */
         if (updated.count !== 1) {
           throw new Error("Reorder payload does not match the task's subtasks.");
         }

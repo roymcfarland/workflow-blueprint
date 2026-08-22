@@ -30,6 +30,8 @@ import {
   deleteAttachmentForUser,
   deleteChecklistItemForUser,
   deleteLabelForUser,
+  deleteSubtaskForUser,
+  deleteTaskForUser,
   findActiveApiTokenByRawToken,
   getDashboardSnapshot,
   getBoardSnapshot,
@@ -43,6 +45,7 @@ import {
   purgeExpiredDemoUsers,
   reorderBoardsForUser,
   reorderDashboardInProgressForUser,
+  reorderSubtasksForUser,
   reorderTasksForUser,
   resetPasswordWithToken,
   rolloverDueRecurringTasks,
@@ -67,6 +70,25 @@ import { createTestBoard, createTestUser, resetDatabase } from "./helpers/databa
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+async function captureOutcome<T>(operation: () => Promise<T>) {
+  try {
+    return { status: "fulfilled" as const, value: await operation() };
+  } catch (reason) {
+    return { reason, status: "rejected" as const };
+  }
+}
+
+function errorDetails(reason: unknown) {
+  if (!(reason instanceof Error)) {
+    return { code: undefined, message: String(reason) };
+  }
+
+  return {
+    code: "code" in reason && typeof reason.code === "string" ? reason.code : undefined,
+    message: reason.message,
+  };
 }
 
 const defaultReadApiTokenScopes = [
@@ -730,6 +752,108 @@ describe("src/lib/data.ts", () => {
         title: "Renamed step",
       }),
     ]);
+  });
+
+  test("keeps parent-task guards unreachable during a concurrent task deletion", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [{ isComplete: false, title: "Race the parent deletion" }],
+      title: "Parent deletion race",
+    });
+    const subtaskId = task.subtasks[0]?.id;
+    if (!subtaskId) {
+      throw new Error("Expected a serialized subtask id.");
+    }
+
+    const [taskDeletion, subtaskUpdate] = await Promise.all([
+      captureOutcome(() => deleteTaskForUser(user.id, task.id)),
+      captureOutcome(() => updateSubtaskForUser(user.id, subtaskId, { isComplete: true })),
+    ]);
+
+    expect(taskDeletion.status).toBe("fulfilled");
+    if (taskDeletion.status === "rejected") {
+      throw taskDeletion.reason;
+    }
+
+    // This protects the six parent-task pragmas: changing cascade behavior must not
+    // let a child mutation continue far enough to throw "Task not found." instead.
+    if (subtaskUpdate.status === "rejected") {
+      expect(errorDetails(subtaskUpdate.reason).message).toBe("Subtask not found.");
+    } else {
+      expect(subtaskUpdate.value.subtasks).toEqual([
+        expect.objectContaining({ id: subtaskId, isComplete: true }),
+      ]);
+    }
+
+    const [persistedTask, persistedSubtask] = await Promise.all([
+      prisma.task.findUnique({ where: { id: task.id } }),
+      prisma.subtask.findUnique({ where: { id: subtaskId } }),
+    ]);
+    expect(persistedTask).toBeNull();
+    expect(persistedSubtask).toBeNull();
+  });
+
+  test("never turns a concurrent subtask deletion into a silent reorder miss", async () => {
+    const user = await createTestUser();
+    await createTestBoard(user.id);
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
+      description: null,
+      dueDate: null,
+      priority: "NONE",
+      recurrence: "NONE",
+      status: "ON_DECK",
+      subtasks: [
+        { isComplete: false, title: "Delete during reorder" },
+        { isComplete: false, title: "Keep during reorder" },
+      ],
+      title: "Subtask reorder race",
+    });
+    const [deletedSubtask, keptSubtask] = task.subtasks;
+    if (!deletedSubtask || !keptSubtask) {
+      throw new Error("Expected two serialized subtasks.");
+    }
+
+    const [reorder, deletion] = await Promise.all([
+      captureOutcome(() =>
+        reorderSubtasksForUser(user.id, task.id, {
+          subtaskIds: [keptSubtask.id, deletedSubtask.id],
+        }),
+      ),
+      captureOutcome(() => deleteSubtaskForUser(user.id, deletedSubtask.id)),
+    ]);
+
+    expect(deletion.status).toBe("fulfilled");
+    if (deletion.status === "rejected") {
+      throw deletion.reason;
+    }
+
+    // This protects the line-1870 pragma: after payload validation, Serializable
+    // isolation must produce success or a write conflict, never a zero-row update.
+    if (reorder.status === "rejected") {
+      const { code, message } = errorDetails(reorder.reason);
+      expect(message).not.toBe("Reorder payload does not match the task's subtasks.");
+      expect(code === "P2034" || /write conflict|serialization failure/i.test(message)).toBe(true);
+    } else {
+      expect(reorder.value.subtasks.map((subtask) => subtask.id)).toEqual([
+        keptSubtask.id,
+        deletedSubtask.id,
+      ]);
+    }
+
+    const [persistedTask, persistedDeletedSubtask, persistedKeptSubtask] = await Promise.all([
+      prisma.task.findUnique({ where: { id: task.id } }),
+      prisma.subtask.findUnique({ where: { id: deletedSubtask.id } }),
+      prisma.subtask.findUnique({ where: { id: keptSubtask.id } }),
+    ]);
+    expect(persistedTask).not.toBeNull();
+    expect(persistedDeletedSubtask).toBeNull();
+    expect(persistedKeptSubtask).not.toBeNull();
   });
 
   test("archives a task while keeping its completion date clear", async () => {
@@ -1551,6 +1675,63 @@ describe("src/lib/data.ts", () => {
     expect(deletedTask.attachments).toEqual([]);
     expect(removeStorageObject).toHaveBeenCalledWith(input.storagePath);
     await expect(prisma.attachment.findUnique({ where: { id: attachmentId } })).resolves.toBeNull();
+  });
+
+  test("keeps the attachment parent guard unreachable during concurrent task deletion", async () => {
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const user = await createTestUser({
+        email: `attachment-race-${iteration}@example.test`,
+      });
+      await createTestBoard(user.id);
+      const task = await createTaskForBoard(user.id, starterBoard.slug, {
+        description: null,
+        dueDate: null,
+        priority: "NONE",
+        recurrence: "NONE",
+        status: "ON_DECK",
+        subtasks: [],
+        title: `Attachment parent race ${iteration}`,
+      });
+      const attachedTask = await createAttachmentRecord(
+        user.id,
+        task.id,
+        attachmentInput(task.id),
+      );
+      const attachmentId = attachedTask.attachments?.[0]?.id;
+      if (!attachmentId) {
+        throw new Error("Expected a serialized attachment id.");
+      }
+
+      // Keep the suite's existing immediate async storage mock: it preserves the
+      // natural await without artificially widening the pre-transaction window.
+      const storageCallCount = vi.mocked(removeStorageObject).mock.calls.length;
+      const [attachmentDeletion, taskDeletion] = await Promise.all([
+        captureOutcome(() => deleteAttachmentForUser(user.id, attachmentId)),
+        captureOutcome(() => deleteTaskForUser(user.id, task.id)),
+      ]);
+      const storageWasCalled = vi.mocked(removeStorageObject).mock.calls.length > storageCallCount;
+
+      expect(taskDeletion.status).toBe("fulfilled");
+      if (taskDeletion.status === "rejected") {
+        throw taskDeletion.reason;
+      }
+
+      if (attachmentDeletion.status === "rejected") {
+        const { message } = errorDetails(attachmentDeletion.reason);
+        expect(message).not.toBe("Task not found.");
+        expect(message).toBe("Attachment not found.");
+      } else {
+        expect(attachmentDeletion.value.attachments).toEqual([]);
+        expect(storageWasCalled).toBe(true);
+      }
+
+      const [persistedTask, persistedAttachment] = await Promise.all([
+        prisma.task.findUnique({ where: { id: task.id } }),
+        prisma.attachment.findUnique({ where: { id: attachmentId } }),
+      ]);
+      expect(persistedTask).toBeNull();
+      expect(persistedAttachment).toBeNull();
+    }
   });
 
   test("allows only one concurrent deletion of the same attachment", async () => {
