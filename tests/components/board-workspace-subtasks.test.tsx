@@ -230,7 +230,15 @@ describe("BoardWorkspace subtask panel granular API", () => {
   });
 
   test("reverts an edited subtask title on Escape", () => {
-    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
     openSubtasksPanel();
 
     const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
@@ -247,6 +255,7 @@ describe("BoardWorkspace subtask panel granular API", () => {
     }
 
     expect(screen.getByDisplayValue("Draft outline")).toBe(titleInput);
+    expect(screen.getByDisplayValue("Check copy")).toBeDefined();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -448,6 +457,77 @@ describe("BoardWorkspace subtask panel granular API", () => {
     const restoredTitle = screen.getByDisplayValue("Dirty rollback title");
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fireEvent.keyDown(restoredTitle, { key: "Enter" })).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("falls back to a restored row title after a reconcile evicts its title cache", async () => {
+    vi.useFakeTimers();
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Check copy",
+    });
+    const removeRequest = deferred<Response>();
+    const siblingRequest = deferred<Response>();
+    fetchMock
+      .mockReturnValueOnce(removeRequest.promise)
+      .mockReturnValueOnce(siblingRequest.promise);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    openSubtasksPanel();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "Dirty cached title" } });
+    const removedRow = titleInput.closest(".group") as HTMLElement;
+    fireEvent.click(within(removedRow).getByRole("button", { name: "Remove subtask" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByDisplayValue("Dirty cached title")).toBeNull();
+
+    const siblingRow = screen.getByDisplayValue("Check copy").closest(".group") as HTMLElement;
+    fireEvent.click(within(siblingRow).getByRole("button", { name: "Mark subtask complete" }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      siblingRequest.resolve(
+        apiResponse({
+          ok: true,
+          task: task({ subtasks: [{ ...secondSubtask, isComplete: true }] }),
+        }),
+      );
+      await siblingRequest.promise;
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      removeRequest.resolve(apiResponse({ message: "Subtask removal failed." }, 500));
+      await removeRequest.promise;
+      await Promise.resolve();
+    });
+
+    const restoredTitle = screen.getByDisplayValue("Dirty cached title") as HTMLTextAreaElement;
+    fireEvent.change(restoredTitle, { target: { value: "Cache-miss edit" } });
+    expect(restoredTitle.value).toBe("Cache-miss edit");
+    expect(vi.getTimerCount()).toBe(0);
+
+    const keepPanelOpen = (event: KeyboardEvent) => event.stopPropagation();
+    document.addEventListener("keydown", keepPanelOpen);
+    try {
+      expect(fireEvent.keyDown(restoredTitle, { key: "Escape" })).toBe(false);
+    } finally {
+      document.removeEventListener("keydown", keepPanelOpen);
+    }
+
+    expect(restoredTitle.value).toBe("Cache-miss edit");
+    expect(screen.getByDisplayValue("Check copy")).toBeDefined();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(650);
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -717,6 +797,108 @@ describe("BoardWorkspace subtask panel granular API", () => {
     ).toBe("true");
   });
 
+  test("ignores empty and whitespace-only subtask additions", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" }) as HTMLInputElement;
+    expect(addInput.disabled).toBe(false);
+    fireEvent.blur(addInput);
+    fireEvent.change(addInput, { target: { value: "   " } });
+    expect(fireEvent.keyDown(addInput, { key: "Enter" })).toBe(false);
+
+    expect(addInput.value).toBe("   ");
+    expect(screen.getAllByRole("textbox", { name: "Subtask title" })).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("removes an optimistic add when the server returns no created subtask", async () => {
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: task() }));
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" });
+    fireEvent.change(addInput, { target: { value: "Missing from response" } });
+    fireEvent.keyDown(addInput, { key: "Enter" });
+
+    expect(screen.getByDisplayValue("Missing from response")).toBeDefined();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByDisplayValue("Missing from response")).toBeNull());
+    expect(screen.getByDisplayValue("Draft outline")).toBeDefined();
+  });
+
+  test.each([
+    {
+      error: new Error("Subtask creation failed."),
+      kind: "Error",
+      message: "Subtask creation failed.",
+    },
+    { error: "network down", kind: "non-Error", message: "Unable to add subtask." },
+  ])("removes a failed optimistic add and shows the $kind rejection message", async ({
+    error,
+    message,
+  }) => {
+    fetchMock.mockRejectedValueOnce(error);
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" });
+    fireEvent.change(addInput, { target: { value: "Rejected subtask" } });
+    fireEvent.keyDown(addInput, { key: "Enter" });
+
+    expect(screen.getByDisplayValue("Rejected subtask")).toBeDefined();
+    expect((await screen.findByRole("alert")).textContent).toBe(message);
+    expect(screen.queryByDisplayValue("Rejected subtask")).toBeNull();
+    expect(screen.getByDisplayValue("Draft outline")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("adds a subtask on blur without refocusing the add input", async () => {
+    const addedTask = task({
+      subtasks: [
+        subtask(),
+        subtask({
+          id: "subtask-2",
+          priority: "NONE",
+          sortOrder: 1,
+          title: "Added on blur",
+        }),
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(apiResponse({ ok: true, task: addedTask }));
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" }) as HTMLInputElement;
+    fireEvent.focus(addInput);
+    fireEvent.change(addInput, { target: { value: "Added on blur" } });
+    fireEvent.blur(addInput);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/tasks/task-active/subtasks");
+    expect(init.method).toBe("POST");
+    expect(requestJsonBody(init)).toEqual({ priority: "NONE", title: "Added on blur" });
+    expect(await screen.findByDisplayValue("Added on blur")).toBeDefined();
+    expect(document.activeElement).not.toBe(addInput);
+  });
+
+  test("leaves a non-Enter key in the add input unhandled", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" }) as HTMLInputElement;
+    fireEvent.change(addInput, { target: { value: "Keep typing" } });
+
+    expect(fireEvent.keyDown(addInput, { key: "a" })).toBe(true);
+    expect(addInput.value).toBe("Keep typing");
+    expect(screen.getAllByRole("textbox", { name: "Subtask title" })).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test("debounces inline title edits through the granular endpoint", async () => {
     vi.useFakeTimers();
     const initialTask = task();
@@ -745,6 +927,27 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(renameInit.method).toBe("PATCH");
     expect(requestJsonBody(renameInit)).toEqual({ title: "Draft outline updated" });
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
+  });
+
+  test("cancels a pending title debounce when the original title is restored", async () => {
+    vi.useFakeTimers();
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const titleInput = screen.getByDisplayValue("Draft outline") as HTMLTextAreaElement;
+    fireEvent.change(titleInput, { target: { value: "Temporary title" } });
+    expect(vi.getTimerCount()).toBe(1);
+
+    fireEvent.change(titleInput, { target: { value: "Draft outline" } });
+    expect(vi.getTimerCount()).toBe(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(650);
+    });
+
+    expect(titleInput.value).toBe("Draft outline");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test("normalizes a whitespace-only subtask title to Untitled", async () => {
