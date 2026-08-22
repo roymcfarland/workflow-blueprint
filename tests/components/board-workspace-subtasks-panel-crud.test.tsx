@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { BoardWorkspace } from "@/components/board-workspace";
@@ -85,6 +85,35 @@ function rect(overrides: Partial<DOMRect>): DOMRect {
   } as DOMRect;
 }
 
+function positionSubtaskRows(handles: HTMLElement[]) {
+  handles.forEach((handle, index) => {
+    const top = index * 60;
+    const row = handle.closest(".group") as HTMLElement;
+    row.getBoundingClientRect = vi.fn(() =>
+      rect({ left: 0, right: 200, top, bottom: top + 50 }),
+    );
+    handle.getBoundingClientRect = vi.fn(() =>
+      rect({ left: 10, right: 30, top: top + 10, bottom: top + 30 }),
+    );
+  });
+}
+
+async function dragSubtask(handle: HTMLElement, startY: number, endY: number) {
+  vi.useFakeTimers();
+  try {
+    fireEvent.mouseDown(handle, { button: 0, clientX: 20, clientY: startY });
+    for (const clientY of [startY + 15, (startY + endY) / 2, endY]) {
+      fireEvent.mouseMove(document, { clientX: 20, clientY });
+    }
+    fireEvent.mouseUp(document, { button: 0, clientX: 20, clientY: endY });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
 beforeEach(() => {
   localStorage.clear();
   Object.defineProperty(window, "matchMedia", {
@@ -106,6 +135,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -253,32 +283,286 @@ describe("SubtasksCardPanel remove and reorder", () => {
 
     render(<BoardWorkspace board={boardSnapshot(initialTask)} />);
     fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     const handles = screen.getAllByRole("button", { name: "Reorder subtask" });
-    const firstRow = handles[0].closest(".group") as HTMLElement;
-    const secondRow = handles[1].closest(".group") as HTMLElement;
-    firstRow.getBoundingClientRect = vi.fn(() =>
-      rect({ left: 0, right: 200, top: 0, bottom: 50 }),
-    );
-    secondRow.getBoundingClientRect = vi.fn(() =>
-      rect({ left: 0, right: 200, top: 60, bottom: 110 }),
-    );
-    handles[0].getBoundingClientRect = vi.fn(() =>
-      rect({ left: 10, right: 30, top: 10, bottom: 30 }),
-    );
-
-    fireEvent.mouseDown(handles[0], { clientX: 20, clientY: 20, button: 0 });
-    fireEvent.mouseMove(document, { clientX: 20, clientY: 35 });
-    fireEvent.mouseMove(document, { clientX: 20, clientY: 55 });
-    fireEvent.mouseMove(document, { clientX: 20, clientY: 75 });
-    fireEvent.mouseMove(document, { clientX: 20, clientY: 85 });
-    fireEvent.mouseMove(document, { clientX: 20, clientY: 85 });
-    fireEvent.mouseUp(document, { clientX: 20, clientY: 85, button: 0 });
+    positionSubtaskRows(handles);
+    await dragSubtask(handles[0], 20, 85);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/tasks/task-active/subtasks/reorder");
     expect(init.method).toBe("POST");
     expect(requestJsonBody(init)).toEqual({ subtaskIds: ["subtask-2", "subtask-1"] });
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("textbox", { name: "Subtask title" })
+          .map((input) => (input as HTMLTextAreaElement).value),
+      ).toEqual(["Review copy", "Draft outline"]),
+    );
+  });
+
+  test("does not reorder while a different subtask mutation is in flight", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Review copy",
+    });
+    const patchTask = task({
+      subtasks: [subtask({ isComplete: true }), secondSubtask],
+    });
+    let resolvePatch!: (response: Response) => void;
+    const patchRequest = new Promise<Response>((resolve) => {
+      resolvePatch = resolve;
+    });
+    fetchMock.mockReturnValueOnce(patchRequest);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Mark subtask complete" })[0]);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const handles = screen.getAllByRole("button", { name: "Reorder subtask" });
+    expect((handles[0] as HTMLButtonElement).disabled).toBe(true);
+    expect((handles[1] as HTMLButtonElement).disabled).toBe(false);
+    positionSubtaskRows(handles);
+    await dragSubtask(handles[1], 80, 20);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen
+        .getAllByRole("textbox", { name: "Subtask title" })
+        .map((input) => (input as HTMLTextAreaElement).value),
+    ).toEqual(["Draft outline", "Review copy"]);
+
+    await act(async () => {
+      resolvePatch(apiResponse({ ok: true, task: patchTask }));
+      await patchRequest;
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Mark subtask incomplete" })).toBeDefined(),
+    );
+  });
+
+  test("shields a pending-created subtask from editing and reordering", async () => {
+    const createRequest = Promise.withResolvers<Response>();
+    const createdTask = task({
+      subtasks: [
+        subtask(),
+        subtask({
+          id: "subtask-2",
+          priority: "NONE",
+          sortOrder: 1,
+          title: "Pending create",
+        }),
+      ],
+    });
+    fetchMock.mockReturnValueOnce(createRequest.promise);
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" }) as HTMLInputElement;
+    expect(addInput.disabled).toBe(false);
+    fireEvent.change(addInput, { target: { value: "Pending create" } });
+    fireEvent.keyDown(addInput, { key: "Enter" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const pendingTitle = screen.getByDisplayValue("Pending create") as HTMLTextAreaElement;
+    const pendingRow = pendingTitle.closest(".group") as HTMLElement;
+    const pendingHandle = within(pendingRow).getByRole("button", {
+      name: "Reorder subtask",
+    }) as HTMLButtonElement;
+    expect(pendingTitle.disabled).toBe(true);
+    expect(pendingHandle.disabled).toBe(true);
+    expect(
+      (within(pendingRow).getByRole("button", {
+        name: "Mark subtask complete",
+      }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (within(pendingRow).getByRole("button", {
+        name: "Remove subtask",
+      }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    const existingRow = screen.getByDisplayValue("Draft outline").closest(".group") as HTMLElement;
+    const existingHandle = within(existingRow).getByRole("button", {
+      name: "Reorder subtask",
+    }) as HTMLButtonElement;
+    expect(existingHandle.disabled).toBe(false);
+    const handles = screen.getAllByRole("button", { name: "Reorder subtask" });
+    positionSubtaskRows(handles);
+    await dragSubtask(existingHandle, 20, 85);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen
+        .getAllByRole("textbox", { name: "Subtask title" })
+        .map((input) => (input as HTMLTextAreaElement).value),
+    ).toEqual(["Draft outline", "Pending create"]);
+
+    await act(async () => {
+      createRequest.resolve(apiResponse({ ok: true, task: createdTask }));
+      await createRequest.promise;
+    });
+    await waitFor(() =>
+      expect((screen.getByDisplayValue("Pending create") as HTMLTextAreaElement).disabled).toBe(
+        false,
+      ),
+    );
+  });
+
+  test("does not reorder when the active subtask vanishes during a concurrent reconcile", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Review copy",
+    });
+    const siblingRequest = Promise.withResolvers<Response>();
+    fetchMock.mockReturnValueOnce(siblingRequest.promise);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const rows = screen.getAllByRole("textbox", { name: "Subtask title" });
+    const firstRow = rows[0].closest(".group") as HTMLElement;
+    const secondRow = rows[1].closest(".group") as HTMLElement;
+    fireEvent.click(within(secondRow).getByRole("button", { name: "Mark subtask complete" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const handles = screen.getAllByRole("button", { name: "Reorder subtask" });
+    expect((handles[0] as HTMLButtonElement).disabled).toBe(false);
+    expect((handles[1] as HTMLButtonElement).disabled).toBe(true);
+    positionSubtaskRows(handles);
+    fireEvent.mouseDown(handles[0], { button: 0, clientX: 20, clientY: 20 });
+    for (const clientY of [35, 55, 75, 85]) {
+      fireEvent.mouseMove(document, { clientX: 20, clientY });
+    }
+
+    await act(async () => {
+      siblingRequest.resolve(
+        apiResponse({
+          ok: true,
+          task: task({ subtasks: [{ ...secondSubtask, isComplete: true }] }),
+        }),
+      );
+      await siblingRequest.promise;
+    });
+    await waitFor(() => expect(screen.queryByDisplayValue("Draft outline")).toBeNull());
+    expect(
+      (screen.getByRole("button", { name: "Reorder subtask" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.mouseUp(document, { button: 0, clientX: 20, clientY: 85 });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(firstRow.isConnected).toBe(false);
+    expect(screen.getByDisplayValue("Review copy")).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not reorder a subtask dropped onto itself", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Review copy",
+    });
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const handles = screen.getAllByRole("button", { name: "Reorder subtask" });
+    positionSubtaskRows(handles);
+    await dragSubtask(handles[0], 20, 35);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getAllByRole("textbox", { name: "Subtask title" })
+        .map((input) => (input as HTMLTextAreaElement).value),
+    ).toEqual(["Draft outline", "Review copy"]);
+  });
+
+  test("restores the previous subtask order when reordering fails", async () => {
+    const secondSubtask = subtask({
+      id: "subtask-2",
+      priority: "NONE",
+      sortOrder: 1,
+      title: "Review copy",
+    });
+    let resolveReorder!: (response: Response) => void;
+    const reorderRequest = new Promise<Response>((resolve) => {
+      resolveReorder = resolve;
+    });
+    fetchMock.mockReturnValueOnce(reorderRequest);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [subtask(), secondSubtask] }))} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open subtasks menu" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const handles = screen.getAllByRole("button", { name: "Reorder subtask" });
+    positionSubtaskRows(handles);
+    await dragSubtask(handles[0], 20, 85);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("textbox", { name: "Subtask title" })
+          .map((input) => (input as HTMLTextAreaElement).value),
+      ).toEqual(["Review copy", "Draft outline"]),
+    );
+
+    await act(async () => {
+      resolveReorder(apiResponse({ message: "Subtask reorder failed." }, 500));
+      await reorderRequest;
+    });
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("textbox", { name: "Subtask title" })
+          .map((input) => (input as HTMLTextAreaElement).value),
+      ).toEqual(["Draft outline", "Review copy"]),
+    );
+    expect(screen.getByRole("alert").textContent).toBe("Subtask reorder failed.");
   });
 });
