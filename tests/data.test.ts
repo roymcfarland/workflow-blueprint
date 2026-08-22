@@ -24,9 +24,11 @@ import {
   createAttachmentRecord,
   createBoardForUser,
   createChecklistItemForTask,
+  createInvitation,
   createLabelForTask,
   createPasswordResetToken,
   createTaskForBoard,
+  createUserAccountWithInvitation,
   deleteAttachmentForUser,
   deleteChecklistItemForUser,
   deleteLabelForUser,
@@ -48,10 +50,11 @@ import {
   reorderSubtasksForUser,
   reorderTasksForUser,
   resetPasswordWithToken,
+  revokeApiToken,
+  revokeInvitation,
   rolloverDueRecurringTasks,
   updateBoardForUser,
   updateChecklistItemForUser,
-  revokeApiToken,
   updateSubtaskForUser,
   updateTaskFieldsForUser,
   updateTaskForUser,
@@ -2815,6 +2818,126 @@ describe("src/lib/data.ts", () => {
       "expired@example.test": "EXPIRED",
       "pending@example.test": "PENDING",
       "revoked@example.test": "REVOKED",
+    });
+  });
+
+  test("rolls back account creation when invitation acceptance races revocation", async () => {
+    const distribution = { accepted: 0, revoked: 0 };
+
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const email = `accept-revoke-race-${iteration}@example.test`;
+      const inviter = await createTestUser({
+        email: `accept-revoke-inviter-${iteration}@example.test`,
+      });
+      const { invitation, token } = await createInvitation({
+        email,
+        invitedById: inviter.id,
+      });
+
+      const [acceptance, revocation] = await Promise.all([
+        captureOutcome(() =>
+          createUserAccountWithInvitation({
+            email,
+            inviteToken: token,
+            name: `Accept Revoke Race ${iteration}`,
+            passwordHash: "accept-revoke-password-hash",
+          }),
+        ),
+        captureOutcome(() => revokeInvitation(invitation.id)),
+      ]);
+
+      expect(acceptance.status).toBe("fulfilled");
+      if (acceptance.status === "rejected") {
+        throw acceptance.reason;
+      }
+      expect(revocation.status).toBe("fulfilled");
+      if (revocation.status === "rejected") {
+        throw revocation.reason;
+      }
+
+      const [persistedUser, persistedInvitation] = await Promise.all([
+        prisma.user.findUnique({ where: { email } }),
+        prisma.invitation.findUniqueOrThrow({ where: { id: invitation.id } }),
+      ]);
+
+      if (acceptance.value.status === "invalid-invitation") {
+        distribution.revoked += 1;
+        expect(revocation.value).toEqual({ email, id: invitation.id });
+        expect(persistedUser).toBeNull();
+        expect(persistedInvitation).toMatchObject({
+          acceptedAt: null,
+          acceptedByUserId: null,
+          revokedAt: expect.any(Date),
+        });
+      } else if (acceptance.value.status === "created") {
+        distribution.accepted += 1;
+        expect(revocation.value).toBeNull();
+        expect(persistedUser?.id).toBe(acceptance.value.user.id);
+        expect(persistedInvitation).toMatchObject({
+          acceptedAt: expect.any(Date),
+          acceptedByUserId: acceptance.value.user.id,
+          revokedAt: null,
+        });
+      } else {
+        throw new Error(`Unexpected invitation acceptance status: ${acceptance.value.status}`);
+      }
+    }
+
+    console.info("accept/revoke race distribution", distribution);
+    expect(distribution.revoked).toBeGreaterThan(0);
+  });
+
+  test("rethrows the unique-email error from concurrent identical invitation accepts", async () => {
+    const email = "concurrent-invitation-accept@example.test";
+    const inviter = await createTestUser({
+      email: "concurrent-invitation-inviter@example.test",
+    });
+    const { invitation, token } = await createInvitation({
+      email,
+      invitedById: inviter.id,
+    });
+    const input = {
+      email,
+      inviteToken: token,
+      name: "Concurrent Invitation Accept",
+      passwordHash: "concurrent-accept-password-hash",
+    };
+
+    const outcomes = await Promise.all([
+      captureOutcome(() => createUserAccountWithInvitation(input)),
+      captureOutcome(() => createUserAccountWithInvitation(input)),
+    ]);
+    const fulfilled = outcomes.filter((outcome) => outcome.status === "fulfilled");
+    const rejected = outcomes.filter((outcome) => outcome.status === "rejected");
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    const winner = fulfilled[0];
+    const loser = rejected[0];
+    if (!winner || !loser) {
+      throw new Error("Expected one fulfilled and one rejected invitation acceptance.");
+    }
+    expect(winner.value.status).toBe("created");
+    const loserError = errorDetails(loser.reason);
+    expect(loserError).toMatchObject({ code: "P2002" });
+    expect(loserError.message).toContain("Unique constraint failed");
+    expect(loserError.message).not.toBe("Invitation could not be accepted.");
+
+    const [users, persistedInvitation] = await Promise.all([
+      prisma.user.findMany({ where: { email } }),
+      prisma.invitation.findUniqueOrThrow({ where: { id: invitation.id } }),
+    ]);
+    expect(users).toHaveLength(1);
+    expect(persistedInvitation).toMatchObject({
+      acceptedAt: expect.any(Date),
+      acceptedByUserId: users[0]?.id,
+      revokedAt: null,
+    });
+    console.info("identical accept race distribution", {
+      created: fulfilled.length,
+      rejected: rejected.length,
+      rejectedCode: loserError.code,
+      rejectedMessage: loserError.message,
     });
   });
 
