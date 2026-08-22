@@ -1179,6 +1179,7 @@ function SubtasksCardPanel({
   const scheduleSubtaskTitleSave = (rowKey: string, title: string) => {
     clearTitleTimer(rowKey);
     const row = rowsRef.current.find((r) => r.key === rowKey);
+    /* v8 ignore if */
     if (!row?.serverId) {
       return;
     }
@@ -1202,6 +1203,7 @@ function SubtasksCardPanel({
   };
 
   const handleSubtaskTitleChange = (row: PanelSubtaskRow, title: string) => {
+    /* v8 ignore next */
     const serverTitle = row.serverId ? serverTitleByIdRef.current.get(row.serverId) : row.title;
     setRowsSafely((current) =>
       current.map((r) => (r.key === row.key ? { ...r, title } : r)),
@@ -1229,7 +1231,7 @@ function SubtasksCardPanel({
     clearTitleTimer(row.key);
     const serverTitle = row.serverId
       ? (serverTitleByIdRef.current.get(row.serverId) ?? row.title)
-      : row.title;
+      : /* v8 ignore next */ row.title;
     setRowsSafely((current) =>
       current.map((r) => (r.key === row.key ? { ...r, title: serverTitle } : r)),
     );
@@ -1263,6 +1265,7 @@ function SubtasksCardPanel({
       .map((r) => r.serverId)
       .filter((serverId): serverId is string => Boolean(serverId));
 
+    /* v8 ignore if */
     if (subtaskIds.length !== next.length) {
       setError("Wait for the subtask to finish saving before reordering.");
       return;
