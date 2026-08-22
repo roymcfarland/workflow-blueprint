@@ -1677,6 +1677,63 @@ describe("src/lib/data.ts", () => {
     await expect(prisma.attachment.findUnique({ where: { id: attachmentId } })).resolves.toBeNull();
   });
 
+  test("keeps the attachment parent guard unreachable during concurrent task deletion", async () => {
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const user = await createTestUser({
+        email: `attachment-race-${iteration}@example.test`,
+      });
+      await createTestBoard(user.id);
+      const task = await createTaskForBoard(user.id, starterBoard.slug, {
+        description: null,
+        dueDate: null,
+        priority: "NONE",
+        recurrence: "NONE",
+        status: "ON_DECK",
+        subtasks: [],
+        title: `Attachment parent race ${iteration}`,
+      });
+      const attachedTask = await createAttachmentRecord(
+        user.id,
+        task.id,
+        attachmentInput(task.id),
+      );
+      const attachmentId = attachedTask.attachments?.[0]?.id;
+      if (!attachmentId) {
+        throw new Error("Expected a serialized attachment id.");
+      }
+
+      // Keep the suite's existing immediate async storage mock: it preserves the
+      // natural await without artificially widening the pre-transaction window.
+      const storageCallCount = vi.mocked(removeStorageObject).mock.calls.length;
+      const [attachmentDeletion, taskDeletion] = await Promise.all([
+        captureOutcome(() => deleteAttachmentForUser(user.id, attachmentId)),
+        captureOutcome(() => deleteTaskForUser(user.id, task.id)),
+      ]);
+      const storageWasCalled = vi.mocked(removeStorageObject).mock.calls.length > storageCallCount;
+
+      expect(taskDeletion.status).toBe("fulfilled");
+      if (taskDeletion.status === "rejected") {
+        throw taskDeletion.reason;
+      }
+
+      if (attachmentDeletion.status === "rejected") {
+        const { message } = errorDetails(attachmentDeletion.reason);
+        expect(message).not.toBe("Task not found.");
+        expect(message).toBe("Attachment not found.");
+      } else {
+        expect(attachmentDeletion.value.attachments).toEqual([]);
+        expect(storageWasCalled).toBe(true);
+      }
+
+      const [persistedTask, persistedAttachment] = await Promise.all([
+        prisma.task.findUnique({ where: { id: task.id } }),
+        prisma.attachment.findUnique({ where: { id: attachmentId } }),
+      ]);
+      expect(persistedTask).toBeNull();
+      expect(persistedAttachment).toBeNull();
+    }
+  });
+
   test("allows only one concurrent deletion of the same attachment", async () => {
     const user = await createTestUser();
     await createTestBoard(user.id);
