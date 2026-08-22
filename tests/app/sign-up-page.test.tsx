@@ -73,6 +73,26 @@ describe("SignUpPage", () => {
     ).toBeTruthy();
   });
 
+  test("uses the first invite token when the query parameter repeats", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValueOnce(null);
+    vi.mocked(getInvitationPreviewByToken).mockImplementationOnce(async (token) =>
+      token === "first-token"
+        ? {
+            email: "first@example.test",
+            expiresAt: "2026-08-01T00:00:00.000Z",
+          }
+        : null,
+    );
+
+    const element = await SignUpPage({
+      searchParams: Promise.resolve({ invite: ["first-token", "second-token"] }),
+    });
+    render(element);
+
+    expect(getInvitationPreviewByToken).toHaveBeenCalledWith("first-token");
+    expect(screen.getByText("Invitation for first@example.test")).toBeTruthy();
+  });
+
   test("renders the sign-up form when the token is valid", async () => {
     vi.mocked(getCurrentUser).mockResolvedValueOnce(null);
     vi.mocked(getInvitationPreviewByToken).mockResolvedValueOnce({
