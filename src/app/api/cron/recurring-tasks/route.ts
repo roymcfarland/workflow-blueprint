@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { rolloverDueRecurringTasks } from "@/lib/data";
+import { purgeExpiredDemoUsers, rolloverDueRecurringTasks } from "@/lib/data";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -11,8 +11,10 @@ export async function GET(request: Request) {
   }
 
   const { rolledOverTaskIds, skippedTaskIds } = await rolloverDueRecurringTasks();
+  const purgedDemoUserCount = await purgeExpiredDemoUsers();
 
   return NextResponse.json({
+    purgedDemoUserCount,
     rolledOverCount: rolledOverTaskIds.length,
     rolledOverTaskIds,
     skippedCount: skippedTaskIds.length,
