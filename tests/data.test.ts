@@ -53,6 +53,7 @@ import {
   revokeApiToken,
   revokeInvitation,
   rolloverDueRecurringTasks,
+  type SerializedTask,
   updateBoardForUser,
   updateChecklistItemForUser,
   updateSubtaskForUser,
@@ -75,7 +76,11 @@ function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function captureOutcome<T>(operation: () => Promise<T>) {
+type CapturedOutcome<T> =
+  | { status: "fulfilled"; value: T }
+  | { reason: unknown; status: "rejected" };
+
+async function captureOutcome<T>(operation: () => Promise<T>): Promise<CapturedOutcome<T>> {
   try {
     return { status: "fulfilled" as const, value: await operation() };
   } catch (reason) {
@@ -92,6 +97,82 @@ function errorDetails(reason: unknown) {
     code: "code" in reason && typeof reason.code === "string" ? reason.code : undefined,
     message: reason.message,
   };
+}
+
+const rawPrismaMissingRecordError = /Invalid [\s\S]*invocation|No record was found/;
+
+function expectAppNotFoundError(reason: unknown, notFoundMessage: string) {
+  const { code, message } = errorDetails(reason);
+  expect(code).not.toBe("P2025");
+  expect(message).not.toMatch(rawPrismaMissingRecordError);
+  expect(message).toBe(notFoundMessage);
+}
+
+function expectRejectedAppNotFound(
+  outcome: CapturedOutcome<unknown>,
+  notFoundMessage: string,
+) {
+  expect(outcome.status).toBe("rejected");
+  if (outcome.status === "fulfilled") {
+    throw new Error("Expected the unowned child mutation to be rejected.");
+  }
+  expectAppNotFoundError(outcome.reason, notFoundMessage);
+}
+
+async function createOwnershipTestUsers(slug: string) {
+  const owner = await createTestUser({ email: `${slug}-owner@example.test` });
+  const otherUser = await createTestUser({ email: `${slug}-other@example.test` });
+  await createTestBoard(owner.id);
+  return { otherUser, owner };
+}
+
+function createOwnedChildTask(
+  userId: string,
+  title: string,
+  subtasks: Array<{ isComplete: boolean; title: string }> = [],
+) {
+  return createTaskForBoard(userId, starterBoard.slug, {
+    description: null,
+    dueDate: null,
+    priority: "NONE",
+    recurrence: "NONE",
+    status: "ON_DECK",
+    subtasks,
+    title,
+  });
+}
+
+async function raceTaskDeletion<T>(
+  userId: string,
+  taskId: string,
+  childMutation: () => Promise<T>,
+): Promise<CapturedOutcome<T>> {
+  const [childMutationOutcome, taskDeletion] = await Promise.all([
+    captureOutcome(childMutation),
+    captureOutcome(() => deleteTaskForUser(userId, taskId)),
+  ]);
+
+  expect(taskDeletion.status).toBe("fulfilled");
+  if (taskDeletion.status === "rejected") {
+    throw taskDeletion.reason;
+  }
+  await expect(prisma.task.findUnique({ where: { id: taskId } })).resolves.toBeNull();
+
+  return childMutationOutcome;
+}
+
+function expectChildMutationRaceOutcome(
+  outcome: CapturedOutcome<SerializedTask>,
+  notFoundMessage: string,
+  assertFulfilled: (task: SerializedTask) => void,
+): "fulfilled" | "rejected" {
+  if (outcome.status === "fulfilled") {
+    assertFulfilled(outcome.value);
+    return "fulfilled";
+  }
+
+  expectAppNotFoundError(outcome.reason, notFoundMessage);
+  return "rejected";
 }
 
 const defaultReadApiTokenScopes = [
@@ -758,48 +839,363 @@ describe("src/lib/data.ts", () => {
   });
 
   test("keeps parent-task guards unreachable during a concurrent task deletion", async () => {
-    const user = await createTestUser();
-    await createTestBoard(user.id);
-    const task = await createTaskForBoard(user.id, starterBoard.slug, {
-      description: null,
-      dueDate: null,
-      priority: "NONE",
-      recurrence: "NONE",
-      status: "ON_DECK",
-      subtasks: [{ isComplete: false, title: "Race the parent deletion" }],
-      title: "Parent deletion race",
-    });
+    const distribution = { fulfilled: 0, rejected: 0 };
+
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const user = await createTestUser({
+        email: `subtask-update-task-delete-race-${iteration}@example.test`,
+      });
+      await createTestBoard(user.id);
+      const task = await createTaskForBoard(user.id, starterBoard.slug, {
+        description: null,
+        dueDate: null,
+        priority: "NONE",
+        recurrence: "NONE",
+        status: "ON_DECK",
+        subtasks: [{ isComplete: false, title: "Race the parent deletion" }],
+        title: `Parent deletion race ${iteration}`,
+      });
+      const subtaskId = task.subtasks[0]?.id;
+      if (!subtaskId) {
+        throw new Error("Expected a serialized subtask id.");
+      }
+
+      const subtaskUpdate = await raceTaskDeletion(user.id, task.id, () =>
+        updateSubtaskForUser(user.id, subtaskId, { isComplete: true }),
+      );
+
+      // This protects the six parent-task pragmas: changing cascade behavior must not
+      // let a child mutation continue far enough to throw "Task not found." instead.
+      const status = expectChildMutationRaceOutcome(
+        subtaskUpdate,
+        "Subtask not found.",
+        (updatedTask) => {
+          expect(updatedTask.subtasks).toEqual([
+            expect.objectContaining({ id: subtaskId, isComplete: true }),
+          ]);
+        },
+      );
+      distribution[status] += 1;
+
+      await expect(prisma.subtask.findUnique({ where: { id: subtaskId } })).resolves.toBeNull();
+    }
+
+    console.info("subtask update/task delete race distribution", distribution);
+    expect(distribution.rejected).toBeGreaterThan(0);
+  });
+
+  test("converges the other child-mutation task-deletion races on app errors", async () => {
+    type RaceFixture = {
+      assertFulfilled: (task: SerializedTask) => void;
+      mutate: () => Promise<SerializedTask>;
+      taskId: string;
+    };
+    type RaceCase = {
+      createFixture: (userId: string, iteration: number) => Promise<RaceFixture>;
+      expectedError: string;
+      name: string;
+      slug: string;
+    };
+
+    const raceCases: RaceCase[] = [
+      {
+        createFixture: async (userId, iteration) => {
+          const task = await createTaskForBoard(userId, starterBoard.slug, {
+            description: null,
+            dueDate: null,
+            priority: "NONE",
+            recurrence: "NONE",
+            status: "ON_DECK",
+            subtasks: [],
+            title: `Checklist update race ${iteration}`,
+          });
+          const checklistTask = await createChecklistItemForTask(userId, task.id, {
+            text: "Race the parent deletion",
+          });
+          const itemId = checklistTask.checklist?.[0]?.id;
+          if (!itemId) {
+            throw new Error("Expected a serialized checklist item id.");
+          }
+
+          return {
+            assertFulfilled: (updatedTask) => {
+              expect(updatedTask.checklist).toEqual([
+                expect.objectContaining({ id: itemId, isComplete: true }),
+              ]);
+            },
+            mutate: () => updateChecklistItemForUser(userId, itemId, { isComplete: true }),
+            taskId: task.id,
+          };
+        },
+        expectedError: "Checklist item not found.",
+        name: "checklist item update/task delete",
+        slug: "checklist-update",
+      },
+      {
+        createFixture: async (userId, iteration) => {
+          const task = await createTaskForBoard(userId, starterBoard.slug, {
+            description: null,
+            dueDate: null,
+            priority: "NONE",
+            recurrence: "NONE",
+            status: "ON_DECK",
+            subtasks: [{ isComplete: false, title: "Race the parent deletion" }],
+            title: `Subtask delete race ${iteration}`,
+          });
+          const subtaskId = task.subtasks[0]?.id;
+          if (!subtaskId) {
+            throw new Error("Expected a serialized subtask id.");
+          }
+
+          return {
+            assertFulfilled: (updatedTask) => {
+              expect(updatedTask.subtasks).toEqual([]);
+            },
+            mutate: () => deleteSubtaskForUser(userId, subtaskId),
+            taskId: task.id,
+          };
+        },
+        expectedError: "Subtask not found.",
+        name: "subtask delete/task delete",
+        slug: "subtask-delete",
+      },
+      {
+        createFixture: async (userId, iteration) => {
+          const task = await createTaskForBoard(userId, starterBoard.slug, {
+            description: null,
+            dueDate: null,
+            priority: "NONE",
+            recurrence: "NONE",
+            status: "ON_DECK",
+            subtasks: [],
+            title: `Checklist delete race ${iteration}`,
+          });
+          const checklistTask = await createChecklistItemForTask(userId, task.id, {
+            text: "Race the parent deletion",
+          });
+          const itemId = checklistTask.checklist?.[0]?.id;
+          if (!itemId) {
+            throw new Error("Expected a serialized checklist item id.");
+          }
+
+          return {
+            assertFulfilled: (updatedTask) => {
+              expect(updatedTask.checklist).toEqual([]);
+            },
+            mutate: () => deleteChecklistItemForUser(userId, itemId),
+            taskId: task.id,
+          };
+        },
+        expectedError: "Checklist item not found.",
+        name: "checklist item delete/task delete",
+        slug: "checklist-delete",
+      },
+      {
+        createFixture: async (userId, iteration) => {
+          const task = await createTaskForBoard(userId, starterBoard.slug, {
+            description: null,
+            dueDate: null,
+            priority: "NONE",
+            recurrence: "NONE",
+            status: "ON_DECK",
+            subtasks: [],
+            title: `Label delete race ${iteration}`,
+          });
+          const labeledTask = await createLabelForTask(userId, task.id, {
+            color: labelColorPalette[0],
+            text: "Race the parent deletion",
+          });
+          const labelId = labeledTask.labels?.[0]?.id;
+          if (!labelId) {
+            throw new Error("Expected a serialized label id.");
+          }
+
+          return {
+            assertFulfilled: (updatedTask) => {
+              expect(updatedTask.labels).toEqual([]);
+            },
+            mutate: () => deleteLabelForUser(userId, labelId),
+            taskId: task.id,
+          };
+        },
+        expectedError: "Label not found.",
+        name: "label delete/task delete",
+        slug: "label-delete",
+      },
+    ];
+
+    for (const raceCase of raceCases) {
+      const distribution = { fulfilled: 0, rejected: 0 };
+
+      for (let iteration = 0; iteration < 20; iteration += 1) {
+        const user = await createTestUser({
+          email: `${raceCase.slug}-task-delete-race-${iteration}@example.test`,
+        });
+        await createTestBoard(user.id);
+        const fixture = await raceCase.createFixture(user.id, iteration);
+        const outcome = await raceTaskDeletion(
+          user.id,
+          fixture.taskId,
+          fixture.mutate,
+        );
+        const status = expectChildMutationRaceOutcome(
+          outcome,
+          raceCase.expectedError,
+          fixture.assertFulfilled,
+        );
+        distribution[status] += 1;
+      }
+
+      console.info(`${raceCase.name} race distribution`, distribution);
+      expect(distribution.rejected).toBeGreaterThan(0);
+    }
+  });
+
+  test("refuses to update another user's subtask without changing it", async () => {
+    const { otherUser, owner } = await createOwnershipTestUsers("subtask-update-ownership");
+    const task = await createOwnedChildTask(owner.id, "Owned subtask update", [
+      { isComplete: false, title: "Owner's subtask" },
+    ]);
     const subtaskId = task.subtasks[0]?.id;
     if (!subtaskId) {
       throw new Error("Expected a serialized subtask id.");
     }
+    const before = await prisma.subtask.findUniqueOrThrow({ where: { id: subtaskId } });
 
-    const [taskDeletion, subtaskUpdate] = await Promise.all([
-      captureOutcome(() => deleteTaskForUser(user.id, task.id)),
-      captureOutcome(() => updateSubtaskForUser(user.id, subtaskId, { isComplete: true })),
-    ]);
+    const outcome = await captureOutcome(() =>
+      updateSubtaskForUser(otherUser.id, subtaskId, {
+        isComplete: true,
+        title: "Unauthorized update",
+      }),
+    );
 
-    expect(taskDeletion.status).toBe("fulfilled");
-    if (taskDeletion.status === "rejected") {
-      throw taskDeletion.reason;
+    expectRejectedAppNotFound(outcome, "Subtask not found.");
+    await expect(prisma.subtask.findUniqueOrThrow({ where: { id: subtaskId } })).resolves.toEqual(
+      before,
+    );
+  });
+
+  test("refuses to update another user's checklist item without changing it", async () => {
+    const { otherUser, owner } = await createOwnershipTestUsers("checklist-update-ownership");
+    const task = await createOwnedChildTask(owner.id, "Owned checklist update");
+    const checklistTask = await createChecklistItemForTask(owner.id, task.id, {
+      text: "Owner's checklist item",
+    });
+    const itemId = checklistTask.checklist?.[0]?.id;
+    if (!itemId) {
+      throw new Error("Expected a serialized checklist item id.");
     }
+    const before = await prisma.checklistItem.findUniqueOrThrow({ where: { id: itemId } });
 
-    // This protects the six parent-task pragmas: changing cascade behavior must not
-    // let a child mutation continue far enough to throw "Task not found." instead.
-    if (subtaskUpdate.status === "rejected") {
-      expect(errorDetails(subtaskUpdate.reason).message).toBe("Subtask not found.");
-    } else {
-      expect(subtaskUpdate.value.subtasks).toEqual([
-        expect.objectContaining({ id: subtaskId, isComplete: true }),
-      ]);
-    }
+    const outcome = await captureOutcome(() =>
+      updateChecklistItemForUser(otherUser.id, itemId, {
+        isComplete: true,
+        text: "Unauthorized update",
+      }),
+    );
 
-    const [persistedTask, persistedSubtask] = await Promise.all([
-      prisma.task.findUnique({ where: { id: task.id } }),
-      prisma.subtask.findUnique({ where: { id: subtaskId } }),
+    expectRejectedAppNotFound(outcome, "Checklist item not found.");
+    await expect(
+      prisma.checklistItem.findUniqueOrThrow({ where: { id: itemId } }),
+    ).resolves.toEqual(before);
+  });
+
+  test("refuses to delete another user's subtask without changing it", async () => {
+    const { otherUser, owner } = await createOwnershipTestUsers("subtask-delete-ownership");
+    const task = await createOwnedChildTask(owner.id, "Owned subtask delete", [
+      { isComplete: false, title: "Owner's subtask" },
     ]);
-    expect(persistedTask).toBeNull();
-    expect(persistedSubtask).toBeNull();
+    const subtaskId = task.subtasks[0]?.id;
+    if (!subtaskId) {
+      throw new Error("Expected a serialized subtask id.");
+    }
+    const before = await prisma.subtask.findUniqueOrThrow({ where: { id: subtaskId } });
+
+    const outcome = await captureOutcome(() =>
+      deleteSubtaskForUser(otherUser.id, subtaskId),
+    );
+
+    expectRejectedAppNotFound(outcome, "Subtask not found.");
+    await expect(prisma.subtask.findUniqueOrThrow({ where: { id: subtaskId } })).resolves.toEqual(
+      before,
+    );
+  });
+
+  test("refuses to delete another user's checklist item without changing it", async () => {
+    const { otherUser, owner } = await createOwnershipTestUsers("checklist-delete-ownership");
+    const task = await createOwnedChildTask(owner.id, "Owned checklist delete");
+    const checklistTask = await createChecklistItemForTask(owner.id, task.id, {
+      text: "Owner's checklist item",
+    });
+    const itemId = checklistTask.checklist?.[0]?.id;
+    if (!itemId) {
+      throw new Error("Expected a serialized checklist item id.");
+    }
+    const before = await prisma.checklistItem.findUniqueOrThrow({ where: { id: itemId } });
+
+    const outcome = await captureOutcome(() =>
+      deleteChecklistItemForUser(otherUser.id, itemId),
+    );
+
+    expectRejectedAppNotFound(outcome, "Checklist item not found.");
+    await expect(
+      prisma.checklistItem.findUniqueOrThrow({ where: { id: itemId } }),
+    ).resolves.toEqual(before);
+  });
+
+  test("refuses to delete another user's label without changing it", async () => {
+    const { otherUser, owner } = await createOwnershipTestUsers("label-delete-ownership");
+    const task = await createOwnedChildTask(owner.id, "Owned label delete");
+    const labeledTask = await createLabelForTask(owner.id, task.id, {
+      color: labelColorPalette[0],
+      text: "Owner's label",
+    });
+    const labelId = labeledTask.labels?.[0]?.id;
+    if (!labelId) {
+      throw new Error("Expected a serialized label id.");
+    }
+    const before = await prisma.taskLabel.findUniqueOrThrow({ where: { id: labelId } });
+
+    const outcome = await captureOutcome(() => deleteLabelForUser(otherUser.id, labelId));
+
+    expectRejectedAppNotFound(outcome, "Label not found.");
+    await expect(prisma.taskLabel.findUniqueOrThrow({ where: { id: labelId } })).resolves.toEqual(
+      before,
+    );
+  });
+
+  test("rejects nonexistent child mutations before the ownership-scoped write", async () => {
+    const user = await createTestUser({ email: "missing-child-mutations@example.test" });
+    const cases: Array<{
+      expectedError: string;
+      mutate: () => Promise<SerializedTask>;
+    }> = [
+      {
+        expectedError: "Subtask not found.",
+        mutate: () => updateSubtaskForUser(user.id, randomUUID(), { isComplete: true }),
+      },
+      {
+        expectedError: "Checklist item not found.",
+        mutate: () => updateChecklistItemForUser(user.id, randomUUID(), { isComplete: true }),
+      },
+      {
+        expectedError: "Subtask not found.",
+        mutate: () => deleteSubtaskForUser(user.id, randomUUID()),
+      },
+      {
+        expectedError: "Checklist item not found.",
+        mutate: () => deleteChecklistItemForUser(user.id, randomUUID()),
+      },
+      {
+        expectedError: "Label not found.",
+        mutate: () => deleteLabelForUser(user.id, randomUUID()),
+      },
+    ];
+
+    for (const testCase of cases) {
+      const outcome = await captureOutcome(testCase.mutate);
+      expectRejectedAppNotFound(outcome, testCase.expectedError);
+    }
   });
 
   test("never turns a concurrent subtask deletion into a silent reorder miss", async () => {

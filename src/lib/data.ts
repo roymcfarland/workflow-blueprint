@@ -1531,11 +1531,6 @@ export async function updateSubtaskForUser(
     const subtask = await tx.subtask.findFirst({
       where: {
         id: subtaskId,
-        task: {
-          board: {
-            userId,
-          },
-        },
       },
       select: {
         taskId: true,
@@ -1546,15 +1541,24 @@ export async function updateSubtaskForUser(
       throw new Error("Subtask not found.");
     }
 
-    await tx.subtask.update({
+    const updated = await tx.subtask.updateMany({
       where: {
         id: subtaskId,
+        task: {
+          board: {
+            userId,
+          },
+        },
       },
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.isComplete !== undefined ? { isComplete: input.isComplete } : {}),
       },
     });
+
+    if (updated.count !== 1) {
+      throw new Error("Subtask not found.");
+    }
 
     const parentTask = await tx.task.findFirst({
       where: {
@@ -1584,11 +1588,6 @@ export async function updateChecklistItemForUser(
     const item = await tx.checklistItem.findFirst({
       where: {
         id: itemId,
-        task: {
-          board: {
-            userId,
-          },
-        },
       },
       select: {
         taskId: true,
@@ -1599,15 +1598,24 @@ export async function updateChecklistItemForUser(
       throw new Error("Checklist item not found.");
     }
 
-    await tx.checklistItem.update({
+    const updated = await tx.checklistItem.updateMany({
       where: {
         id: itemId,
+        task: {
+          board: {
+            userId,
+          },
+        },
       },
       data: {
         ...(input.text !== undefined ? { text: input.text } : {}),
         ...(input.isComplete !== undefined ? { isComplete: input.isComplete } : {}),
       },
     });
+
+    if (updated.count !== 1) {
+      throw new Error("Checklist item not found.");
+    }
 
     const parentTask = await tx.task.findFirst({
       where: {
@@ -1636,11 +1644,6 @@ export async function deleteSubtaskForUser(
     const subtask = await tx.subtask.findFirst({
       where: {
         id: subtaskId,
-        task: {
-          board: {
-            userId,
-          },
-        },
       },
       select: {
         taskId: true,
@@ -1651,11 +1654,20 @@ export async function deleteSubtaskForUser(
       throw new Error("Subtask not found.");
     }
 
-    await tx.subtask.delete({
+    const deleted = await tx.subtask.deleteMany({
       where: {
         id: subtaskId,
+        task: {
+          board: {
+            userId,
+          },
+        },
       },
     });
+
+    if (deleted.count !== 1) {
+      throw new Error("Subtask not found.");
+    }
 
     const parentTask = await tx.task.findFirst({
       where: {
@@ -1684,11 +1696,6 @@ export async function deleteChecklistItemForUser(
     const item = await tx.checklistItem.findFirst({
       where: {
         id: itemId,
-        task: {
-          board: {
-            userId,
-          },
-        },
       },
       select: {
         taskId: true,
@@ -1699,11 +1706,20 @@ export async function deleteChecklistItemForUser(
       throw new Error("Checklist item not found.");
     }
 
-    await tx.checklistItem.delete({
+    const deleted = await tx.checklistItem.deleteMany({
       where: {
         id: itemId,
+        task: {
+          board: {
+            userId,
+          },
+        },
       },
     });
+
+    if (deleted.count !== 1) {
+      throw new Error("Checklist item not found.");
+    }
 
     const parentTask = await tx.task.findFirst({
       where: {
@@ -1732,11 +1748,6 @@ export async function deleteLabelForUser(
     const label = await tx.taskLabel.findFirst({
       where: {
         id: labelId,
-        task: {
-          board: {
-            userId,
-          },
-        },
       },
       select: {
         taskId: true,
@@ -1747,11 +1758,20 @@ export async function deleteLabelForUser(
       throw new Error("Label not found.");
     }
 
-    await tx.taskLabel.delete({
+    const deleted = await tx.taskLabel.deleteMany({
       where: {
         id: labelId,
+        task: {
+          board: {
+            userId,
+          },
+        },
       },
     });
+
+    if (deleted.count !== 1) {
+      throw new Error("Label not found.");
+    }
 
     const parentTask = await tx.task.findFirst({
       where: {
