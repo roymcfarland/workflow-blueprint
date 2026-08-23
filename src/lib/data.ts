@@ -524,13 +524,16 @@ export async function rolloverDueRecurringTasks(referenceDate: Date = new Date()
       (task) => task.dueDate !== null && advanceDueDate(task.dueDate, task.recurrence) <= today,
     );
 
+    const rolledOverTaskIds: string[] = [];
+    const skippedTaskIds: string[] = [];
+
     for (const task of due) {
       const sortOrder =
         task.status === PrismaTaskStatus.IN_PROGRESS
           ? task.sortOrder
           : await nextSortOrderForStatus(tx, task.boardId, PrismaTaskStatus.IN_PROGRESS);
 
-      await tx.task.update({
+      const updated = await tx.task.updateMany({
         data: {
           archivedAt: null,
           completedAt: null,
@@ -542,13 +545,20 @@ export async function rolloverDueRecurringTasks(referenceDate: Date = new Date()
         where: { id: task.id },
       });
 
+      if (updated.count !== 1) {
+        skippedTaskIds.push(task.id);
+        continue;
+      }
+
       await tx.subtask.updateMany({
         data: { isComplete: false },
         where: { taskId: task.id },
       });
+
+      rolledOverTaskIds.push(task.id);
     }
 
-    return { rolledOverTaskIds: due.map((task) => task.id) };
+    return { rolledOverTaskIds, skippedTaskIds };
   });
 }
 

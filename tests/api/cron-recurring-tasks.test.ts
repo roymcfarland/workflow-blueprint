@@ -35,7 +35,7 @@ describe("GET /api/cron/recurring-tasks", () => {
     const user = await createTestUser();
     await createTestBoard(user.id);
 
-    await createTaskForBoard(user.id, starterBoard.slug, {
+    const task = await createTaskForBoard(user.id, starterBoard.slug, {
       description: null,
       dueDate: "2026-01-01",
       priority: "NONE",
@@ -49,6 +49,11 @@ describe("GET /api/cron/recurring-tasks", () => {
     expect(response.status).toBe(200);
 
     const body = await response.json();
-    expect(body.rolledOverCount).toBe(1);
+    expect(body).toEqual({
+      rolledOverCount: 1,
+      rolledOverTaskIds: [task.id],
+      skippedCount: 0,
+      skippedTaskIds: [],
+    });
   });
 });

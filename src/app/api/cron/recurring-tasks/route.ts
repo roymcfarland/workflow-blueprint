@@ -10,10 +10,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { rolledOverTaskIds } = await rolloverDueRecurringTasks();
+  const { rolledOverTaskIds, skippedTaskIds } = await rolloverDueRecurringTasks();
 
   return NextResponse.json({
     rolledOverCount: rolledOverTaskIds.length,
     rolledOverTaskIds,
+    skippedCount: skippedTaskIds.length,
+    skippedTaskIds,
   });
 }
