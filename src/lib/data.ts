@@ -478,6 +478,29 @@ function addUtcCalendarTime(
   );
 }
 
+const SERIALIZATION_FAILURE_CODE = "P2034";
+const MAX_TRANSACTION_ATTEMPTS = 3;
+
+export function isSerializationFailure(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === SERIALIZATION_FAILURE_CODE
+  );
+}
+
+export async function withSerializationRetry<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (attempt < MAX_TRANSACTION_ATTEMPTS && isSerializationFailure(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 export function advanceDueDate(base: Date, recurrence: PrismaRecurrencePattern): Date {
   switch (recurrence) {
     case PrismaRecurrencePattern.DAILY:
@@ -935,7 +958,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
 export async function reorderDashboardInProgressForUser(userId: string, taskIds: string[]) {
   const uniqueIds = [...new Set(taskIds)];
 
-  await prisma.$transaction(
+  return withSerializationRetry(() => prisma.$transaction(
     async (tx) => {
       const tasks = await tx.task.findMany({
         where: {
@@ -971,11 +994,11 @@ export async function reorderDashboardInProgressForUser(userId: string, taskIds:
       }
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-  );
+  ));
 }
 
 export async function markTaskDoneForUser(userId: string, taskId: string) {
-  return prisma.$transaction(
+  return withSerializationRetry(() => prisma.$transaction(
     async (tx) => {
       const task = await tx.task.findFirst({
         where: {
@@ -1019,7 +1042,7 @@ export async function markTaskDoneForUser(userId: string, taskId: string) {
       return updatedTask;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-  );
+  ));
 }
 
 export async function getBoardSnapshot(userId: string, slug: string): Promise<BoardSnapshot | null> {
@@ -1121,7 +1144,7 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
 }
 
 export async function updateTaskForUser(userId: string, taskId: string, input: TaskInput) {
-  return prisma.$transaction(
+  return withSerializationRetry(() => prisma.$transaction(
     async (tx) => {
       const task = await tx.task.findFirst({
         where: {
@@ -1201,7 +1224,7 @@ export async function updateTaskForUser(userId: string, taskId: string, input: T
       return serializeTask(updatedTask);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-  );
+  ));
 }
 
 export async function updateTaskFieldsForUser(
@@ -1930,7 +1953,7 @@ export async function reorderSubtasksForUser(
 export async function reorderTasksForUser(userId: string, input: TaskReorderInput) {
   const submittedTaskIds = [...new Set(input.items.map((item) => item.taskId))];
 
-  await prisma.$transaction(
+  return withSerializationRetry(() => prisma.$transaction(
     async (tx) => {
       const tasks = await tx.task.findMany({
         where: {
@@ -1982,7 +2005,7 @@ export async function reorderTasksForUser(userId: string, input: TaskReorderInpu
       }
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-  );
+  ));
 }
 
 export async function updateBoardNote(userId: string, boardSlug: string, content: string) {
