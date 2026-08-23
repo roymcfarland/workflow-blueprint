@@ -7,6 +7,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { AppShell } from "@/components/app-shell";
 import type { BoardNavItem } from "@/lib/data";
+import {
+  boardAccentFillColors,
+  boardAccentPalette,
+  getBoardAccentFillColor,
+} from "@/lib/domain";
 
 const navigationMock = vi.hoisted(() => ({
   pathname: "/dashboard",
@@ -57,12 +62,30 @@ const user = {
 
 const adminUser = { ...user, role: "ADMIN" as UserRole };
 
-function renderShell(shellUser = user) {
+function renderShell(shellUser = user, shellBoards = boards) {
   return render(
-    <AppShell boards={boards} user={shellUser}>
+    <AppShell boards={shellBoards} user={shellUser}>
       <div>Shell content</div>
     </AppShell>,
   );
+}
+
+function relativeLuminance(hex: string) {
+  const channels = hex
+    .slice(1)
+    .match(/.{2}/g)!
+    .map((channel) => Number.parseInt(channel, 16) / 255)
+    .map((channel) =>
+      channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+    );
+
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 function expectWordmarkHidden() {
@@ -285,6 +308,17 @@ describe("AppShell board reordering", () => {
     expect(screen.queryByRole("button", { name: "Reorder Release Plan" })).toBeNull();
   });
 
+  test("gives reorder handles an explicit 24 by 24 pixel target", () => {
+    renderShell();
+
+    const handle = screen.getByRole("button", { name: "Reorder Launch Plan" });
+    expect(handle.className).toContain("h-6");
+    expect(handle.className).toContain("w-6");
+    expect(handle.className).toContain("items-center");
+    expect(handle.className).toContain("justify-center");
+    expect(handle.querySelector("svg")?.getAttribute("class")).toContain("h-4 w-4");
+  });
+
   test("keeps board links pointed at their boards", () => {
     renderShell();
 
@@ -318,6 +352,39 @@ describe("AppShell board reordering", () => {
     expect(activeBoard.className).toContain("blueprint-hatch");
     expect(activeBoard.style.getPropertyValue("--board-accent")).not.toBe("");
     expect(activeBoard.style.backgroundColor).not.toBe("");
+  });
+
+  test("uses the darkened fill for an active board with a failing raw accent", () => {
+    navigationMock.pathname = "/boards/launch-plan";
+
+    renderShell(user, [
+      { ...boards[0], accentColor: "#e0a93b" },
+      { ...boards[1], accentColor: "#5ab7b9" },
+    ]);
+
+    const activeBoard = screen.getByRole("link", { name: "Launch Plan" });
+    expect(activeBoard.className).toContain("blueprint-hatch");
+    expect(activeBoard.style.backgroundColor).toBe("rgb(152, 109, 24)");
+    expect(activeBoard.style.borderColor).toBe("rgb(152, 109, 24)");
+    expect(activeBoard.style.backgroundColor).not.toBe("rgb(224, 169, 59)");
+  });
+
+  test("keeps the raw accent on an inactive board icon", () => {
+    renderShell(user, [
+      { ...boards[0], accentColor: "#e0a93b" },
+      { ...boards[1], accentColor: "#5ab7b9" },
+    ]);
+
+    const inactiveBoard = screen.getByRole("link", { name: "Launch Plan" });
+    expect(inactiveBoard.style.getPropertyValue("--board-accent")).toBe("#e0a93b");
+    expect(inactiveBoard.querySelector("svg")?.getAttribute("class")).toContain(
+      "text-[var(--board-accent)]",
+    );
+    expect(getBoardAccentFillColor("outside-the-palette")).toBe("outside-the-palette");
+  });
+
+  test.each(boardAccentPalette)("keeps white contrast at or above 4.5:1 for %s", (accent) => {
+    expect(contrastRatio("#ffffff", boardAccentFillColors[accent])).toBeGreaterThanOrEqual(4.5);
   });
 });
 

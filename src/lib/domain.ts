@@ -129,6 +129,33 @@ export const boardAccentPalette = [
 
 export type BoardAccentColor = (typeof boardAccentPalette)[number];
 
+/**
+ * Darkened variants of each accent, used ONLY where the accent becomes a filled
+ * background behind white text (the active sidebar nav item). White on the raw
+ * accents fails WCAG AA on 9 of 10 presets — as low as 2.12:1 on #e0a93b. Each
+ * value below reaches at least 4.55:1 with white, derived by reducing HSL
+ * lightness while preserving hue and saturation.
+ *
+ * Do not use these anywhere the accent is decorative or acts as text: the swatch
+ * pickers, the dashboard donut, and the board icons all keep the vivid palette.
+ */
+export const boardAccentFillColors: Record<BoardAccentColor, string> = {
+  "#4f78e6": "#426ee4",
+  "#2f9f85": "#27836e",
+  "#c94f7c": "#c74776",
+  "#5ab7b9": "#377f81",
+  "#df7d22": "#af6219",
+  "#9b6bd6": "#905bd2",
+  "#d4495a": "#d23f51",
+  "#3aa0d6": "#247dac",
+  "#e0a93b": "#986d18",
+  "#64748b": "#64748b",
+};
+
+export function getBoardAccentFillColor(accent: string) {
+  return boardAccentFillColors[accent as BoardAccentColor] ?? accent;
+}
+
 export const labelColorPalette = [
   "#ef4444",
   "#f97316",

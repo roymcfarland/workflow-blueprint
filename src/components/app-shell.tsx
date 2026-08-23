@@ -43,7 +43,11 @@ import { useBlueprintTheme } from "@/components/providers/theme-provider";
 import { ThemePreferenceSync } from "@/components/theme-preference-sync";
 import type { BoardNavItem } from "@/lib/data";
 import { initialsFromName } from "@/lib/utils";
-import { getBoardAccentColor, type ThemePreference } from "@/lib/domain";
+import {
+  getBoardAccentColor,
+  getBoardAccentFillColor,
+  type ThemePreference,
+} from "@/lib/domain";
 import { cn } from "@/lib/utils";
 
 type ShellUser = {
@@ -135,13 +139,14 @@ function getNavItemStyle(item: SidebarNavItem, isActive: boolean): BoardAccentSt
     return undefined;
   }
 
+  const fill = getBoardAccentFillColor(item.accentColor);
   return {
     "--board-accent": item.accentColor,
     ...(isActive
       ? {
-          backgroundColor: item.accentColor,
-          borderColor: item.accentColor,
-          boxShadow: `0 10px 22px ${item.accentColor}33`,
+          backgroundColor: fill,
+          borderColor: fill,
+          boxShadow: `0 10px 22px ${fill}33`,
           color: "#ffffff",
         }
       : {}),
@@ -224,7 +229,7 @@ function SortableBoardNavigationLink({
       />
       <button
         aria-label={`Reorder ${item.label}`}
-        className="absolute right-2.5 top-1/2 z-10 -translate-y-1/2 cursor-grab text-text-muted transition hover:text-text-primary active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
+        className="absolute right-2.5 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 cursor-grab items-center justify-center text-text-muted transition hover:text-text-primary active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-2"
         ref={setActivatorNodeRef}
         type="button"
         {...attributes}
