@@ -265,12 +265,57 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#240** | Make recurring-task rollover resilient to deleted boards | `#240` | A single board cascade deleting a due recurring task between the nightly cron's candidate read and singular update previously raised Prisma P2025 and aborted the entire system-wide transaction, preventing rollover for every user. This is the same defect class as `#239` with an availability consequence: the cron now deliberately uses count-returning `updateMany` to skip and continue when a candidate vanishes, reports the skipped task ids, and records only successful updates in `rolledOverTaskIds` instead of over-reporting every due candidate. The four Serializable `task.update` sites remain deferred because their concurrent-delete failure is P2034 and requires a different retry decision. No schema or cascade change. |
 | **#241** | Retry Serializable task transactions after write conflicts | `#241` | The four deferred lookup-guard-update sites could not use `#239`/`#240`'s count-returning fix because Serializable transactions raise P2034 before a count exists. They now retry the full transaction up to three attempts: a transient write conflict can succeed, while a genuinely deleted board makes the retry's own lookup reach the existing application guard. This is the codebase's first Prisma error-code handling in the data layer — two API routes (`auth/sign-up`, `profile`) already use the same `instanceof` plus `code` shape for `P2002` — kept central in an exported helper whose success, retry, exhaustion, non-P2034, and non-Prisma branches are all deterministically unit-testable instead of depending on a race, unlike the preceding three slices. The transaction callbacks and Serializable isolation are unchanged. |
 | **#242** | Move demo purge onto the daily cron and remove a dead export | `#242` | Lazy-only purging let expired demo data accumulate whenever nobody visited the demo, and PROJECT.md's "no scheduler" premise had been stale since the recurring-task cron shipped. The demo route's lazy purge remains deliberately as opportunistic belt-and-braces cleanup; the daily cron now rolls over tasks first, then independently purges expired demo users and reports the count. Removed `statusFromToggle`, a dead export referenced only by its own dedicated test. The `requireExternalApiUser`/`requireExternalApiAccess` dead-export cluster in `external-api.ts` remains deferred pending a separate recon because its tests may not exercise production entry points. |
+| **#243** | Docs: sequenced next-phase roadmap | `#243` | The Active phase recorded completed work and one open blocker but gave no forward plan, so the five follow-ups surfaced during the post-campaign PRs lived only in conversation. Adds a sequenced R0-R4 roadmap ordered by evidence rather than appeal: the `#242` cron observability follow-up, the `external-api.ts` dead-export cluster (both `requireExternalApiUser` and `requireExternalApiAccess` are dead and the v1 routes use neither, raising whether that module's coverage measures dead code), the five-sixths-unmeasured UI/UX audit, an overdue dependency recon, and the upstream-blocked `deepmerge-ts` override with its exact recheck trigger. Records what is blocked and on whom. Docs-only; no `src/**` or test change. |
 ### Active phase
 
 - **Child-mutation race reporting fixed in `#239`:** the five Task-child mutation windows now convert a concurrent cascade loss into their existing application-level not-found messages instead of leaking raw Prisma P2025 text. Ownership is enforced atomically on each mutation rather than its pre-lookup, which also makes every count-error arm deterministically testable with a wrong-owner request. `#232`'s parent-guard reachability proof and pragmas remain unchanged and valid.
 - **Coverage campaign complete:** CV1 (`#204`) through D1b (`#233`) comprise 25 slices, numbered 1-27 — slice numbers 10 and 13 were skipped where non-slice PRs interleaved (`#214`'s flake fix, `#217`'s dependency override). D1b closes the final seven invitation-acceptance records by behaviour with no new pragmas, leaving `src/lib/data.ts` and the entire repository with zero open Codecov records. `#234` brought the README narrative current.
 - **OPEN — the coverage regression gate does not fire.** `codecov/project` has never posted on any PR in this repository, so the `coverage.status.project` block in `codecov.yml` has never been enforced and **the 100% result is currently unguarded**. Codecov's read-only "Repository YAML" panel is frozen at `#148`'s config, which has no `coverage:` key, and six attempts failed to refresh it: a content change (`#231`), four default-branch uploads, an org resync, a rename to the canonical filename (`#235`), a head commit carrying the corrected config (`#236`), and an org-level Global YAML entry (reverted — repo-level YAML takes precedence, and it would have applied a 100% gate to five unrelated repos). Codecov support was emailed 2026-08-22; awaiting reply. Until it fires, treat coverage as unprotected by CI: a PR that reduces coverage will not be blocked automatically.
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (`#217`) shipped the `deepmerge-ts` major override and restored a clean audit.
+
+#### Next phase — sequenced roadmap
+
+Ordered by evidence, not appeal: items with a demonstrated defect come before items that are merely unexamined. Each is
+its own slice through the Builder/Verifier loop unless noted. Nothing here crosses a documented non-goal; anything that
+grows to do so needs a scoped docs-amendment PR merged first.
+
+| # | Item | State | Why now |
+|---|---|---|---|
+| **R0** | Cron reports a committed rollover when the demo purge fails | Ready | Small, fully specified |
+| **R1** | `external-api.ts` dead-export cluster | Needs recon first | Only item with evidence something is actually wrong |
+| **R2** | Finish the UI/UX audit | Ready | One pass found two real defects; most surfaces unmeasured |
+| **R3** | Dependency recon | Overdue | Monthly cadence; last run around `#205`/`#217` |
+| **R4** | `deepmerge-ts` override removal | **Blocked upstream** | Recheck condition, not work |
+| **—** | `codecov/project` gate | **Blocked on Codecov support** | See the OPEN item above |
+
+**R0 — the cron should report work it actually committed.** `#242` correctly ensured a demo-purge failure cannot roll back
+a committed rollover, proven by re-reading the task from Postgres. But the route still rejects, so the response carries
+no rollover information even though the rollover succeeded. Durability is right; observability is not. Return 200 with the
+rollover result plus a purge-error indicator, so an operator can see what happened. Retrying is harmless either way —
+after a rollover the task's `dueDate` is today, so it is no longer a candidate.
+
+**R1 — is some of `external-api.ts`'s coverage measuring dead code?** `requireExternalApiUser` and
+`requireExternalApiAccess` are **both** dead: near-identical duplicates, zero callers, and the `/api/external/v1/*` routes
+use only `withExternalApiObservability`. Several tests in `tests/lib/external-api.test.ts` reach shared rate-limit and
+auth logic *through* those dead entry points. The deletion is trivial; the question worth answering first is whether that
+shared logic is exercised anywhere production actually runs. If not, this repository's 100% is partly measuring code
+nothing calls — which is worth knowing precisely, and is the strongest argument for doing R1 before R2. **Begin by tracing
+what `withExternalApiObservability` calls**, then decide scope. Do not delete anything before that trace exists.
+
+**R2 — the audit is one-sixth done.** `#238` measured the sidebar and dashboard and found two real defects: white nav text
+failing WCAG AA on 9 of 10 accent presets (floor 2.12:1), and 16×16 reorder handles against a 24×24 minimum. Both were
+invisible to code review. **Unmeasured:** settings, invitations/admin, list view, the task detail modal, empty states, and
+every viewport below desktop. Method that worked: drive the real app through the demo endpoint, measure computed styles
+rather than eyeballing, and let measurement arbitrate against your own reading of the source — both instruments are
+unreliable and they fail differently.
+
+**R3 — dependency recon.** Use the `dependency-upgrade-recon` skill. Note `npm audit --omit=dev` still exits non-zero for
+a structural reason (`prisma` is an optional peer of `@prisma/client`), so a clean audit means the CI `audit` job, not
+that flag.
+
+**R4 — `deepmerge-ts`.** Verified 2026-08-23: `@prisma/config` still declares `7.1.5`, so the cross-major pin at `^8.0.1`
+from `#217` cannot be removed. The trigger is `npm view @prisma/config dependencies.deepmerge-ts` reporting `8.x`. No work
+until then.
 
 ### Standing Builder guardrails (post-PR-1)
 
