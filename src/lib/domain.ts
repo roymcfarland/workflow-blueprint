@@ -245,7 +245,3 @@ export function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
-
-export function statusFromToggle(includeArchived: boolean) {
-  return includeArchived ? boardStatuses : boardStatuses.filter((status) => status !== "ARCHIVED");
-}
