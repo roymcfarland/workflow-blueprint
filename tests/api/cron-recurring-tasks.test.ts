@@ -65,6 +65,7 @@ describe("GET /api/cron/recurring-tasks", () => {
 
     const body = await response.json();
     expect(body).toEqual({
+      purgeError: null,
       purgedDemoUserCount: 1,
       rolledOverCount: 1,
       rolledOverTaskIds: [task.id],
@@ -90,9 +91,17 @@ describe("GET /api/cron/recurring-tasks", () => {
     });
     vi.mocked(purgeExpiredDemoUsersData).mockRejectedValueOnce(new Error("Demo purge failed."));
 
-    await expect(
-      GET(cronRequest(`Bearer ${process.env.CRON_SECRET}`)),
-    ).rejects.toThrow("Demo purge failed.");
+    const response = await GET(cronRequest(`Bearer ${process.env.CRON_SECRET}`));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      purgeError: "Demo purge failed.",
+      purgedDemoUserCount: null,
+      rolledOverCount: 1,
+      rolledOverTaskIds: [task.id],
+      skippedCount: 0,
+      skippedTaskIds: [],
+    });
 
     await expect(
       prisma.task.findUniqueOrThrow({
@@ -103,6 +112,22 @@ describe("GET /api/cron/recurring-tasks", () => {
       completedAt: null,
       dueDate: new Date(new Date().setUTCHours(0, 0, 0, 0)),
       status: "IN_PROGRESS",
+    });
+  });
+
+  test("reports a fallback message when demo purging rejects with a non-Error", async () => {
+    vi.mocked(purgeExpiredDemoUsersData).mockRejectedValueOnce("Demo purge failed.");
+
+    const response = await GET(cronRequest(`Bearer ${process.env.CRON_SECRET}`));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      purgeError: "Unable to purge expired demo accounts.",
+      purgedDemoUserCount: null,
+      rolledOverCount: 0,
+      rolledOverTaskIds: [],
+      skippedCount: 0,
+      skippedTaskIds: [],
     });
   });
 });
