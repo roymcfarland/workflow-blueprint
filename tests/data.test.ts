@@ -1,6 +1,7 @@
 import {
   ApiTokenScope,
   ItemPriority as PrismaItemPriority,
+  Prisma,
   RecurrencePattern as PrismaRecurrencePattern,
   TaskStatus as PrismaTaskStatus,
 } from "@/generated/prisma/client";
@@ -39,6 +40,7 @@ import {
   getDashboardSnapshot,
   getBoardSnapshot,
   getShellSnapshot,
+  isSerializationFailure,
   listApiTokens,
   listInvitations,
   markTaskDoneForUser,
@@ -60,6 +62,7 @@ import {
   updateSubtaskForUser,
   updateTaskFieldsForUser,
   updateTaskForUser,
+  withSerializationRetry,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { buildExternalDailySummary } from "@/lib/external-api";
@@ -353,6 +356,56 @@ function createRolloverTask({
     include: taskSubtasksInclude,
   });
 }
+
+function prismaKnownRequestError(code: string) {
+  return new Prisma.PrismaClientKnownRequestError(`${code} failure`, {
+    code,
+    clientVersion: "test",
+  });
+}
+
+describe("withSerializationRetry", () => {
+  test("returns a successful first attempt without retrying", async () => {
+    const run = vi.fn().mockResolvedValue("result");
+
+    await expect(withSerializationRetry(run)).resolves.toBe("result");
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test("retries a P2034 failure and returns the next successful result", async () => {
+    const serializationFailure = prismaKnownRequestError("P2034");
+    const run = vi.fn().mockRejectedValueOnce(serializationFailure).mockResolvedValue("result");
+
+    await expect(withSerializationRetry(run)).resolves.toBe("result");
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  test("rethrows the original P2034 failure after three attempts", async () => {
+    const serializationFailure = prismaKnownRequestError("P2034");
+    const run = vi.fn().mockRejectedValue(serializationFailure);
+
+    await expect(withSerializationRetry(run)).rejects.toBe(serializationFailure);
+    expect(run).toHaveBeenCalledTimes(3);
+  });
+
+  test("rethrows another known Prisma failure without retrying", async () => {
+    const knownFailure = prismaKnownRequestError("P2025");
+    const run = vi.fn().mockRejectedValue(knownFailure);
+
+    expect(isSerializationFailure(knownFailure)).toBe(false);
+    await expect(withSerializationRetry(run)).rejects.toBe(knownFailure);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test("rethrows a plain error without retrying", async () => {
+    const plainFailure = new Error("plain failure");
+    const run = vi.fn().mockRejectedValue(plainFailure);
+
+    expect(isSerializationFailure(plainFailure)).toBe(false);
+    await expect(withSerializationRetry(run)).rejects.toBe(plainFailure);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("src/lib/data.ts", () => {
   beforeEach(async () => {
@@ -3052,6 +3105,44 @@ describe("src/lib/data.ts", () => {
     await expect(getDashboardSnapshot(user.id)).resolves.toMatchObject({
       inProgressTasks: [],
     });
+  });
+
+  test("does not leak raw Prisma errors when task completion races board deletion", async () => {
+    const distribution = { fulfilled: 0, taskNotFound: 0 };
+
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const user = await createTestUser({
+        email: `mark-done-board-delete-race-${iteration}@example.test`,
+      });
+      const board = await createTestBoard(user.id);
+      const task = await createOwnedChildTask(user.id, `Mark done race ${iteration}`);
+
+      const [markDoneOutcome, boardDeletionOutcome] = await Promise.all([
+        captureOutcome(() => markTaskDoneForUser(user.id, task.id)),
+        captureOutcome(() => deleteBoardForUser(user.id, board.slug)),
+      ]);
+
+      expect(boardDeletionOutcome.status).toBe("fulfilled");
+      if (boardDeletionOutcome.status === "rejected") {
+        throw boardDeletionOutcome.reason;
+      }
+
+      if (markDoneOutcome.status === "fulfilled") {
+        distribution.fulfilled += 1;
+      } else {
+        const { code, message } = errorDetails(markDoneOutcome.reason);
+        expect(code).not.toBe("P2034");
+        expect(message).not.toMatch(
+          /Invalid [\s\S]* invocation|write conflict|deadlock|serialization failure/i,
+        );
+        expect(message).toBe("Task not found.");
+        distribution.taskNotFound += 1;
+      }
+
+      await expect(prisma.board.findUnique({ where: { id: board.id } })).resolves.toBeNull();
+    }
+
+    console.info("mark done/board delete race distribution", distribution);
   });
 
   test("markTaskDoneForUser does not spawn a second row for a recurring task", async () => {
