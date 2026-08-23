@@ -13,9 +13,7 @@ import { demoUser } from "@/lib/domain";
 import {
   buildExternalDailySummary,
   checkExternalApiRateLimit,
-  type RateLimitHeaders,
-  requireExternalApiAccess,
-  requireExternalApiUser,
+  type ExternalApiContext,
   withExternalApiObservability,
 } from "@/lib/external-api";
 import {
@@ -26,11 +24,6 @@ import {
 
 const externalRateLimit = 120;
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
-const rateLimitHeaders: RateLimitHeaders = {
-  "X-RateLimit-Limit": String(externalRateLimit),
-  "X-RateLimit-Remaining": String(externalRateLimit - 1),
-  "X-RateLimit-Reset": String(Math.floor(Date.now() / 1000) + 60),
-};
 
 type MockSentryScope = {
   setContext(name: string, context: Record<string, unknown>): void;
@@ -91,21 +84,15 @@ function requestWithInitialHeaderFailure(error: Error) {
   } as Request;
 }
 
-async function expectExternalUserError(
-  result: Awaited<ReturnType<typeof requireExternalApiUser>>,
+async function expectExternalApiError(
+  response: Awaited<ReturnType<typeof withExternalApiObservability>>,
   status: number,
   error: string,
 ) {
-  expect(result.ok).toBe(false);
+  expect(response.status).toBe(status);
+  await expect(response.json()).resolves.toEqual({ error, ok: false });
 
-  if (result.ok) {
-    throw new Error("Expected external API user resolution to fail.");
-  }
-
-  expect(result.response.status).toBe(status);
-  await expect(result.response.json()).resolves.toEqual({ error, ok: false });
-
-  return result.response;
+  return response;
 }
 
 describe("external API auth, rate limiting, and summaries", () => {
@@ -114,9 +101,16 @@ describe("external API auth, rate limiting, and summaries", () => {
   });
 
   test("rejects malformed Authorization headers", async () => {
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+
     for (const authorization of ["NotBearer xyz", "Bearer    "]) {
-      const response = await expectExternalUserError(
-        await requireExternalApiUser(externalRequest(authorization)),
+      const response = await expectExternalApiError(
+        await withExternalApiObservability(
+          externalRequest(authorization),
+          "/api/external/v1/test",
+          handler,
+          { rateLimitScope: "external-api-malformed-test" },
+        ),
         401,
         "Malformed Authorization header.",
       );
@@ -125,19 +119,28 @@ describe("external API auth, rate limiting, and summaries", () => {
         'Bearer realm="external-api"',
       );
     }
+
+    expect(handler).not.toHaveBeenCalled();
   });
 
   test("returns 503 when the legacy API key is not configured", async () => {
     const originalApiKey = process.env.EXTERNAL_API_KEY;
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
 
     try {
       delete process.env.EXTERNAL_API_KEY;
 
-      await expectExternalUserError(
-        await requireExternalApiUser(externalRequest("Bearer any-token")),
+      await expectExternalApiError(
+        await withExternalApiObservability(
+          externalRequest("Bearer any-token"),
+          "/api/external/v1/test",
+          handler,
+          { rateLimitScope: "external-api-unconfigured-test" },
+        ),
         503,
         "External API is not configured.",
       );
+      expect(handler).not.toHaveBeenCalled();
     } finally {
       restoreEnvironmentVariable("EXTERNAL_API_KEY", originalApiKey);
     }
@@ -193,17 +196,19 @@ describe("external API auth, rate limiting, and summaries", () => {
       message: "Too many attempts. Please try again shortly.",
     });
 
-    const userResult = await requireExternalApiUser(request);
-    const accessResult = await requireExternalApiAccess(request);
+    const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+    const response = await withExternalApiObservability(
+      request,
+      "/api/external/v1/test",
+      handler,
+    );
 
-    expect(userResult.ok).toBe(false);
-    expect(accessResult.ok).toBe(false);
-    if (userResult.ok || accessResult.ok) {
-      throw new Error("Expected both external API access checks to remain limited.");
-    }
-
-    expect(userResult.response.status).toBe(429);
-    expect(accessResult.response.status).toBe(429);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toMatch(/^[1-9]\d*$/);
+    await expect(response.json()).resolves.toEqual({
+      message: "Too many attempts. Please try again shortly.",
+    });
+    expect(handler).not.toHaveBeenCalled();
   });
 
   test("adapts Sentry's default export and finalizes errors without rate-limit headers", async () => {
@@ -296,7 +301,7 @@ describe("external API auth, rate limiting, and summaries", () => {
     }
   });
 
-  test("resolves successful access through the exported wrappers", async () => {
+  test("passes resolved DB-token and legacy users to the live handler", async () => {
     const owner = await createTestUser({
       email: "external-wrapper-owner@example.test",
       name: "External Wrapper Owner",
@@ -307,21 +312,22 @@ describe("external API auth, rate limiting, and summaries", () => {
       scopes: [ApiTokenScope.TASKS_READ],
     });
 
-    const result = await requireExternalApiAccess(externalRequest(`Bearer ${token}`), {
-      rateLimitHeaders,
-    });
-
-    expect(result).toEqual({
-      data: { scopes: [ApiTokenScope.TASKS_READ], userId: owner.id },
-      ok: true,
-    });
-
-    const liveRateLimitResult = await requireExternalApiAccess(
+    const tokenHandler = vi.fn(async (context: ExternalApiContext) =>
+      NextResponse.json({ user: context.user }),
+    );
+    const tokenResponse = await withExternalApiObservability(
       externalRequest(`Bearer ${token}`),
-      { rateLimitScope: "external-api-wrapper-success" },
+      "/api/external/v1/test",
+      tokenHandler,
+      { rateLimitScope: "external-api-token-success-test" },
     );
 
-    expect(liveRateLimitResult).toEqual(result);
+    expect(tokenResponse.status).toBe(200);
+    expect(tokenHandler).toHaveBeenCalledOnce();
+    expect(tokenHandler.mock.calls[0]?.[0].user).toEqual({
+      scopes: [ApiTokenScope.TASKS_READ],
+      userId: owner.id,
+    });
 
     await createTestUser({
       email: demoUser.email,
@@ -331,14 +337,21 @@ describe("external API auth, rate limiting, and summaries", () => {
     vi.stubEnv("EXTERNAL_USER_ID", "");
 
     try {
-      const userResult = await requireExternalApiUser(
+      const legacyHandler = vi.fn(async (context: ExternalApiContext) =>
+        NextResponse.json({ user: context.user }),
+      );
+      const legacyResponse = await withExternalApiObservability(
         externalRequest(`Bearer ${process.env.EXTERNAL_API_KEY ?? ""}`),
-        { rateLimitHeaders },
+        "/api/external/v1/test",
+        legacyHandler,
+        { rateLimitScope: "external-api-legacy-success-test" },
       );
 
-      expect(userResult).toEqual({
-        data: { scopes: Object.values(ApiTokenScope), userId: demoUser.id },
-        ok: true,
+      expect(legacyResponse.status).toBe(200);
+      expect(legacyHandler).toHaveBeenCalledOnce();
+      expect(legacyHandler.mock.calls[0]?.[0].user).toEqual({
+        scopes: Object.values(ApiTokenScope),
+        userId: demoUser.id,
       });
     } finally {
       vi.unstubAllEnvs();
@@ -352,17 +365,22 @@ describe("external API auth, rate limiting, and summaries", () => {
     vi.stubEnv("EXTERNAL_USER_ID", missingUserId);
 
     try {
-      const response = await expectExternalUserError(
-        await requireExternalApiUser(externalRequest(`Bearer ${legacyApiKey}`), {
-          rateLimitHeaders,
-        }),
+      const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+      const response = await expectExternalApiError(
+        await withExternalApiObservability(
+          externalRequest(`Bearer ${legacyApiKey}`),
+          "/api/external/v1/test",
+          handler,
+          { rateLimitScope: "external-api-missing-legacy-user-test" },
+        ),
         404,
         "External API user was not found.",
       );
 
       expect(response.headers.get("X-RateLimit-Limit")).toBe(
-        rateLimitHeaders["X-RateLimit-Limit"],
+        String(externalRateLimit),
       );
+      expect(handler).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllEnvs();
     }
