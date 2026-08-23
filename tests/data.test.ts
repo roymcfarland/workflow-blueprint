@@ -30,6 +30,7 @@ import {
   createTaskForBoard,
   createUserAccountWithInvitation,
   deleteAttachmentForUser,
+  deleteBoardForUser,
   deleteChecklistItemForUser,
   deleteLabelForUser,
   deleteSubtaskForUser,
@@ -101,10 +102,16 @@ function errorDetails(reason: unknown) {
 
 const rawPrismaMissingRecordError = /Invalid [\s\S]*invocation|No record was found/;
 
-function expectAppNotFoundError(reason: unknown, notFoundMessage: string) {
+function expectNoRawPrismaMissingRecordError(reason: unknown) {
   const { code, message } = errorDetails(reason);
   expect(code).not.toBe("P2025");
   expect(message).not.toMatch(rawPrismaMissingRecordError);
+
+  return message;
+}
+
+function expectAppNotFoundError(reason: unknown, notFoundMessage: string) {
+  const message = expectNoRawPrismaMissingRecordError(reason);
   expect(message).toBe(notFoundMessage);
 }
 
@@ -464,6 +471,7 @@ describe("src/lib/data.ts", () => {
     const result = await rolloverDueRecurringTasks(rolloverReferenceDate);
 
     expect(result.rolledOverTaskIds).toEqual([task.id]);
+    expect(result.skippedTaskIds).toEqual([]);
     await expect(
       prisma.task.findUniqueOrThrow({
         select: { dueDate: true, sortOrder: true, status: true },
@@ -718,6 +726,56 @@ describe("src/lib/data.ts", () => {
         },
       }),
     ).resolves.toBe(2);
+  });
+
+  test("skips recurring tasks deleted with their board instead of aborting the rollover", async () => {
+    const distribution = { noCandidate: 0, rolledOver: 0, skipped: 0 };
+
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const user = await createTestUser({
+        email: `rollover-board-delete-race-${iteration}@example.test`,
+      });
+      const board = await createTestBoard(user.id);
+      const task = await createRolloverTask({
+        boardId: board.id,
+        dueDate: utcDate("2026-07-01"),
+        recurrence: PrismaRecurrencePattern.DAILY,
+        status: PrismaTaskStatus.DONE,
+        title: `Rollover board deletion race ${iteration}`,
+      });
+
+      const [rolloverOutcome, boardDeletionOutcome] = await Promise.all([
+        captureOutcome(() => rolloverDueRecurringTasks(rolloverReferenceDate)),
+        captureOutcome(() => deleteBoardForUser(user.id, board.slug)),
+      ]);
+
+      expect(boardDeletionOutcome.status).toBe("fulfilled");
+      if (boardDeletionOutcome.status === "rejected") {
+        throw boardDeletionOutcome.reason;
+      }
+
+      if (rolloverOutcome.status === "rejected") {
+        expectNoRawPrismaMissingRecordError(rolloverOutcome.reason);
+        throw rolloverOutcome.reason;
+      }
+
+      const rolledOver = rolloverOutcome.value.rolledOverTaskIds.includes(task.id);
+      const skipped = rolloverOutcome.value.skippedTaskIds.includes(task.id);
+      expect(rolledOver && skipped).toBe(false);
+
+      if (skipped) {
+        distribution.skipped += 1;
+      } else if (rolledOver) {
+        distribution.rolledOver += 1;
+      } else {
+        distribution.noCandidate += 1;
+      }
+
+      await expect(prisma.board.findUnique({ where: { id: board.id } })).resolves.toBeNull();
+    }
+
+    console.info("recurring rollover/board delete race distribution", distribution);
+    expect(distribution.skipped).toBeGreaterThan(0);
   });
 
   test("updates task recurrence", async () => {
