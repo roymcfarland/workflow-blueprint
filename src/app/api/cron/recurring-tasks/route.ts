@@ -11,9 +11,18 @@ export async function GET(request: Request) {
   }
 
   const { rolledOverTaskIds, skippedTaskIds } = await rolloverDueRecurringTasks();
-  const purgedDemoUserCount = await purgeExpiredDemoUsers();
+
+  let purgedDemoUserCount: number | null = null;
+  let purgeError: string | null = null;
+
+  try {
+    purgedDemoUserCount = await purgeExpiredDemoUsers();
+  } catch (error) {
+    purgeError = error instanceof Error ? error.message : "Unable to purge expired demo accounts.";
+  }
 
   return NextResponse.json({
+    purgeError,
     purgedDemoUserCount,
     rolledOverCount: rolledOverTaskIds.length,
     rolledOverTaskIds,
