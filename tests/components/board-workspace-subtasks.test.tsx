@@ -101,6 +101,13 @@ function apiResponse(body: unknown, status = 200) {
   });
 }
 
+function malformedResponse(status = 500) {
+  return new Response("<!doctype html><title>502</title>", {
+    headers: { "Content-Type": "application/json" },
+    status,
+  });
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -855,6 +862,22 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  test("shows the fallback when a failed create response body is malformed", async () => {
+    fetchMock.mockResolvedValueOnce(malformedResponse());
+
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    const addInput = screen.getByRole("textbox", { name: "Add subtask" });
+    fireEvent.change(addInput, { target: { value: "Malformed response subtask" } });
+    fireEvent.keyDown(addInput, { key: "Enter" });
+
+    expect(screen.getByDisplayValue("Malformed response subtask")).toBeDefined();
+    expect((await screen.findByRole("alert")).textContent).toBe("Unable to add subtask.");
+    expect(screen.queryByDisplayValue("Malformed response subtask")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   test("adds a subtask on blur without refocusing the add input", async () => {
     const addedTask = task({
       subtasks: [
@@ -927,6 +950,25 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(renameInit.method).toBe("PATCH");
     expect(requestJsonBody(renameInit)).toEqual({ title: "Draft outline updated" });
     expect(usedWholeTaskSubtaskPatch(initialTask.id)).toBe(false);
+  });
+
+  test("clears a pending inline title save when the panel unmounts", async () => {
+    vi.useFakeTimers();
+    const { unmount } = render(<BoardWorkspace board={boardSnapshot(task())} />);
+    openSubtasksPanel();
+
+    fireEvent.change(screen.getByDisplayValue("Draft outline"), {
+      target: { value: "Edited before unmount" },
+    });
+    expect(vi.getTimerCount()).toBe(1);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(650);
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test("cancels a pending title debounce when the original title is restored", async () => {

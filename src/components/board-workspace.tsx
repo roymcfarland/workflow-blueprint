@@ -1334,7 +1334,13 @@ function SubtasksCardPanel({
     };
 
     const queuedCreate = createQueueRef.current.then(createRequest, createRequest);
-    createQueueRef.current = queuedCreate.catch(() => undefined);
+    createQueueRef.current = queuedCreate.catch(
+      // createRequest catches the request-and-apply path; knownServerIds construction cannot
+      // throw because rowsRef.current is always an array of row objects. This ref starts
+      // resolved and is only assigned here to a catch-wrapped promise.
+      /* v8 ignore next */
+      () => undefined,
+    );
     void queuedCreate;
 
     if (shouldRefocus) {
