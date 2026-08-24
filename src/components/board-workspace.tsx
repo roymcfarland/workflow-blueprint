@@ -1335,7 +1335,9 @@ function SubtasksCardPanel({
 
     const queuedCreate = createQueueRef.current.then(createRequest, createRequest);
     createQueueRef.current = queuedCreate.catch(
-      // createRequest absorbs every request failure, and this ref has no writer that can reject.
+      // createRequest catches the request-and-apply path; knownServerIds construction cannot
+      // throw because rowsRef.current is always an array of row objects. This ref starts
+      // resolved and is only assigned here to a catch-wrapped promise.
       /* v8 ignore next */
       () => undefined,
     );

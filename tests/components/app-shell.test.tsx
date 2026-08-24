@@ -754,9 +754,11 @@ describe("AppShell mobile navigation close interactions", () => {
     renderShell();
     openMobileNavigation();
 
-    expect(
-      screen.getByRole("complementary", { name: "Primary navigation" }).className,
-    ).toContain("overflow-y-auto");
+    const navigation = screen.getByRole("complementary", {
+      name: "Primary navigation",
+    });
+    expect(navigation.className).toContain("overflow-y-auto");
+    expect(navigation.className).toContain("lg:overflow-y-hidden");
   });
 
   test("keeps the mobile close button at its declared touch target size", () => {
