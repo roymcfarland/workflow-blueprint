@@ -234,6 +234,14 @@ afterEach(() => {
 });
 
 describe("TaskDetailModal remaining CRUD", () => {
+  test("keeps the detail panel scrollable within short viewports", () => {
+    render(<BoardWorkspace board={boardSnapshot(task())} />);
+
+    const dialog = openTaskDetails();
+    expect(dialog.className).toContain("max-h-");
+    expect(dialog.className).toContain("overflow-y-auto");
+  });
+
   test("seeds both undated and dated tasks when the modal opens", async () => {
     const undatedRender = render(<BoardWorkspace board={boardSnapshot(task())} />);
     openTaskDetails();

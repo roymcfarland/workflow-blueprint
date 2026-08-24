@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -106,6 +109,24 @@ function apiResponse(body: unknown, status = 200) {
   });
 }
 
+function relativeLuminance(hex: string) {
+  const channels = hex
+    .slice(1)
+    .match(/.{2}/g)!
+    .map((channel) => Number.parseInt(channel, 16) / 255)
+    .map((channel) =>
+      channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+    );
+
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const lighter = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+  const darker = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 type DashboardSubtaskSummary = DashboardTaskSummary["subtasks"][number];
 
 function renderExpandedSubtasks(subtasks: DashboardSubtaskSummary[]) {
@@ -176,6 +197,14 @@ function sortableSection(label: string) {
   }
 
   return { handle, row: row as HTMLElement };
+}
+
+function expectTwentyFourPixelTarget(button: HTMLElement) {
+  expect(button.className).toContain("h-6");
+  expect(button.className).toContain("w-6");
+  expect(button.className).toContain("items-center");
+  expect(button.className).toContain("justify-center");
+  expect(button.querySelector("svg")?.getAttribute("class")).toContain("h-4 w-4");
 }
 
 async function dragFirstRowAfterSecond(
@@ -262,6 +291,41 @@ describe("DashboardOverview in-progress panel", () => {
     expect(screen.getByText("Draft launch checklist")).toBeDefined();
     expect(screen.getByText("Interview beta customer")).toBeDefined();
     expect(screen.queryByRole("heading", { name: "Boards" })).toBeNull();
+  });
+
+  test("keeps dashboard drag and disclosure targets at least 24 by 24 pixels", () => {
+    renderExpandedSubtasks([
+      {
+        id: "subtask-one",
+        isComplete: false,
+        title: "Outline release notes",
+      },
+    ]);
+
+    [
+      screen.getByRole("button", { name: "Hide subtasks for Draft launch checklist" }),
+      screen.getByRole("button", { name: "Reorder Draft launch checklist" }),
+      screen.getByRole("button", { name: "Reorder subtask" }),
+      screen.getByRole("button", { name: "Reorder Snapshot section" }),
+    ].forEach(expectTwentyFourPixelTarget);
+  });
+
+  test("gives the dashboard section grid a zero-floor base column", () => {
+    render(<DashboardOverview data={dashboardSnapshot()} />);
+
+    const sectionGrid = screen
+      .getByRole("button", { name: "Reorder Snapshot section" })
+      .closest("div.grid.gap-6");
+    expect(sectionGrid?.className).toContain("grid-cols-1");
+  });
+
+  test("keeps the light done-status text token at WCAG AA contrast", () => {
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+    const rootBlock = css.match(/:root\s*{([^}]*)}/)?.[1];
+    const statusDone = rootBlock?.match(/--status-done:\s*(#[\da-f]{6})\s*;/i)?.[1];
+
+    expect(statusDone).toBeDefined();
+    expect(contrastRatio(statusDone!, "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 
   test("reorders in-progress tasks and persists the new order", async () => {
