@@ -270,11 +270,13 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#245** | Drop dead external-API auth wrappers (R1) | `#245` | Removes `requireExternalApiUser` and `requireExternalApiAccess` after recon confirmed both had zero callers. Their bodies were covered only by tests that called them directly, so part of `external-api.ts`'s 100% coverage was measuring dead code; those tests now exercise the live `withExternalApiObservability` path while preserving the same auth, rate-limit, resolved-user, and missing-user behaviours. Exporting the module-private `resolveExternalApiAccess` or `checkExternalRateLimit` internals was considered and rejected. |
 | **#246** | Fix four measured responsive UI defects (R2) | `#246` | Fixes four defects found by computed-style measurement through the demo: the narrow dashboard's implicit grid track shrinks from 464px to its 343px container and body scroll width from 480px to 375px; the 617px task-detail panel that clipped 121px past both edges now scrolls within the viewport, taking unreachable controls from 6 of 21 to 0; all 22 rendered instances at the four undersized dashboard button sites grow from 16x16 to 24x24 while their glyphs remain 16x16; and light-mode done-status text moves from 3.80:1 to 5.01:1 contrast without changing the passing dark token or fill-only status tokens. Applies the same viewport cap and scrolling to the board dialog as a structural fix: its measured 386px panel exceeded the 375px viewport by 11px but had zero unreachable controls before this change, so this does not claim a current user-visible break. UI/test only; no schema/API/contract change. |
 | **#247** | Close the last Vitest gap and fix the short-viewport nav drawer | `#247` | Raises Vitest from 99.85% statements / 99.44% functions (branches and lines already 100%) to 100% across all four metrics through behavioral malformed-response and timer-cleanup coverage plus one inverse-verified unreachable queue-catch pragma, then locks the result with repo-side 100% thresholds. Fixes the 667x375 mobile drawer where 499px of content occupied a 373px client box with hidden overflow, leaving 3 of 17 controls unreachable and compressing the declared 40x40 close target to 40x22; the drawer now scrolls through the full control set, the target remains 40x40, and the desktop sidebar remains unclipped. UI/test/config/docs only; no schema/API/contract change. |
+| **#<pending>** | Docs: reconcile R2 and the coverage gate | `#<pending>` | Reconciles the Active phase after `#246` and `#247`: records the completed responsive UI audit, replaces the obsolete claim that CI leaves coverage unprotected with the enforced four-metric Vitest gate, and documents the gate and local test commands in README/AGENTS guidance. Preserves the still-accurate `codecov/project` diagnosis and records that it is now a redundant second guard rather than the only guard. Docs-only; no `src/**` or test change. |
 ### Active phase
 
 - **Child-mutation race reporting fixed in `#239`:** the five Task-child mutation windows now convert a concurrent cascade loss into their existing application-level not-found messages instead of leaking raw Prisma P2025 text. Ownership is enforced atomically on each mutation rather than its pre-lookup, which also makes every count-error arm deterministically testable with a wrong-owner request. `#232`'s parent-guard reachability proof and pragmas remain unchanged and valid.
 - **Coverage campaign complete:** CV1 (`#204`) through D1b (`#233`) comprise 25 slices, numbered 1-27 — slice numbers 10 and 13 were skipped where non-slice PRs interleaved (`#214`'s flake fix, `#217`'s dependency override). D1b closes the final seven invitation-acceptance records by behaviour with no new pragmas, leaving `src/lib/data.ts` and the entire repository with zero open Codecov records. `#234` brought the README narrative current.
-- **OPEN — the coverage regression gate does not fire.** `codecov/project` has never posted on any PR in this repository, so the `coverage.status.project` block in `codecov.yml` has never been enforced and **the 100% result is currently unguarded**. Codecov's read-only "Repository YAML" panel is frozen at `#148`'s config, which has no `coverage:` key, and six attempts failed to refresh it: a content change (`#231`), four default-branch uploads, an org resync, a rename to the canonical filename (`#235`), a head commit carrying the corrected config (`#236`), and an org-level Global YAML entry (reverted — repo-level YAML takes precedence, and it would have applied a 100% gate to five unrelated repos). Codecov support was emailed 2026-08-22; awaiting reply. Until it fires, treat coverage as unprotected by CI: a PR that reduces coverage will not be blocked automatically.
+- **OPEN — `codecov/project` remains absent but is now redundant.** `codecov/project` has never posted on any PR in this repository, so the `coverage.status.project` block in `codecov.yml` has never been enforced. Codecov's read-only "Repository YAML" panel is frozen at `#148`'s config, which has no `coverage:` key, and six attempts failed to refresh it: a content change (`#231`), four default-branch uploads, an org resync, a rename to the canonical filename (`#235`), a head commit carrying the corrected config (`#236`), and an org-level Global YAML entry (reverted — repo-level YAML takes precedence, and it would have applied a 100% gate to five unrelated repos). Codecov support was emailed 2026-08-22; awaiting reply. `#247` re-verified the diagnosis on 2026-08-24, when only `codecov/patch` posted. Coverage is now guarded in CI by Vitest's enforced thresholds, so `codecov/project` would be a redundant second guard rather than the only guard.
+- **Vitest coverage is locked at 100% in CI:** `#247` closed the last runner gap — 99.85% statements and 99.44% functions, both invisible to Codecov because it measures lines — and added enforced 100% thresholds for statements, branches, functions, and lines. The threshold cannot protect `className` correctness: coverage measures execution, not assertion, and every `className` sits on a line that any render executes. `#247`'s `16c1523` amendment existed solely to assert a class that was already 100% “covered” and completely unguarded.
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (`#217`) shipped the `deepmerge-ts` major override and restored a clean audit.
 
 #### Next phase — sequenced roadmap
@@ -287,7 +289,7 @@ grows to do so needs a scoped docs-amendment PR merged first.
 |---|---|---|---|
 | **R0** | Cron reports a committed rollover when the demo purge fails | Done in `#244` | Small, fully specified |
 | **R1** | `external-api.ts` dead-export cluster | Done in `#245` | Only item with evidence something is actually wrong |
-| **R2** | Finish the UI/UX audit | Ready | One pass found two real defects; most surfaces unmeasured |
+| **R2** | Finish the UI/UX audit | Done in `#246`, `#247` | Two rounds found six measured defects |
 | **R3** | Dependency recon | Overdue | Monthly cadence; last run around `#205`/`#217` |
 | **R4** | `deepmerge-ts` override removal | **Blocked upstream** | Recheck condition, not work |
 | **—** | `codecov/project` gate | **Blocked on Codecov support** | See the OPEN item above |
@@ -306,12 +308,21 @@ shared logic is exercised anywhere production actually runs. If not, this reposi
 nothing calls — which is worth knowing precisely, and is the strongest argument for doing R1 before R2. **Begin by tracing
 what `withExternalApiObservability` calls**, then decide scope. Do not delete anything before that trace exists.
 
-**R2 — the audit is one-sixth done.** `#238` measured the sidebar and dashboard and found two real defects: white nav text
-failing WCAG AA on 9 of 10 accent presets (floor 2.12:1), and 16×16 reorder handles against a 24×24 minimum. Both were
-invisible to code review. **Unmeasured:** settings, invitations/admin, list view, the task detail modal, empty states, and
-every viewport below desktop. Method that worked: drive the real app through the demo endpoint, measure computed styles
-rather than eyeballing, and let measurement arbitrate against your own reading of the source — both instruments are
-unreliable and they fail differently.
+**R2 — the UI/UX audit is complete.** Computed-style measurement through the demo endpoint found the dashboard; board in
+board view and list view, with notes open and closed; profile; task detail modal; `/admin/invitations`;
+`/admin/api-tokens`; and the corresponding empty states clean at 1280x720, 768x1024, 375x812, and 667x375 after the fixes.
+There is no `/settings` route — the
+account-settings surface is `/profile`, and `/settings` returns 404. `#246` fixed a dashboard grid clipping 105px
+unreachably because a `min-width: auto` blowout made a 464px track inside a 343px container; the task detail modal clipping
+6 of 21 controls on a landscape phone; four 16x16 tap-target sites against the 24x24 minimum; and `--status-done` text at
+3.80:1 contrast. `#247` fixed the mobile nav drawer clipping 126px under `overflow-y: hidden`, stranding New Board, the
+Account menu, and Sign out (3 of 17 controls), plus its close button shrinking from 40px to 22px under default flex shrink.
+
+One measured-clean pattern remains **latent, not a defect**: `src/components/admin/api-tokens-admin.tsx:221` uses
+`grid gap-3 sm:grid-cols-2` with no base column, structurally identical to the `#246` dashboard-grid bug, but its current
+short content does not overflow. Keep the method that worked: drive the real app through the demo endpoint, measure
+computed styles rather than eyeballing, and let measurement arbitrate against your own reading of the source — both
+instruments are unreliable and fail differently.
 
 **R3 — dependency recon.** Use the `dependency-upgrade-recon` skill. Note `npm audit --omit=dev` still exits non-zero for
 a structural reason (`prisma` is an optional peer of `@prisma/client`), so a clean audit means the CI `audit` job, not

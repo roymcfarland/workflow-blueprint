@@ -392,7 +392,7 @@ npm run typecheck      # tsc --noEmit
 npm run test           # Vitest: data-layer, API-route, and component tests (ephemeral Postgres)
 npm run test:watch     # Vitest in watch mode
 npm run test:smoke     # Vitest: boots a real Next.js server and hits real routes
-npm run test:coverage  # Vitest with v8 coverage, excluding tests/smoke/** (uploaded to Codecov in CI)
+npm run test:coverage  # Vitest with v8 coverage, excluding tests/smoke/**; enforces 100% thresholds on statements, branches, functions, and lines and fails below any of them (uploaded to Codecov in CI)
 npm run generate:openapi # regenerate docs/openapi.yaml from src/lib/external-contract.ts
 npm run postinstall    # runs automatically after npm install: prisma generate
 npm run db:deploy      # apply checked-in Prisma migrations
