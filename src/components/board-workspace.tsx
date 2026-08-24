@@ -2441,7 +2441,7 @@ function TaskDetailModal({
       <div
         aria-label={`Details for ${task.title}`}
         aria-modal="true"
-        className="blueprint-surface blueprint-surface-strong w-full max-w-lg space-y-4 rounded-xl p-5 shadow-2xl"
+        className="blueprint-surface blueprint-surface-strong max-h-[calc(100vh-2rem)] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl p-5 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >

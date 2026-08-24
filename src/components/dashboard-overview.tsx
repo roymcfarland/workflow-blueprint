@@ -590,7 +590,7 @@ function SortableInProgressRow({
                   ? `Hide subtasks for ${task.title}`
                   : `Show subtasks for ${task.title}`
               }
-              className="shrink-0 text-text-muted transition hover:text-text-primary"
+              className="flex h-6 w-6 shrink-0 items-center justify-center text-text-muted transition hover:text-text-primary"
               onClick={() => setExpanded((value) => !value)}
               type="button"
             >
@@ -605,7 +605,7 @@ function SortableInProgressRow({
           )}
           <button
             aria-label={`Reorder ${task.title}`}
-            className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
+            className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-muted active:cursor-grabbing"
             ref={setActivatorNodeRef}
             type="button"
             {...attributes}
@@ -759,7 +759,7 @@ function SortableDashboardSubtaskRow({
     >
       <button
         aria-label="Reorder subtask"
-        className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
+        className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-muted active:cursor-grabbing"
         disabled={disabled}
         ref={setActivatorNodeRef}
         type="button"
@@ -1398,7 +1398,7 @@ function SortableSection({
   const dragHandle = (
     <button
       aria-label={`Reorder ${label} section`}
-      className="shrink-0 cursor-grab text-text-muted active:cursor-grabbing"
+      className="flex h-6 w-6 shrink-0 cursor-grab items-center justify-center text-text-muted active:cursor-grabbing"
       ref={setActivatorNodeRef}
       type="button"
       {...attributes}
@@ -1469,7 +1469,7 @@ function DashboardSections({ data, isAdmin }: { data: DashboardSnapshot; isAdmin
       sensors={sensors}
     >
       <SortableContext items={order} strategy={rectSortingStrategy}>
-        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
           {order.map((id) => {
             if (id === "snapshot") {
               return (

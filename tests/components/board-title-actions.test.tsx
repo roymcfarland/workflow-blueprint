@@ -73,6 +73,15 @@ describe("BoardTitleActions", () => {
     expect(screen.getByPlaceholderText("Board name").getAttribute("value")).toBe("Launch Plan");
   });
 
+  test("keeps board dialogs scrollable within short viewports", () => {
+    render(<BoardTitleActions board={board} />);
+
+    openEditDialog();
+    const dialog = screen.getByRole("dialog", { name: "Edit Launch Plan" });
+    expect(dialog.className).toContain("max-h-");
+    expect(dialog.className).toContain("overflow-y-auto");
+  });
+
   test("refreshes without pushing when an edit keeps the same slug", async () => {
     fetchMock.mockResolvedValueOnce(apiResponse({ board: { slug: "launch-plan" }, ok: true }));
     render(<BoardTitleActions board={board} />);

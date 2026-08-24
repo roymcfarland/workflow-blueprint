@@ -53,7 +53,7 @@
      Backlog (cool blue) -> Up Next (slate) -> In Progress (amber/warm)
      -> Done (green) -> Archived (muted). */
   --status-archived: #9aa6bd;
-  --status-done: #0f9568;
+  --status-done: #0e7f58;
   --status-ice-box: #6f86b5;
   --status-in-progress: #f2690c;
   --status-in-progress-soft: rgba(242, 105, 12, 0.18);
