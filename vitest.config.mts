@@ -12,6 +12,7 @@ export default defineConfig({
       include: ["src/**"],
       provider: "v8",
       reporter: ["text", "lcov"],
+      thresholds: { branches: 100, functions: 100, lines: 100, statements: 100 },
     },
     environment: "node",
     // Vitest's own defaults don't cover ".claude" (only .git/.cache/.idea/.output/.temp),

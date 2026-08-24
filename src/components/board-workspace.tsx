@@ -1334,7 +1334,11 @@ function SubtasksCardPanel({
     };
 
     const queuedCreate = createQueueRef.current.then(createRequest, createRequest);
-    createQueueRef.current = queuedCreate.catch(() => undefined);
+    createQueueRef.current = queuedCreate.catch(
+      // createRequest absorbs every request failure, and this ref has no writer that can reject.
+      /* v8 ignore next */
+      () => undefined,
+    );
     void queuedCreate;
 
     if (shouldRefocus) {

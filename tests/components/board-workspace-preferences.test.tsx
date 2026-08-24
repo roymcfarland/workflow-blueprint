@@ -106,6 +106,13 @@ function deferred<T>() {
   return { promise, reject, resolve };
 }
 
+function malformedResponse(status = 500) {
+  return new Response("<!doctype html><title>502</title>", {
+    headers: { "Content-Type": "application/json" },
+    status,
+  });
+}
+
 async function renderListWorkspace() {
   localStorage.setItem("wb.board.alpha.viewMode", "list");
   const result = renderWorkspace();
@@ -579,6 +586,22 @@ describe("BoardWorkspace note autosave", () => {
     expect(screen.getByRole("status").textContent).toContain(
       "Notes are temporarily unavailable",
     );
+  });
+
+  test("shows the fallback when a failed note response body is malformed", async () => {
+    fetchMock.mockResolvedValueOnce(malformedResponse());
+    renderWorkspace();
+    fireEvent.click(getNotesToolbarToggle("Show notes"));
+
+    fireEvent.change(screen.getByPlaceholderText(notesPlaceholder), {
+      target: { value: "This malformed save will fail" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(800);
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(screen.getByRole("status").textContent).toBe("Unable to save notes.");
   });
 
   test.each([

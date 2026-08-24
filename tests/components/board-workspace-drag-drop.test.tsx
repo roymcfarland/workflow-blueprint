@@ -48,6 +48,13 @@ function apiResponse(body: unknown, status = 200) {
   });
 }
 
+function malformedResponse(status = 500) {
+  return new Response("<!doctype html><title>502</title>", {
+    headers: { "Content-Type": "application/json" },
+    status,
+  });
+}
+
 function rect(overrides: Partial<DOMRect>): DOMRect {
   return {
     x: 0,
@@ -330,6 +337,31 @@ describe("BoardWorkspace drag and drop", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("shows the fallback when a failed reorder response body is malformed", async () => {
+    fetchMock.mockResolvedValueOnce(malformedResponse());
+    render(
+      <BoardWorkspace
+        board={boardSnapshot([
+          task({ id: "task-1", title: "First task" }),
+          task({ id: "task-2", status: "IN_PROGRESS", title: "Second task" }),
+        ])}
+      />,
+    );
+
+    const handle = screen.getByRole("button", { name: "Drag First task" });
+    const onDragStart = findDndHandler(handle, "onDragStart");
+    const onDragEnd = findDndHandler(handle, "onDragEnd");
+
+    act(() => onDragStart({ active: { id: "task-1" } }));
+    await act(async () => {
+      await onDragEnd({ active: { id: "task-1" }, over: { id: "task-2" } });
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const message = screen.getByText("Unable to persist task order.");
+    expect(message.closest('[role="status"]')).not.toBeNull();
   });
 
   test("removes the drag preview when the active task is deleted from its open modal", async () => {

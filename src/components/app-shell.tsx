@@ -422,7 +422,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     <aside
       aria-label="Primary navigation"
       className={cn(
-        "blueprint-surface blueprint-surface-strong flex h-full w-full max-w-none flex-col overflow-hidden rounded-none border-y-0 border-l-0 px-4 py-5 sm:px-5 lg:rounded-r-xl",
+        "blueprint-surface blueprint-surface-strong flex h-full w-full max-w-none flex-col overflow-x-hidden overflow-y-auto rounded-none border-y-0 border-l-0 px-4 py-5 sm:px-5 lg:overflow-y-hidden lg:rounded-r-xl",
         sidebarWidthClass,
         sidebarTransitionClass,
         "lg:px-3",
@@ -430,7 +430,7 @@ export function AppShell({ boards, children, user }: AppShellProps) {
     >
       <button
         aria-label="Close navigation"
-        className="mb-7 flex h-10 w-10 items-center justify-center rounded-lg border border-line-strong text-text-primary transition hover:bg-surface-control-hover lg:hidden"
+        className="mb-7 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line-strong text-text-primary transition hover:bg-surface-control-hover lg:hidden"
         onClick={() => setMobileOpen(false)}
         type="button"
       >

@@ -749,6 +749,26 @@ describe("AppShell board reorder interactions", () => {
 });
 
 describe("AppShell mobile navigation close interactions", () => {
+  test("lets the mobile drawer scroll on short viewports", () => {
+    useMobileViewport();
+    renderShell();
+    openMobileNavigation();
+
+    expect(
+      screen.getByRole("complementary", { name: "Primary navigation" }).className,
+    ).toContain("overflow-y-auto");
+  });
+
+  test("keeps the mobile close button at its declared touch target size", () => {
+    useMobileViewport();
+    renderShell();
+    openMobileNavigation();
+
+    const closeButton = screen.getByRole("button", { name: "Close navigation" });
+    expect(closeButton.className).toContain("h-10 w-10");
+    expect(closeButton.className).toContain("shrink-0");
+  });
+
   test("closes from the in-sidebar close button", () => {
     useMobileViewport();
     renderShell();
