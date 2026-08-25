@@ -1,3 +1,5 @@
+# Hypothesis test 2026-08-25: confirm codecov/project posts now that the learned
+# repository YAML shows current config (see PROJECT.md OPEN item).
 coverage:
   status:
     project:
