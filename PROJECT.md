@@ -272,6 +272,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#247** | Close the last Vitest gap and fix the short-viewport nav drawer | `#247` | Raises Vitest from 99.85% statements / 99.44% functions (branches and lines already 100%) to 100% across all four metrics through behavioral malformed-response and timer-cleanup coverage plus one inverse-verified unreachable queue-catch pragma, then locks the result with repo-side 100% thresholds. Fixes the 667x375 mobile drawer where 499px of content occupied a 373px client box with hidden overflow, leaving 3 of 17 controls unreachable and compressing the declared 40x40 close target to 40x22; the drawer now scrolls through the full control set, the target remains 40x40, and the desktop sidebar remains unclipped. UI/test/config/docs only; no schema/API/contract change. |
 | **#248** | Docs: reconcile R2 and the coverage gate | `#248` | Reconciles the Active phase after `#246` and `#247`: records the completed responsive UI audit, replaces the obsolete claim that CI leaves coverage unprotected with the enforced four-metric Vitest gate, and documents the gate and local test commands in README/AGENTS guidance. Preserves the still-accurate `codecov/project` diagnosis and records that it is now a redundant second guard rather than the only guard. Docs-only; no `src/**` or test change. |
 | **#249** | Docs: compress Active-phase history | `#249` | Small documentation follow-up to `#248`: replaces the duplicated `#239` child-mutation race and `#204`-`#233` Codecov campaign summaries in the Active phase with a one-line pointer to their existing Shipped ledger rows. Preserves the three live Active-phase bullets unchanged. Docs-only; no `src/**` or test change. |
+| **#250** | Dependency: in-range drift sweep (R3) | `#250` | 25 packages bumped to in-range minor/patch versions across framework (Next/React/Tailwind), Prisma, Sentry, Supabase, and test tooling (Vitest/vite/tsx); zero majors crossed; no advisory driving it — `npm audit` was already 0/0 before this PR. `@modelcontextprotocol/sdk` was deliberately excluded (pinned by `mcp-handler`'s exact peer dependency). Dependency-only; no `src/**` or test change. |
 ### Active phase
 
 - **Historical:** the `#239` child-mutation race fix and the `#204`-`#233` Codecov campaign are
@@ -291,7 +292,7 @@ grows to do so needs a scoped docs-amendment PR merged first.
 | **R0** | Cron reports a committed rollover when the demo purge fails | Done in `#244` | Small, fully specified |
 | **R1** | `external-api.ts` dead-export cluster | Done in `#245` | Only item with evidence something is actually wrong |
 | **R2** | Finish the UI/UX audit | Done in `#246`, `#247` | Two rounds found six measured defects |
-| **R3** | Dependency recon | Overdue | Monthly cadence; last run around `#205`/`#217` |
+| **R3** | Dependency recon | Done in `#250` | Zero advisories found; one drift-sweep PR |
 | **R4** | `deepmerge-ts` override removal | **Blocked upstream** | Recheck condition, not work |
 | **—** | `codecov/project` gate | **Blocked on Codecov support** | See the OPEN item above |
 
@@ -325,9 +326,19 @@ short content does not overflow. Keep the method that worked: drive the real app
 computed styles rather than eyeballing, and let measurement arbitrate against your own reading of the source — both
 instruments are unreliable and fail differently.
 
-**R3 — dependency recon.** Use the `dependency-upgrade-recon` skill. Note `npm audit --omit=dev` still exits non-zero for
-a structural reason (`prisma` is an optional peer of `@prisma/client`), so a clean audit means the CI `audit` job, not
-that flag.
+**R3 — dependency recon, complete.** `npm audit` and `npm audit --omit=dev` both
+reported 0 vulnerabilities before this PR — no advisory drove this slice, it is pure
+currency. 25 in-range minor/patch bumps shipped in `#250`. Five outdated majors
+were evaluated and left alone, each for a stated reason: `@types/node` 24→26 (must
+track the Node 24.18.x engine pin, not `latest`); `typescript` 6→7 (blocked —
+`typescript-eslint`, even at its own latest 8.68.0, peers `typescript: ">=4.8.4
+<6.1.0"`, so the lint toolchain doesn't support TS 7 yet); `eslint` 9→10 and `jsdom`
+29→30 (both compatible, no advisory or EOL driver — optional, left for a future slice
+if ever needed); `mcp-handler` 1→2 (not a routine bump — v2 replaces the peer
+dependency entirely, `@modelcontextprotocol/server` instead of
+`@modelcontextprotocol/sdk`, effectively a rewrite of
+`src/app/api/external/v1/[transport]/route.ts`'s SDK integration — no advisory
+driving it, informational only).
 
 **R4 — `deepmerge-ts`.** Verified 2026-08-23: `@prisma/config` still declares `7.1.5`, so the cross-major pin at `^8.0.1`
 from `#217` cannot be removed. The trigger is `npm view @prisma/config dependencies.deepmerge-ts` reporting `8.x`. No work
