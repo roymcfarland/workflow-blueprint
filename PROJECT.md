@@ -278,6 +278,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#253** | Dependency: in-range drift sweep (2026-09 recon) | `#253` | 16 packages bumped to in-range minor/patch versions (framework trio to 16.3.4, Prisma trio to 7.10.0, Sentry, lucide-react, resend, zod, react-hook-form, and test tooling); zero majors crossed. `@modelcontextprotocol/sdk` was again excluded by name because of `mcp-handler`'s exact peer pin. `npm audit` was 0/0 before and after, so no advisory drove this. `@types/node` and `eslint` moved in the lockfile only, with their loose major ranges deliberately preserved. Synced the Stack section's Next/React versions, stale since `#250`. Zod's 4.5.x JSON-Schema emitter changed two things in the generated spec, so `docs/openapi.yaml` was regenerated in the same diff: nine nullable-string sites moved from `anyOf` to the equivalent compact `type: [string, "null"]` form, and fifteen ISO datetime patterns tightened to require seconds. No response shape changed — no field, endpoint, enum, or `required` list differs — so this is not a Q5 contract change. `isoDateTimeSchema` is response-only (requests use the date-only `externalDueDateSchema`), and every affected value is `.toISOString()`-produced at full `.sssZ` precision, so the stricter pattern matches what the API has always returned. The previous pattern documented a minute-precision form the API never emitted. Dependency and docs only; no `src/**` or test change. |
 | **#254** | Chore: commit Next.js's regenerated `AGENTS.md` managed block | `#254` | `#253`'s bump to `next` 16.3.4 caused Next's own agent-file generator (`node_modules/next/dist/server/lib/generate-agent-files.js`) to rewrite the `nextjs-agent-rules` managed block in `AGENTS.md`, leaving an uncommitted change in every checkout after `npm ci`. Commits that regenerated block verbatim: it adds a resolution caveat to the `node_modules/next/dist/docs/` pointer (the path resolves from `AGENTS.md`'s own directory, and in monorepos `next` may not be visible from the repo root) and a note recording that the block is framework-generated and re-added by `next dev`. Provenance was verified against the generator in `node_modules` before committing rather than taken from the block's own self-description. Content outside the `BEGIN:/END:nextjs-agent-rules` markers is untouched. Docs-only; no `src/**`, test, or dependency change. |
 | **#255** | Security: clear the browserslist and mysql2 advisories | `#255` | Three high-severity advisories published 2026-09-01 after `#253` merged, which turned the CI `audit` job red repo-wide on `main` itself and on every PR opened against it; `browserslist` 4.28.5 → 4.28.8 resolved lockfile-only via `npm audit fix` (GHSA-c83g-rgw3-j3cx, GHSA-73wf-gq98-2v4g, reached via `@sentry/nextjs`'s webpack/babel chain); `mysql2` 3.15.3 → 3.24.2 resolved by a new `overrides` entry because `prisma@7.10.0` declares it at an exact `3.15.3` (GHSA-3f6p-5ww8-9rcr, plaintext credential leak via auth-plugin downgrade) — the same exact-pin-crossing shape as the existing `find-my-way`/`valibot` overrides; `npm audit fix --force`'s proposed `prisma@6.19.3` cross-major downgrade was rejected, since both advisories had within-major fixes; practical `mysql2` exposure was nil (`provider = "postgresql"`, serving via `@prisma/adapter-pg`, no MySQL usage in the repo) but that is context, not grounds for deferral; audit returns to 0/0 at both levels. Dependency-only; no `src/**` or test change. |
+| **#<pending>** | Docs: sync the roadmap after the September dependency recon | `#<pending>` | `#253`–`#255` each updated their own ledger row correctly but none synced the roadmap table or R3/R4 narrative — a documentation-drift audit caught it. Adds `#253` to the R3 roadmap row, rewrites the R3 narrative to cover both recon rounds, and corrects a real factual regression: the `#250`-era note calling `eslint` 9→10 "optional, no driver" is superseded by `#253`'s finding that it is actually **blocked** (`eslint-plugin-import`/`eslint-plugin-react`, both at their own latest, peer-cap at eslint 9) — independently re-verified here. Refreshes R4's recheck date (still `7.1.5`, unchanged) and records the new quarterly recon cadence (next 2026-10-01), previously documented only in the gitignored `.claude/HANDOFF.md`. Docs-only; no `src/**` or test change. |
 ### Active phase
 
 - **Historical:** the `#239` child-mutation race fix and the `#204`-`#233` Codecov campaign are
@@ -297,7 +298,7 @@ grows to do so needs a scoped docs-amendment PR merged first.
 | **R0** | Cron reports a committed rollover when the demo purge fails | Done in `#244` | Small, fully specified |
 | **R1** | `external-api.ts` dead-export cluster | Done in `#245` | Only item with evidence something is actually wrong |
 | **R2** | Finish the UI/UX audit | Done in `#246`, `#247` | Two rounds found six measured defects |
-| **R3** | Dependency recon | Done in `#250` | Zero advisories found; one drift-sweep PR |
+| **R3** | Dependency recon | Done in `#250`, `#253` | Now quarterly; zero advisories found either round |
 | **R4** | `deepmerge-ts` override removal | **Blocked upstream** | Recheck condition, not work |
 | **—** | `codecov/project` gate | Resolved in `#252` | Plan-gated (Team, not Pro) — not a bug; see the item above |
 
@@ -331,23 +332,41 @@ short content does not overflow. Keep the method that worked: drive the real app
 computed styles rather than eyeballing, and let measurement arbitrate against your own reading of the source — both
 instruments are unreliable and fail differently.
 
-**R3 — dependency recon, complete.** `npm audit` and `npm audit --omit=dev` both
-reported 0 vulnerabilities before this PR — no advisory drove this slice, it is pure
-currency. 25 in-range minor/patch bumps shipped in `#250`. Five outdated majors
-were evaluated and left alone, each for a stated reason: `@types/node` 24→26 (must
-track the Node 24.18.x engine pin, not `latest`); `typescript` 6→7 (blocked —
-`typescript-eslint`, even at its own latest 8.68.0, peers `typescript: ">=4.8.4
-<6.1.0"`, so the lint toolchain doesn't support TS 7 yet); `eslint` 9→10 and `jsdom`
-29→30 (both compatible, no advisory or EOL driver — optional, left for a future slice
-if ever needed); `mcp-handler` 1→2 (not a routine bump — v2 replaces the peer
-dependency entirely, `@modelcontextprotocol/server` instead of
-`@modelcontextprotocol/sdk`, effectively a rewrite of
-`src/app/api/external/v1/[transport]/route.ts`'s SDK integration — no advisory
-driving it, informational only).
+**R3 — dependency recon, two rounds so far, both clean.** `#250` (August): 25 in-range
+minor/patch bumps, no advisory driving it — `npm audit` was already 0/0. Five outdated
+majors evaluated and left alone: `@types/node` 24→26 (must track the Node 24.18.x
+engine pin, not `latest`); `typescript` 6→7 (blocked — `typescript-eslint`, even at its
+own latest 8.68.0, peers `typescript: ">=4.8.4 <6.1.0"`); `jsdom` 29→30 (compatible, no
+advisory or EOL driver — still true as of `#253`); `mcp-handler` 1→2 (not a routine bump
+— v2 replaces the peer dependency entirely, `@modelcontextprotocol/server` instead of
+`@modelcontextprotocol/sdk`, effectively a rewrite of the MCP route's SDK integration).
 
-**R4 — `deepmerge-ts`.** Verified 2026-08-23: `@prisma/config` still declares `7.1.5`, so the cross-major pin at `^8.0.1`
-from `#217` cannot be removed. The trigger is `npm view @prisma/config dependencies.deepmerge-ts` reporting `8.x`. No work
-until then.
+`#253` (September): 16 more in-range bumps, again no advisory. **Corrects the `#250`
+finding on `eslint`**: it is not merely optional-with-no-driver, it is **blocked** —
+`eslint-plugin-import@latest` and `eslint-plugin-react@latest` (both bundled by
+`eslint-config-next`, both already at their own latest) peer-cap at eslint 9, so eslint
+10 is uninstallable without `--legacy-peer-deps`. `eslint@9.39.5` is itself marked
+deprecated by npm, so this is now a real, tracked constraint, not a someday-optional
+bump — watch `npm view eslint-plugin-import@latest peerDependencies` for a `^10` and
+take the slice the moment it appears. `@types/node`'s `^24` and `eslint`'s `^9` ranges
+are confirmed **deliberate major pins**, not drift; do not tighten them without cause.
+A `zod` bump to 4.5.x changed `docs/openapi.yaml`'s generated encoding (nullable-string
+`anyOf` → compact `type: [string, "null"]`; 15 datetime patterns now require seconds) —
+no response shape changed, verified against `src/lib/external-contract.ts`.
+
+Two advisories landed the same day `#253` merged and were cleared separately in `#255`
+(`browserslist`, lockfile-only; `mysql2`, a new `overrides` entry past Prisma's own
+exact transitive pin) — an advisory-response PR, not a recon slice, but part of the
+same arc.
+
+**Cadence changed to quarterly** (Jan/Apr/Jul/Oct, next 2026-10-01), down from monthly
+— the monthly cadence kept finding nothing actionable.
+
+**R4 — `deepmerge-ts`.** Re-verified 2026-09-01 against `@prisma/config@7.10.0` (bumped by `#253`): still declares an
+exact `7.1.5`, so the cross-major pin at `^8.0.1` from `#217` cannot be removed. The trigger is
+`npm view @prisma/config dependencies.deepmerge-ts` reporting `8.x`. No work until then. `npm audit --omit=dev` exits
+non-zero for a *structural* reason (`prisma` is an optional peer of `@prisma/client`, walked regardless of flags) —
+narrowing the CI gate that way was measured and refuted; do not re-propose it.
 
 ### Standing Builder guardrails (post-PR-1)
 
