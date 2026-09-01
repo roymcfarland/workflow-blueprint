@@ -1,5 +1,8 @@
-# Hypothesis test 2026-08-25: confirm codecov/project posts now that the learned
-# repository YAML shows current config (see PROJECT.md OPEN item).
+# coverage.status.project below is configured but inert: Codecov's Project Coverage
+# status check requires the Pro plan and this org is on Team (confirmed with Codecov
+# support 2026-08-25). Only codecov/patch will ever post here on the current plan.
+# Coverage is independently guarded in CI by vitest.config.mts's enforced 100%
+# thresholds. Left in place as documentation should the plan ever change.
 coverage:
   status:
     project:
