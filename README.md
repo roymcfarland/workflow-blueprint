@@ -420,7 +420,7 @@ See the [LICENSE](./LICENSE) file for the full text.
 - External API responses are validated before being returned.
 - Authenticated API routes return JSON `401` responses instead of page redirects.
 - Sign-up, sign-in, password reset, invitation, and external API endpoints share a Postgres-backed distributed rate limiter (`RateLimitBucket` table) so limits hold across serverless instances.
-- Mutating routes verify the request `Origin`/`Referer` matches `NEXT_PUBLIC_SITE_URL` and the session cookie is `SameSite=strict`, providing a CSRF defense.
+- Mutating routes verify the request `Origin`/`Referer` matches the configured site origin (`NEXT_PUBLIC_SITE_URL`) or the deployment's own host (so Vercel preview URLs work without config), and the session cookie is `SameSite=lax`, together providing a CSRF defense.
 - HTML responses get a per-request nonce-based Content Security Policy (`'strict-dynamic'`); API and static responses get a stricter baseline CSP.
 - Session JWTs include the user's `passwordChangedAt` timestamp so password changes/resets revoke every existing session.
 - Password reset and invitation tokens are stored hashed and claimed atomically inside transactions before any state changes.

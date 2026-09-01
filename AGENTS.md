@@ -44,7 +44,7 @@ Development uses a **local Postgres**; set `DATABASE_URL`/`DIRECT_URL` in `.env.
 ### Gotchas
 
 - **Invite-only sign-up**: New user registration requires a valid invitation token. For testing, sign in with the seeded demo account (`alex@workflowblueprint.app`) using the password set in `DEMO_USER_PASSWORD`.
-- **CSRF origin check**: Mutating API routes validate that the `Origin` header matches `NEXT_PUBLIC_SITE_URL`. Set this to `http://127.0.0.1:3000` in `.env.local` for local dev, or omit it (the check is lenient when the variable is unset in development).
+- **CSRF origin check**: Mutating API routes validate the request's `Origin` (falling back to `Referer`) against an allowlist of two origins: `NEXT_PUBLIC_SITE_URL` (or a hardcoded production URL if unset) and the request's own `Host`/`X-Forwarded-Host` — so same-origin requests work on any deployment, including Vercel previews, without config. The check fails closed unconditionally; there is no dev-mode leniency. For local dev at `http://127.0.0.1:3000`, the request's-own-origin fallback already covers you, so setting `NEXT_PUBLIC_SITE_URL` is optional.
 - **PostgreSQL must be running** before `npm run dev`, `npm run db:deploy`, or `npm run db:seed`. Start it with your local Postgres runner (e.g., `pg_ctlcluster 14 main start` or Docker).
 - **Test database environment**: A stray root `.env` shadows `.env.local` and can make `npm run test` fail with a misleading error unrelated to the diff. Export `TEST_DATABASE_URL` pointing at a local PostgreSQL database before running tests.
 - **Build before typecheck**: Run `npm run build` before `npm run typecheck`; running them in parallel can fail spuriously because the build rewrites `.next/types`.

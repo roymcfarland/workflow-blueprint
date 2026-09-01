@@ -44,9 +44,9 @@ Two things the prompt did *not* authorize: changing the rate-limit algorithm, an
 
 ## The unauthorized change Codex made anyway
 
-The diff Codex produced did everything in the prompt — and one thing more: it rewrote the `bumpBucket` SQL inside `src/lib/rate-limit.ts` to fold the `INSERT … ON CONFLICT DO UPDATE` into a tighter atomic statement that eliminated a subtle double-count window when two requests arrived in the same millisecond.
+The diff Codex produced did everything in the prompt — and one thing more: it rewrote `bumpBucket` and `maybeCleanupExpiredBuckets` inside `src/lib/rate-limit.ts` to compute `resetAt` timestamps entirely in Postgres (`LOCALTIMESTAMP`) instead of passing a JS-computed `Date` as a query parameter — removing a clock-skew risk if the app server's and database's clocks ever drifted. (The `INSERT … ON CONFLICT DO UPDATE` statement was already atomic before this PR; that part was untouched.)
 
-On inspection, the rewrite was **a latent-bug fix**, not a regression. The owner verified it manually, the existing rate-limit tests still passed, and one of the new tests in the same PR happened to exercise the corrected path. The change was correct.
+On inspection, the rewrite closed a real, if narrow, exposure, not a regression. The owner verified it manually, the existing rate-limit tests still passed, and one of the new tests in the same PR happened to exercise the corrected path. The change was correct.
 
 But correctness is not the question. The question the workflow is supposed to answer is: *can the Verifier trust the diff to match the prompt?*
 
