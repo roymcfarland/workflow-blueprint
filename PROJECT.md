@@ -282,6 +282,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#257** | Docs: full-repo documentation-accuracy audit | `#257` | Four parallel per-file audits (README, AGENTS.md, CASE_STUDY.md, PROJECT.md's non-ledger sections) against live source found four independent, real defects: README/AGENTS.md both described the CSRF origin check as validating only `NEXT_PUBLIC_SITE_URL` with "lenient when unset" dev behavior — the actual `assertSameOriginRequest` (`src/lib/api.ts`) allowlists two origins (`siteConfig.url` and the request's own `Host`/`X-Forwarded-Host`, added by `#104` for Vercel previews) and fails closed unconditionally, with no dev-mode leniency; README separately claimed the session cookie is `SameSite=strict` when `src/lib/auth.ts` sets `SameSite=lax`. CASE_STUDY.md's walkthrough of PR `#13` mischaracterized Codex's unauthorized `bumpBucket` change as folding `INSERT ... ON CONFLICT` into "a tighter atomic statement" that fixed a double-count race — verified against the actual diff (`ea4d908`) that the atomic single-statement pattern, and its explanatory comment, predate the PR unchanged; the real change moved `resetAt` timestamp computation from JS (`Date.now()`) to Postgres (`LOCALTIMESTAMP`), closing a clock-skew risk between the app server and database, not a race. PROJECT.md's Q4 "required corrections" text still quoted a stale "Prisma 6 with Supabase Postgres persistence" target string from when the correction was originally written; marked DONE/historical rather than rewritten to a new target, since the correction itself completed long ago and Prisma has since moved to major 7. Docs-only; no `src/**` or test change. |
 | **#258** | Security: clear the 2026-10 audit advisories | `#258` | Measured 8 vulnerable packages (1 critical, 4 high, 3 moderate), including the critical `next` `next/og` ImageResponse RCE advisory GHSA-vcvr-r3jv-pc5j; cleared all eight by lockfile-only `npm audit fix`, moving Next.js 16.3.4 → 16.3.8 without a downgrade or major upgrade. Raised override floors for `sharp` (^0.35.4), `undici` (^7.29.1), `ip-address` (^10.7.1), `fast-uri` (^3.1.8), `hono` (^4.13.7), and the separate `brace-expansion@1` (^1.1.21) / `brace-expansion@4` or `5` (^5.0.12) lines; the floor refresh changed no resolutions. `@modelcontextprotocol/sdk` remains 1.26.0, `prisma` remains 7.10.0, all `@prisma/*` resolutions and the `deepmerge-ts` override are untouched, and React remains 19.2.8. The CI audit gate command exited 1 against main's original lockfile before the fix and returns 0 afterward. Dependency-only; no source, test, schema, or gate change. |
 | **#259** | Dependency: in-range drift sweep (2026-10 recon) | `#259` | Measured 18 direct resolution increases: `eslint-config-next` 16.3.4 → 16.3.8; `react`/`react-dom` 19.2.8 → 19.3.0 (React minor), `@types/react` 19.2.18 → 19.3.0, `@types/react-dom` 19.2.5 → 19.3.0; `zod` 4.5.4 → 4.6.5; `@sentry/nextjs` 10.73.0 → 10.75.3; `@supabase/supabase-js` 2.112.4 → 2.117.2; `jose` 6.2.10 → 6.2.12; `lucide-react` 1.39.0 → 1.49.0; `react-hook-form` 7.87.0 → 7.89.0; `resend` 6.25.0 → 6.32.0; `tailwind-merge` 3.6.0 → 3.7.0; `@testing-library/dom` 10.4.1 → 10.4.2; `tsx` 4.23.13 → 4.23.15; `vite` 8.2.2 → 8.3.2; `yaml` 2.9.0 → 2.9.1; `@types/node` 24.13.3 → 24.19.1. Scratch and repository lockfiles match: 59 existing resolution increases, zero majors or downgrades, one added transitive entry (`es-module-lexer` 3.0.2 under Sentry's `import-in-the-middle` 3.5.2, no install lifecycle script). Next remains 16.3.8 with its range floor aligned; `@next/env` was already 16.3.8 and retains `^16.3.4`. Explicitly installed `@types/node@^24`, manually restored the rewritten range to `^24`, and synchronized root lockfile metadata; `eslint` retains `^9`. `@modelcontextprotocol/sdk` is excluded by name because `mcp-handler` pins its peer exactly to 1.26.0; all held packages and overrides remain unchanged. Audit measured 0 before and after at both post-change levels; no advisory drove this sweep. `docs/openapi.yaml` stayed unchanged on generation, and the Zod emitter comparison passed against the committed YAML without regeneration being needed. Full coverage suite: 83 files / 1,000 tests passed, all four metrics 100%. `AGENTS.md` unchanged. Dependency and ledger/Stack docs only; no source, test, schema, or gate change. |
+| **#260** | Docs: recon cadence back to monthly | `#260` | The 2026-10 recon found 8 advisories (1 critical), so the scheduled recon went back to monthly. `PROJECT.md` still said "now quarterly; zero advisories found either round" (the R3 roadmap row), "two rounds so far, both clean" (the R3 heading), and "Cadence changed to quarterly ... next 2026-10-01" — all stale after `#258`/`#259`. Updated those three, and added a paragraph recording the 2026-10 round and the override-floor finding. The `#250`/`#253` narrative, which is dated history and still accurate, is untouched. Docs-only; no `src/**`, test, or dependency change. |
 ### Active phase
 
 - **Historical:** the `#239` child-mutation race fix and the `#204`-`#233` Codecov campaign are
@@ -301,7 +302,7 @@ grows to do so needs a scoped docs-amendment PR merged first.
 | **R0** | Cron reports a committed rollover when the demo purge fails | Done in `#244` | Small, fully specified |
 | **R1** | `external-api.ts` dead-export cluster | Done in `#245` | Only item with evidence something is actually wrong |
 | **R2** | Finish the UI/UX audit | Done in `#246`, `#247` | Two rounds found six measured defects |
-| **R3** | Dependency recon | Done in `#250`, `#253` | Now quarterly; zero advisories found either round |
+| **R3** | Dependency recon | Done in `#250`, `#253`, `#258`, `#259` | Monthly again since 2026-10-02; the first two rounds found zero advisories, the 2026-10 round found 8 (1 critical) |
 | **R4** | `deepmerge-ts` override removal | **Blocked upstream** | Recheck condition, not work |
 | **—** | `codecov/project` gate | Resolved in `#252` | Plan-gated (Team, not Pro) — not a bug; see the item above |
 
@@ -335,7 +336,7 @@ short content does not overflow. Keep the method that worked: drive the real app
 computed styles rather than eyeballing, and let measurement arbitrate against your own reading of the source — both
 instruments are unreliable and fail differently.
 
-**R3 — dependency recon, two rounds so far, both clean.** `#250` (August): 25 in-range
+**R3 — dependency recon, three rounds so far: two clean, then the 2026-10 round found 8 advisories.** `#250` (August): 25 in-range
 minor/patch bumps, no advisory driving it — `npm audit` was already 0/0. Five outdated
 majors evaluated and left alone: `@types/node` 24→26 (must track the Node 24.18.x
 engine pin, not `latest`); `typescript` 6→7 (blocked — `typescript-eslint`, even at its
@@ -362,8 +363,19 @@ Two advisories landed the same day `#253` merged and were cleared separately in 
 exact transitive pin) — an advisory-response PR, not a recon slice, but part of the
 same arc.
 
-**Cadence changed to quarterly** (Jan/Apr/Jul/Oct, next 2026-10-01), down from monthly
-— the monthly cadence kept finding nothing actionable.
+`#258`–`#259` (2026-10-01 round): the first round to find anything. 8 advisories (1 critical
+— `next` 16.2.0–16.3.5, an RCE in `next/og` `ImageResponse`, which the social-image routes use —
+4 high, 3 moderate) had appeared within about a month, and the CI `audit` gate was red on
+every branch. `#258` cleared all 8 with a lockfile-only `npm audit fix` and raised the
+`overrides` floors that sat below the patched versions (a floor below the first patched
+version forces nothing; only the lockfile was protecting us). `#259` took the remaining 59
+in-range lockfile bumps, including React 19.3.0, with no majors. The majors above are
+unchanged: `eslint` 10 is still blocked on `eslint-plugin-import`, and `eslint` 9 is still
+end-of-life.
+
+**Cadence: monthly (1st, 09:00 local).** Moved to quarterly after `#253` because the monthly
+runs kept finding nothing actionable, then moved back on 2026-10-02 once a quarterly run
+found a critical advisory that had gone unfixed for weeks.
 
 **R4 — `deepmerge-ts`.** Re-verified 2026-09-01 against `@prisma/config@7.10.0` (bumped by `#253`): still declares an
 exact `7.1.5`, so the cross-major pin at `^8.0.1` from `#217` cannot be removed. The trigger is
