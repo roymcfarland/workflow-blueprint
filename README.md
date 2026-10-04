@@ -388,6 +388,7 @@ npm run build          # local production build and type check (no migrations)
 npm run vercel-build   # Vercel uses this: applies Prisma migrations, then builds
 npm run start          # serve a local production build (run after npm run build)
 npm run lint           # ESLint / Next core web vitals checks
+npm run audit:gate     # fail on high/critical advisories; only GHSA-vfj7-8cjw-p6xm (braces) is tolerated through 2026-12-01
 npm run typecheck      # tsc --noEmit
 npm run test           # Vitest: data-layer, API-route, and component tests (ephemeral Postgres)
 npm run test:watch     # Vitest in watch mode
