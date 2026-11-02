@@ -285,6 +285,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#261** | Docs: fix stale text and ledger order in PROJECT.md | `#261` | Two statements had gone stale and one pair of rows was out of order. The native-mobile non-goal said the external API "will evolve" to per-user auth and read/write, which `#106`/Q7 already shipped; it now points at Q5/Q7 and keeps the rule that further auth-model changes need their own PR. Q1 said the test harness "must land before any further feature work", true only before `#7`; it now records the harness as in place and a standing requirement. The `#243` row sat after `#244`; swapped to numeric order. R4 re-verified 2026-10-03: `@prisma/config` latest is still `7.10.0` and still declares an exact `deepmerge-ts@7.1.5`, so the override stays. Docs-only; no `src/**`, test, or dependency change. |
 | **#262** | CI: scoped braces audit exception | `#262` | Replaces the bare audit command with a tested audit gate that tolerates only `GHSA-vfj7-8cjw-p6xm` in dev-only `braces` through 2026-12-01, prints the tolerated advisory, and fails closed on audit errors and every other high/critical advisory. No dependency, lockfile, override, or production-source changes. |
 | **#263** | Docs: remove the blank line that split the Shipped ledger | `#263` | A single empty line between the `#222` and `#223` rows (present since `#223`) ended the Markdown table early, so everything from `#223` on rendered as a second table without its header row. Found by the verifier of `#261`, which noted it was pre-existing and out of that PR's scope. Removed the line; no row content changed. Docs-only; no `src/**`, test, or dependency change. |
+| **#264** | Security: Next.js 16.4.3 and Node 24.22.x (S1) | `#264` | Upgraded Next.js to 16.4.3 (clears GHSA-2464-fhr4-w9xw) and refreshed in-range transitive dependencies; moved the Node pin to 24.22.x across the three Q3 sites (engines.node, .nvmrc, and CI via .nvmrc). No source changes; the SDK/mcp-handler high findings and the build-time Sentry glob/minimatch moderate findings are deferred to later slices. |
 ### Active phase
 
 - **Historical:** the `#239` child-mutation race fix and the `#204`-`#233` Codecov campaign are
@@ -341,7 +342,7 @@ instruments are unreliable and fail differently.
 
 **R3 — dependency recon, three rounds so far: two clean, then the 2026-10 round found 8 advisories.** `#250` (August): 25 in-range
 minor/patch bumps, no advisory driving it — `npm audit` was already 0/0. Five outdated
-majors evaluated and left alone: `@types/node` 24→26 (must track the Node 24.18.x
+majors evaluated and left alone: `@types/node` 24→26 (must track the Node 24.22.x
 engine pin, not `latest`); `typescript` 6→7 (blocked — `typescript-eslint`, even at its
 own latest 8.68.0, peers `typescript: ">=4.8.4 <6.1.0"`); `jsdom` 29→30 (compatible, no
 advisory or EOL driver — still true as of `#253`); `mcp-handler` 1→2 (not a routine bump
@@ -410,12 +411,12 @@ Workflow Blueprint is an invite-gated task planning workspace where authenticate
 ## Stack
 
 - Language: TypeScript/TSX with strict TypeScript settings (`tsconfig.json`).
-- Framework: Next.js 16.3.8 App Router and React 19.3.0 (`package.json`, `src/app/layout.tsx`).
+- Framework: Next.js 16.4.3 App Router and React 19.3.0 (`package.json`, `src/app/layout.tsx`).
 - Package manager: npm with `package-lock.json`.
 - Database/ORM: Prisma 7 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, and @dnd-kit drag-and-drop (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`). Dashboard charts (the completion-rate ring, the This Week density strip) are hand-rolled SVG, not a charting library.
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
-- Runtime versions: Node.js 24.18.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^24` to match the runtime major and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
+- Runtime versions: Node.js 24.22.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^24` to match the runtime major and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
 
 ---
 
@@ -527,13 +528,13 @@ Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration
 
 ### Q3. Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
 
-**Answer: Node 24.18.x, enforced across three pin sites.**
+**Answer: Node 24.22.x, enforced across three pin sites.**
 
-All contributors and all deploys run Node 24.18.x. Patches flow automatically; minor bumps require a deliberate PR.
+All contributors and all deploys run Node 24.22.x. Patches flow automatically; minor bumps require a deliberate PR.
 
 **Sequencing / required corrections:**
-- Add `"engines": { "node": "24.18.x" }` to `package.json`.
-- Add `.nvmrc` file at repo root containing `24.18`.
+- Add `"engines": { "node": "24.22.x" }` to `package.json`.
+- Add `.nvmrc` file at repo root containing `24.22`.
 - Ensure `.github/workflows/ci.yml` uses `node-version-file: '.nvmrc'`.
 
 **Verifier behavior:**
