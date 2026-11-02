@@ -2806,6 +2806,60 @@ describe("src/lib/data.ts", () => {
         "utc-day-plus-three",
       ]);
     });
+
+    test.each([
+      { timezone: "America/Denver", now: "2026-11-02T20:00:00.000Z", offset: 420 },
+      { timezone: "Pacific/Kiritimati", now: "2026-11-01T20:00:00.000Z", offset: -840 },
+    ])("includes the whole final UTC day of the due-soon and upcoming windows in $timezone", async ({ timezone, now, offset }) => {
+      process.env.TZ = timezone;
+      vi.setSystemTime(new Date(now));
+      expect(new Date().getTimezoneOffset()).toBe(offset);
+      expect(new Date().toISOString()).toBe(now);
+
+      const user = await createTestUser();
+      const board = await createTestBoard(user.id);
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      for (const [days, hours, minutes, seconds, milliseconds, id] of [
+        [3, 12, 0, 0, 0, "utc-bound-plus-three-noon"],
+        [3, 23, 59, 59, 999, "utc-bound-plus-three-end"],
+        [4, 0, 0, 0, 0, "utc-bound-plus-four"],
+        [7, 23, 59, 59, 999, "utc-bound-plus-seven-end"],
+        [8, 0, 0, 0, 0, "utc-bound-plus-eight"],
+      ] as const) {
+        await createDataTask({
+          boardId: board.id,
+          dueDate: new Date(Date.UTC(
+            today.getUTCFullYear(),
+            today.getUTCMonth(),
+            today.getUTCDate() + days,
+            hours,
+            minutes,
+            seconds,
+            milliseconds,
+          )),
+          id,
+          status: PrismaTaskStatus.ON_DECK,
+          title: id,
+        });
+      }
+
+      const snapshot = await getDashboardSnapshot(user.id);
+
+      expect(snapshot.dueSoonTasks.map((task) => task.id)).toEqual([
+        "utc-bound-plus-three-noon",
+        "utc-bound-plus-three-end",
+      ]);
+      expect(snapshot.upcomingTasks.map((task) => task.id)).toEqual([
+        "utc-bound-plus-three-noon",
+        "utc-bound-plus-three-end",
+        "utc-bound-plus-four",
+        "utc-bound-plus-seven-end",
+      ]);
+      expect(snapshot.dueSoonTasks.map((task) => task.id)).not.toContain("utc-bound-plus-eight");
+      expect(snapshot.upcomingTasks.map((task) => task.id)).not.toContain("utc-bound-plus-eight");
+    });
   });
 
   test("includes recently completed tasks within the last seven days, sorted newest first", async () => {
