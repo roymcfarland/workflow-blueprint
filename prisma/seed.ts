@@ -3,7 +3,7 @@ import {
   ThemePreference as PrismaThemePreference,
 } from "../src/generated/prisma/client";
 import { hash } from "bcryptjs";
-import { addDays, subDays } from "date-fns";
+import { subDays } from "date-fns";
 
 import { hydrateDatabaseUrlEnv } from "../src/lib/database-url";
 import { prisma } from "../src/lib/db";
@@ -66,6 +66,10 @@ async function seed() {
     },
   });
 
+  // Due dates are stored as UTC-midnight date-only values.
+  const now = new Date();
+  const seedDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
   for (const board of expandDemoSeed()) {
     const boardRecord = await prisma.board.upsert({
       where: {
@@ -121,7 +125,7 @@ async function seed() {
           description: task.description,
           status: task.status as PrismaTaskStatus,
           sortOrder: task.sortOrder,
-          dueDate: task.dueInDays ? addDays(new Date(), task.dueInDays) : null,
+          dueDate: task.dueInDays ? new Date(seedDay + task.dueInDays * 86_400_000) : null,
           completedAt: task.completedDaysAgo ? subDays(new Date(), task.completedDaysAgo) : null,
           archivedAt: task.archivedDaysAgo ? subDays(new Date(), task.archivedDaysAgo) : null,
           subtasks: {
