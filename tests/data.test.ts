@@ -80,6 +80,12 @@ function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function addCalendarDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(date.getDate() + days);
+  return result;
+}
+
 type CapturedOutcome<T> =
   | { status: "fulfilled"; value: T }
   | { reason: unknown; status: "rejected" };
@@ -2629,28 +2635,28 @@ describe("src/lib/data.ts", () => {
 
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime() - 24 * 60 * 60 * 1000),
+      dueDate: addCalendarDays(today, -1),
       id: overdueLaterId,
       status: PrismaTaskStatus.ON_DECK,
       title: "Overdue later",
     });
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000),
+      dueDate: addCalendarDays(today, -3),
       id: overdueEarlierId,
       status: PrismaTaskStatus.ON_DECK,
       title: "Overdue earlier",
     });
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000),
+      dueDate: addCalendarDays(today, 3),
       id: upcomingLaterId,
       status: PrismaTaskStatus.ON_DECK,
       title: "Upcoming later",
     });
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+      dueDate: addCalendarDays(today, 1),
       id: upcomingEarlierId,
       status: PrismaTaskStatus.ON_DECK,
       title: "Upcoming earlier",
@@ -2715,21 +2721,21 @@ describe("src/lib/data.ts", () => {
     });
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000),
+      dueDate: addCalendarDays(today, 3),
       id: dueSoonLaterId,
       status: PrismaTaskStatus.ON_DECK,
       title: "Due in 3 days",
     });
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+      dueDate: addCalendarDays(today, 1),
       id: dueSoonEarlierId,
       status: PrismaTaskStatus.ON_DECK,
       title: "Due tomorrow",
     });
     await createDataTask({
       boardId: board.id,
-      dueDate: new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000),
+      dueDate: addCalendarDays(today, 4),
       id: dueTooFarId,
       status: PrismaTaskStatus.ON_DECK,
       title: "Due in 4 days -- outside the due-soon window",
