@@ -7,7 +7,7 @@ import {
 } from "@/generated/prisma/client";
 import { subDays } from "date-fns";
 import { createHash, randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@/lib/storage", () => ({
   createSignedUploadUrl: vi.fn(async () => ({
@@ -82,7 +82,7 @@ function sha256(value: string) {
 
 function addCalendarDays(date: Date, days: number): Date {
   const result = new Date(date);
-  result.setDate(date.getDate() + days);
+  result.setUTCDate(date.getUTCDate() + days);
   return result;
 }
 
@@ -2625,7 +2625,7 @@ describe("src/lib/data.ts", () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
     const overdueEarlierId = randomUUID();
     const overdueLaterId = randomUUID();
     const upcomingEarlierId = randomUUID();
@@ -2698,7 +2698,7 @@ describe("src/lib/data.ts", () => {
     const user = await createTestUser();
     const board = await createTestBoard(user.id);
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setUTCHours(0, 0, 0, 0);
     const dueTodayEarlierId = randomUUID();
     const dueTodayLaterId = randomUUID();
     const dueSoonEarlierId = randomUUID();
@@ -2751,6 +2751,61 @@ describe("src/lib/data.ts", () => {
       dueSoonEarlierId,
       dueSoonLaterId,
     ]);
+  });
+
+  describe("dashboard UTC-day buckets", () => {
+    let originalTz: string | undefined;
+
+    beforeEach(() => {
+      originalTz = process.env.TZ;
+      vi.useFakeTimers({ toFake: ["Date"] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalTz === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTz;
+    });
+
+    test.each([
+      { timezone: "America/Denver", now: "2026-11-02T20:00:00.000Z", offset: 420 },
+      { timezone: "Pacific/Kiritimati", now: "2026-11-01T20:00:00.000Z", offset: -840 },
+    ])("buckets UTC-midnight due dates by UTC day in $timezone", async ({ timezone, now, offset }) => {
+      process.env.TZ = timezone;
+      vi.setSystemTime(new Date(now));
+      expect(new Date().getTimezoneOffset()).toBe(offset);
+      expect(new Date().toISOString()).toBe(now);
+
+      const user = await createTestUser();
+      const board = await createTestBoard(user.id);
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+
+      for (const [days, id] of [
+        [-1, "utc-day-overdue"],
+        [0, "utc-day-today"],
+        [1, "utc-day-tomorrow"],
+        [3, "utc-day-plus-three"],
+        [4, "utc-day-plus-four"],
+      ] as const) {
+        await createDataTask({
+          boardId: board.id,
+          dueDate: addCalendarDays(today, days),
+          id,
+          status: PrismaTaskStatus.ON_DECK,
+          title: id,
+        });
+      }
+
+      const snapshot = await getDashboardSnapshot(user.id);
+
+      expect(snapshot.overdueTasks.map((task) => task.id)).toEqual(["utc-day-overdue"]);
+      expect(snapshot.dueTodayTasks.map((task) => task.id)).toEqual(["utc-day-today"]);
+      expect(snapshot.dueSoonTasks.map((task) => task.id)).toEqual([
+        "utc-day-tomorrow",
+        "utc-day-plus-three",
+      ]);
+    });
   });
 
   test("includes recently completed tasks within the last seven days, sorted newest first", async () => {
