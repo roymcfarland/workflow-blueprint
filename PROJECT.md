@@ -286,6 +286,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#262** | CI: scoped braces audit exception | `#262` | Replaces the bare audit command with a tested audit gate that tolerates only `GHSA-vfj7-8cjw-p6xm` in dev-only `braces` through 2026-12-01, prints the tolerated advisory, and fails closed on audit errors and every other high/critical advisory. No dependency, lockfile, override, or production-source changes. |
 | **#263** | Docs: remove the blank line that split the Shipped ledger | `#263` | A single empty line between the `#222` and `#223` rows (present since `#223`) ended the Markdown table early, so everything from `#223` on rendered as a second table without its header row. Found by the verifier of `#261`, which noted it was pre-existing and out of that PR's scope. Removed the line; no row content changed. Docs-only; no `src/**`, test, or dependency change. |
 | **#264** | Security: Next.js 16.4.3 and Node 24.22.x (S1) | `#264` | Upgraded Next.js to 16.4.3 (clears GHSA-2464-fhr4-w9xw) and refreshed in-range transitive dependencies; moved the Node pin to 24.22.x across the three Q3 sites (engines.node, .nvmrc, and CI via .nvmrc). No source changes; the SDK/mcp-handler high findings and the build-time Sentry glob/minimatch moderate findings are deferred to later slices. |
+| **#265** | MCP handler 2.x migration | `#265` | Replaced the pinned SDK 1.x integration with `mcp-handler` 2.3.0 and `@modelcontextprotocol/server`/`core` 2.4.0, removing the four high SDK advisories and 66 packages. Preserves all 14 owner-scoped tools, auth, scopes, rate limiting, no-CORS/no-store, and stateless 2025 support; adds 2026-07-28 support with subscriptions disabled. Real-handler protocol tests cover both generations. |
 ### Active phase
 
 - **Historical:** the `#239` child-mutation race fix and the `#204`-`#233` Codecov campaign are
@@ -293,6 +294,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 - **RESOLVED — `codecov/project` was never a bug: it's a Pro-plan feature, and this org is on Team.** Seven repo-side attempts across three weeks (`#231`, `#235`, `#236`, four default-branch re-uploads, an org resync, and finally `#251`'s hypothesis test) chased a config/caching problem that never existed. `#251` proved the learned YAML was current — `coverage.status.project` correctly present — and `codecov/project` *still* didn't fire, which is what finally made the real cause checkable. Codecov support (Lijo Jacob) confirmed on 2026-08-25: Project Coverage status checks require the **Pro** plan; this org (`roymcfarland`) is on **Team**, which the plan page's own feature list confirms — it lists "Patch coverage analysis" and stops there. `codecov/patch` has worked correctly this entire time; only `codecov/project` was ever plan-gated. Not upgrading: coverage is already guarded in CI by Vitest's enforced 100%-on-four-metrics thresholds (`#247`), so `codecov/project` would only be a second view of a guarantee already enforced, not additional protection. `codecov.yml`'s `coverage.status.project` block is left in place, inert, as documentation of the intended config should the plan ever change.
 - **Vitest coverage is locked at 100% in CI:** `#247` closed the last runner gap — 99.85% statements and 99.44% functions, both invisible to Codecov because it measures lines — and added enforced 100% thresholds for statements, branches, functions, and lines. The threshold cannot protect `className` correctness: coverage measures execution, not assertion, and every `className` sits on a line that any render executes. `#247`'s `16c1523` amendment existed solely to assert a class that was already 100% “covered” and completely unguarded.
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (`#217`) shipped the `deepmerge-ts` major override and restored a clean audit.
+- **MCP audit migration (`#265`):** The SDK 1.x high advisories deferred by `#264` are resolved by the handler 2.x/server 2.x migration. The installed tree has zero high/critical advisories; the existing 23 moderate findings remain outside this slice.
 - **Scoped braces audit exception (`#262`):** `GHSA-vfj7-8cjw-p6xm` is tolerated only for dev-only `braces` through 2026-12-01. Recheck when `npm view braces version` exceeds 3.0.3 or `fast-glob`/`micromatch` drops braces; delete the exception and return the gate to a bare audit when that trigger is met.
 
 #### Next phase — sequenced roadmap
@@ -345,9 +347,12 @@ minor/patch bumps, no advisory driving it — `npm audit` was already 0/0. Five 
 majors evaluated and left alone: `@types/node` 24→26 (must track the Node 24.22.x
 engine pin, not `latest`); `typescript` 6→7 (blocked — `typescript-eslint`, even at its
 own latest 8.68.0, peers `typescript: ">=4.8.4 <6.1.0"`); `jsdom` 29→30 (compatible, no
-advisory or EOL driver — still true as of `#253`); `mcp-handler` 1→2 (not a routine bump
-— v2 replaces the peer dependency entirely, `@modelcontextprotocol/server` instead of
-`@modelcontextprotocol/sdk`, effectively a rewrite of the MCP route's SDK integration).
+advisory or EOL driver — still true as of `#253`). The deferred `mcp-handler` 1→2
+migration is now complete in `#265`, driven by four high SDK advisories: v2 replaces
+the `@modelcontextprotocol/sdk` peer with `@modelcontextprotocol/server`. The route
+uses the combined handler options and adapts `ctx.http?.authInfo` to the existing
+owner/scope dispatcher; real-handler tests preserve the 2025 handshake and exercise
+the native 2026-07-28 path with subscription streams disabled.
 
 `#253` (September): 16 more in-range bumps, again no advisory. **Corrects the `#250`
 finding on `eslint`**: it is not merely optional-with-no-driver, it is **blocked** —
