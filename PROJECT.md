@@ -287,6 +287,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#263** | Docs: remove the blank line that split the Shipped ledger | `#263` | A single empty line between the `#222` and `#223` rows (present since `#223`) ended the Markdown table early, so everything from `#223` on rendered as a second table without its header row. Found by the verifier of `#261`, which noted it was pre-existing and out of that PR's scope. Removed the line; no row content changed. Docs-only; no `src/**`, test, or dependency change. |
 | **#264** | Security: Next.js 16.4.3 and Node 24.22.x (S1) | `#264` | Upgraded Next.js to 16.4.3 (clears GHSA-2464-fhr4-w9xw) and refreshed in-range transitive dependencies; moved the Node pin to 24.22.x across the three Q3 sites (engines.node, .nvmrc, and CI via .nvmrc). No source changes; the SDK/mcp-handler high findings and the build-time Sentry glob/minimatch moderate findings are deferred to later slices. |
 | **#265** | MCP handler 2.x migration | `#265` | Replaced the pinned SDK 1.x integration with `mcp-handler` 2.3.0 and `@modelcontextprotocol/server`/`core` 2.4.0, removing the four high SDK advisories and 66 packages. Preserves all 14 owner-scoped tools, auth, scopes, rate limiting, no-CORS/no-store, and stateless 2025 support; adds 2026-07-28 support with subscriptions disabled. Real-handler protocol tests cover both generations. |
+| **PR pending** | CI: remove the braces audit exception | PR pending | GitHub withdrew `GHSA-vfj7-8cjw-p6xm` on 2026-10-23, leaving the `#262` exception with nothing to tolerate. Deleted `scripts/audit-gate.ts` and `tests/scripts/audit-gate.test.ts`, removed the script entry and current exception claims, and reverted CI to the pre-`#262` command, `npm audit --audit-level=high`. No dependency, lockfile, override, or source changes. |
 ### Active phase
 
 - **Historical:** the `#239` child-mutation race fix and the `#204`-`#233` Codecov campaign are
@@ -295,7 +296,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 - **Vitest coverage is locked at 100% in CI:** `#247` closed the last runner gap — 99.85% statements and 99.44% functions, both invisible to Codecov because it measures lines — and added enforced 100% thresholds for statements, branches, functions, and lines. The threshold cannot protect `className` correctness: coverage measures execution, not assertion, and every `className` sits on a line that any render executes. `#247`'s `16c1523` amendment existed solely to assert a class that was already 100% “covered” and completely unguarded.
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (`#217`) shipped the `deepmerge-ts` major override and restored a clean audit.
 - **MCP audit migration (`#265`):** The SDK 1.x high advisories deferred by `#264` are resolved by the handler 2.x/server 2.x migration. The installed tree has zero high/critical advisories; the existing 23 moderate findings remain outside this slice.
-- **Scoped braces audit exception (`#262`):** `GHSA-vfj7-8cjw-p6xm` is tolerated only for dev-only `braces` through 2026-12-01. Recheck when `npm view braces version` exceeds 3.0.3 or `fast-glob`/`micromatch` drops braces; delete the exception and return the gate to a bare audit when that trigger is met.
+- **Braces audit exception removed (this PR):** The `#262` exception was removed because GitHub withdrew `GHSA-vfj7-8cjw-p6xm` on 2026-10-23. `braces@3.0.3` remains installed but unflagged; CI is back to a bare `npm audit --audit-level=high`.
 
 #### Next phase — sequenced roadmap
 
@@ -385,7 +386,6 @@ end-of-life.
 **Cadence: monthly (1st, 09:00 local).** Moved to quarterly after `#253` because the monthly
 runs kept finding nothing actionable, then moved back on 2026-10-02 once a quarterly run
 found a critical advisory that had gone unfixed for weeks.
-The `#262` exception for `GHSA-vfj7-8cjw-p6xm` in `braces`, expiring 2026-12-01, is reviewed at each monthly recon.
 
 **R4 — `deepmerge-ts`.** Re-verified 2026-10-03 against `@prisma/config@7.10.0` (still the latest published; bumped by `#253`): still declares an
 exact `7.1.5`, so the cross-major pin at `^8.0.1` from `#217` cannot be removed. The trigger is

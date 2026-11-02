@@ -27,7 +27,7 @@ jobs:
           node-version-file: ".nvmrc"
           cache: npm
       - run: npm ci
-      - run: npm run audit:gate
+      - run: npm audit --audit-level=high
 
   typecheck:
     runs-on: ubuntu-latest
