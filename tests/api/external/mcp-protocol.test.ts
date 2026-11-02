@@ -163,3 +163,73 @@ describe("external MCP protocol through the real handler", () => {
     expectHeaders(response);
   });
 });
+
+function modernRequest(token: string, method: string, params: Record<string, unknown> = {}) {
+  const req = request({
+    jsonrpc: "2.0", id: 1, method,
+    params: {
+      ...params,
+      _meta: {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/clientInfo": { name: "mcp-protocol-test", version: "1.0.0" },
+      },
+    },
+  }, token);
+  req.headers.set("MCP-Protocol-Version", "2026-07-28");
+  req.headers.set("MCP-Method", method);
+  if (typeof params.name === "string") req.headers.set("MCP-Name", params.name);
+  return req;
+}
+
+describe("2026-07-28 MCP protocol through the real handler", () => {
+  beforeEach(resetDatabase);
+
+  test("per-request envelopes support discovery and all 14 tools without initialization", async () => {
+    const { token } = await fixture([ApiTokenScope.BOARDS_READ]);
+    const discovered = await POST(modernRequest(token, "server/discover"), context());
+    expectHeaders(discovered);
+    expect(discovered.status).toBe(200);
+    expect(await discovered.json()).toMatchObject({
+      result: {
+        supportedVersions: ["2026-07-28"],
+        _meta: { "io.modelcontextprotocol/serverInfo": { name: "workflow-blueprint-external-api" } },
+      },
+    });
+    const listed = await POST(modernRequest(token, "tools/list"), context());
+    expectHeaders(listed);
+    expect(listed.status).toBe(200);
+    const body = await listed.json();
+    expect(body.result.tools.map((tool: { name: string }) => tool.name)).toEqual(toolNames);
+  });
+
+  test("native calls receive the owner's auth and enforce write scopes", async () => {
+    const { board, token } = await fixture([ApiTokenScope.BOARDS_READ]);
+    const listed = await POST(modernRequest(token, "tools/call", { name: "list_boards", arguments: {} }), context());
+    expectHeaders(listed);
+    expect(listed.status).toBe(200);
+    const body = await listed.json();
+    expect(body.result.isError).not.toBe(true);
+    expect(JSON.parse(body.result.content[0].text).boards.map((item: { slug: string }) => item.slug)).toEqual([board.slug]);
+    const denied = await POST(modernRequest(token, "tools/call", {
+      name: "create_task", arguments: { boardSlug: board.slug, title: "Denied native call" },
+    }), context());
+    expectHeaders(denied);
+    expect(await denied.json()).toMatchObject({ result: {
+      isError: true, content: [{ type: "text", text: "Insufficient token scope: requires TASKS_WRITE." }],
+    } });
+    expect(await prisma.task.count({ where: { boardId: board.id } })).toBe(0);
+  });
+
+  test("subscriptions/listen is rejected without opening an SSE stream", async () => {
+    const { token } = await fixture([ApiTokenScope.BOARDS_READ]);
+    const response = await POST(modernRequest(token, "subscriptions/listen", { notifications: {} }), context());
+    expectHeaders(response);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(response.headers.get("Content-Type")).not.toContain("text/event-stream");
+    expect(await response.json()).toMatchObject({
+      error: { code: -32603, message: "Subscription limit reached" },
+    });
+  });
+});

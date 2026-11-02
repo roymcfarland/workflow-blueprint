@@ -207,6 +207,8 @@ These endpoints require a per-user API token with the `SUBTASKS_WRITE` scope. Ea
 
 `POST /api/external/v1/mcp` serves an in-repo MCP-over-HTTP endpoint for server-to-server agents. It is authenticated with the same per-user scoped Bearer API tokens as the REST write surface, resolves every tool call to the token owner, sends `Cache-Control: no-store`, and exposes no CORS handler. The endpoint is MCP protocol, not REST JSON, so it is not included in `docs/openapi.yaml`.
 
+The endpoint supports the 2026-07-28 protocol with per-request `_meta` envelopes and 2025-era Streamable HTTP clients through a stateless fallback. GET and DELETE session operations return 405; legacy `/sse` remains 404. Subscription streams are disabled.
+
 Available tools:
 
 | Tool | Required scope | Description |

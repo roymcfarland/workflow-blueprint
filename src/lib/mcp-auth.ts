@@ -1,4 +1,4 @@
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import type { AuthInfo } from "@modelcontextprotocol/server";
 
 import { resolveExternalToken } from "@/lib/external-api";
 import type { ExternalMcpAuthExtra } from "@/lib/mcp-tools";

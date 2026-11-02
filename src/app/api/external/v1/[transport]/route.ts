@@ -45,11 +45,7 @@ const mcpHandler = createMcpHandler(
       name: "workflow-blueprint-external-api",
       version: "1.0.0",
     },
-  },
-  {
-    basePath: "/api/external/v1",
-    disableSse: true,
-    maxDuration,
+    maxSubscriptions: 0,
   },
 );
 

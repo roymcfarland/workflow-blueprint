@@ -1,7 +1,5 @@
 import { ApiTokenScope } from "@/generated/prisma/client";
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { AuthInfo, CallToolResult, McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import {
@@ -393,8 +391,8 @@ export function registerExternalMcpTools(server: McpServer) {
         inputSchema: tool.inputSchema,
         title: tool.title,
       },
-      (input: unknown, extra: McpToolRequestExtra) =>
-        executeExternalMcpTool(tool.name, input, extra),
+      (input: unknown, ctx) =>
+        executeExternalMcpTool(tool.name, input, { authInfo: ctx.http?.authInfo }),
     );
   }
 }

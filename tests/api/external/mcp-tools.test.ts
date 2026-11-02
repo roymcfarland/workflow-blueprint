@@ -3,8 +3,7 @@ import {
   ItemPriority as PrismaItemPriority,
   TaskStatus as PrismaTaskStatus,
 } from "@/generated/prisma/client";
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { AuthInfo, McpServer } from "@modelcontextprotocol/server";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -625,12 +624,12 @@ describe("external MCP tools", () => {
     const registeredCallback = listBoardsRegistration?.[2] as
       | ((
           input: unknown,
-          extra: { authInfo?: AuthInfo },
+          ctx: { http?: { authInfo?: AuthInfo } },
         ) => ReturnType<typeof executeExternalMcpTool>)
       | undefined;
 
     expect(registeredCallback).toBeTypeOf("function");
-    const registeredResult = await registeredCallback?.({}, { authInfo });
+    const registeredResult = await registeredCallback?.({}, { http: { authInfo } });
     const directResult = await executeExternalMcpTool(
       "list_boards",
       {},
@@ -638,5 +637,9 @@ describe("external MCP tools", () => {
     );
 
     expect(registeredResult).toEqual(directResult);
+    expect(await registeredCallback?.({}, {})).toMatchObject({
+      isError: true,
+      content: [{ text: "Authentication required.", type: "text" }],
+    });
   });
 });
