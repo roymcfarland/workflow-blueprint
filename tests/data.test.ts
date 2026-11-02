@@ -65,6 +65,7 @@ import {
   withSerializationRetry,
 } from "@/lib/data";
 import { prisma } from "@/lib/db";
+import { expandDemoSeed } from "@/lib/demo-data";
 import { buildExternalDailySummary } from "@/lib/external-api";
 import {
   labelColorPalette,
@@ -3384,6 +3385,68 @@ describe("src/lib/data.ts", () => {
     expect(record?.demoExpiresAt?.getTime() ?? 0).toBeGreaterThan(Date.now());
     expect(record?.boards).toHaveLength(3);
     expect(record?.boards.reduce((sum, board) => sum + board.tasks.length, 0)).toBeGreaterThan(0);
+  });
+
+  describe("demo-seed date-only due dates", () => {
+    let originalTz: string | undefined;
+
+    beforeEach(() => {
+      originalTz = process.env.TZ;
+      vi.useFakeTimers({ toFake: ["Date"] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalTz === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTz;
+    });
+
+    test.each([
+      { timezone: "America/Denver", now: "2026-11-02T20:00:00.000Z", offset: 420 },
+      { timezone: "Pacific/Kiritimati", now: "2026-11-01T20:00:00.000Z", offset: -840 },
+    ])("stores demo-seed due dates as UTC-midnight date-only values in $timezone", async ({ timezone, now, offset }) => {
+      process.env.TZ = timezone;
+      vi.setSystemTime(new Date(now));
+      expect(new Date().getTimezoneOffset()).toBe(offset);
+      expect(new Date().toISOString()).toBe(now);
+
+      const demo = await provisionDemoUser();
+      const tasks = await prisma.task.findMany({
+        where: { board: { userId: demo.id } },
+        select: { title: true, dueDate: true, board: { select: { slug: true } } },
+      });
+      const expectedDays = new Map<string, number | null>(expandDemoSeed().flatMap((board) =>
+        board.tasks.map((task) => [`${board.slug}:${task.title}`, task.dueInDays] as const),
+      ));
+      const dueTaskCount = [...expectedDays.values()].filter((days) => days !== null).length;
+      expect(dueTaskCount).toBeGreaterThan(0);
+      expect(tasks).toHaveLength(expectedDays.size);
+      expect(tasks.filter((task) => task.dueDate !== null)).toHaveLength(dueTaskCount);
+
+      const clock = new Date(now);
+      for (const task of tasks) {
+        const key = `${task.board.slug}:${task.title}`;
+        expect(expectedDays.has(key)).toBe(true);
+        const dueInDays = expectedDays.get(key);
+        if (dueInDays == null) {
+          expect(task.dueDate).toBeNull();
+        } else {
+          const expected = new Date(Date.UTC(
+            clock.getUTCFullYear(),
+            clock.getUTCMonth(),
+            clock.getUTCDate() + dueInDays,
+          ));
+          expect(task.dueDate).not.toBeNull();
+          expect(task.dueDate!.toISOString()).toBe(expected.toISOString());
+          expect([
+            task.dueDate!.getUTCHours(),
+            task.dueDate!.getUTCMinutes(),
+            task.dueDate!.getUTCSeconds(),
+            task.dueDate!.getUTCMilliseconds(),
+          ]).toEqual([0, 0, 0, 0]);
+        }
+      }
+    });
   });
 
   test("purgeExpiredDemoUsers removes expired demo accounts but keeps real and unexpired ones", async () => {
