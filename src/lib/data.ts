@@ -763,11 +763,10 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     (task) => task.completedAt && task.completedAt >= subDays(new Date(), 7),
   ).length;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const sevenDaysFromNow = new Date(today);
-  sevenDaysFromNow.setDate(today.getDate() + 7);
-  sevenDaysFromNow.setHours(23, 59, 59, 999);
+  // Due dates are stored as UTC-midnight, date-only values, so snapshot buckets use UTC days.
+  const today = startOfUtcDay(new Date());
+  const sevenDaysFromNow = addUtcCalendarTime(today, { days: 7 });
+  sevenDaysFromNow.setUTCHours(23, 59, 59, 999);
   const openStatuses: PrismaTaskStatus[] = ["IN_PROGRESS", "ON_DECK"];
 
   function summarize(task: (typeof allTasks)[number]): DashboardTaskSummary {
@@ -819,11 +818,9 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
     .slice(0, 6)
     .map(summarize);
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const threeDaysFromNow = new Date(today);
-  threeDaysFromNow.setDate(today.getDate() + 3);
-  threeDaysFromNow.setHours(23, 59, 59, 999);
+  const tomorrow = addUtcCalendarTime(today, { days: 1 });
+  const threeDaysFromNow = addUtcCalendarTime(today, { days: 3 });
+  threeDaysFromNow.setUTCHours(23, 59, 59, 999);
 
   const dueTodayTasks = allTasks
     .filter(
