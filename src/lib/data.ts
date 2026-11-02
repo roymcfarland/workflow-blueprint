@@ -2391,6 +2391,8 @@ export async function provisionDemoUser() {
       },
     });
 
+    // Due dates are stored as UTC-midnight date-only values.
+    const seedDay = startOfUtcDay(new Date());
     for (const board of expandDemoSeed()) {
       await tx.board.create({
         data: {
@@ -2414,7 +2416,7 @@ export async function provisionDemoUser() {
               description: task.description,
               status: task.status as PrismaTaskStatus,
               sortOrder: task.sortOrder,
-              dueDate: task.dueInDays ? addDays(new Date(), task.dueInDays) : null,
+              dueDate: task.dueInDays ? addUtcCalendarTime(seedDay, { days: task.dueInDays }) : null,
               completedAt: task.completedDaysAgo ? subDays(new Date(), task.completedDaysAgo) : null,
               archivedAt: task.archivedDaysAgo ? subDays(new Date(), task.archivedDaysAgo) : null,
               subtasks: {
