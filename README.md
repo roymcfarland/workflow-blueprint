@@ -49,6 +49,8 @@ The dev server starts Next.js on `127.0.0.1`. Run `npm run db:deploy` before the
 
 The seed command reads the demo account password from the required `DEMO_USER_PASSWORD` environment variable and refuses to run when `NODE_ENV=production` or `VERCEL_ENV=production` unless `ALLOW_PRODUCTION_SEED=true` is also set. Choose a unique value per environment and rotate it.
 
+The seed is idempotent: it skips tasks whose IDs already exist, so reseeding an existing database does not rewrite their dates. Seeded due dates are UTC-midnight values relative to the seed's UTC day (`prisma/seed.ts`).
+
 ```text
 DEMO_USER_PASSWORD="choose-a-strong-password-of-12-or-more-chars"
 npm run db:seed
@@ -124,19 +126,21 @@ If the database runtime URL uses a pooler and migration deployment fails, tempor
 
 A nightly Vercel Cron job rolls over recurring tasks whose full interval has elapsed. It resets each due recurring task in place to `dueDate` today and `IN_PROGRESS`, clears `completedAt`/`archivedAt`, and marks all subtasks incomplete, regardless of whether the task was previously open, done, or archived.
 
+Due dates are date-only UTC values stored at UTC midnight. Dashboard buckets use UTC days; the board view compares against the viewer's local calendar day on a UTC-midnight basis, so these views can disagree near midnight outside UTC by design (`src/lib/data.ts`, `src/components/board-workspace.tsx`).
+
 ## External API v1
 
 The external API exposes the configured user's planning data for project-owned consumers. Canonical endpoints live under `/api/external/v1/*`.
 
 The authoritative machine-readable API reference is [`docs/openapi.yaml`](./docs/openapi.yaml). The examples below are a human-readable summary of that contract.
 
-Every response from `/api/external/v1/*` includes an `X-Request-Id` header (UUID v4) for log correlation. The same ID is written to a structured JSON log line on the server alongside the request route, status, duration, outcome, and a non-sensitive 8-character prefix of the API key used. Consumers may capture this header to trace client-side errors back to server logs.
+Every REST response from `/api/external/v1/*` includes an `X-Request-Id` header (UUID v4) for log correlation. The same ID is written to a structured JSON log line on the server alongside the request route, status, duration, outcome, and a non-sensitive 8-character prefix of the API key used. Consumers may capture this header to trace client-side errors back to server logs.
 
-Server-side errors are also captured to Sentry when the `SENTRY_DSN` environment variable is set. Captured events include `requestId`, `route`, and `outcome` tags so they can be correlated with the structured log lines emitted by the external API wrapper. Authorization headers are stripped before any event leaves the server.
+REST handler errors are also captured to Sentry when the `SENTRY_DSN` environment variable is set. Captured events include `requestId`, `route`, and `outcome` tags so they can be correlated with the structured log lines emitted by the external API wrapper. Authorization headers are stripped before any event leaves the server.
 
-Every response also includes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) so consumers can self-throttle. When the limit is exceeded, the API returns 429 with the standard `Retry-After` header.
+Every REST response also includes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) so consumers can self-throttle. When the limit is exceeded, the API returns 429 with the standard `Retry-After` header.
 
-Every v1 response is JSON, dynamic (`force-dynamic`, `revalidate = 0`), and sent with `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
+Every v1 REST response is JSON, dynamic (`force-dynamic`, `revalidate = 0`), and sent with `Cache-Control: no-store` and `X-Robots-Tag: noindex`; MCP uses its protocol-specific transport described below.
 
 ### Authentication
 
@@ -168,7 +172,7 @@ type ExternalApiError = {
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/api/external/v1/dashboard` | Aggregate dashboard payload |
-| `GET` | `/api/external/v1/boards` | All boards owned by the configured external user |
+| `GET` | `/api/external/v1/boards` | All boards owned by the authenticated external user |
 | `GET` | `/api/external/v1/boards/[slug]` | One board by slug, including tasks, subtasks, and note content |
 | `GET` | `/api/external/v1/daily-summary` | Daily briefing payload used by external automation |
 
@@ -422,7 +426,7 @@ See the [LICENSE](./LICENSE) file for the full text.
 - External API responses are validated before being returned.
 - Authenticated API routes return JSON `401` responses instead of page redirects.
 - Sign-up, sign-in, password reset, invitation, and external API endpoints share a Postgres-backed distributed rate limiter (`RateLimitBucket` table) so limits hold across serverless instances.
-- Mutating routes verify the request `Origin`/`Referer` matches the configured site origin (`NEXT_PUBLIC_SITE_URL`) or the deployment's own host (so Vercel preview URLs work without config), and the session cookie is `SameSite=lax`, together providing a CSRF defense.
+- Mutating session routes verify the request `Origin`/`Referer` matches the configured site origin (`NEXT_PUBLIC_SITE_URL`) or the deployment's own host (so Vercel preview URLs work without config), and the session cookie is `SameSite=lax`, together providing a CSRF defense.
 - HTML responses get a per-request nonce-based Content Security Policy (`'strict-dynamic'`); API and static responses get a stricter baseline CSP.
 - Session JWTs include the user's `passwordChangedAt` timestamp so password changes/resets revoke every existing session.
 - Password reset and invitation tokens are stored hashed and claimed atomically inside transactions before any state changes.
