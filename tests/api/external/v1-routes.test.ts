@@ -1920,6 +1920,135 @@ describe("external v1 route contracts", () => {
     });
   });
 
+  describe("legacy EXTERNAL_API_KEY is read-only", () => {
+    test.each([
+      {
+        method: "POST",
+        path: "/api/external/v1/tasks",
+        scope: ApiTokenScope.TASKS_WRITE,
+        handler: postTask,
+        body: { boardSlug: starterBoard.slug, title: "Created with a write token" },
+      },
+      {
+        method: "PATCH",
+        path: "/api/external/v1/tasks/[id]",
+        scope: ApiTokenScope.TASKS_WRITE,
+        handler: patchTask,
+        body: { title: "Updated with a write token" },
+      },
+      {
+        method: "DELETE",
+        path: "/api/external/v1/tasks/[id]",
+        scope: ApiTokenScope.TASKS_WRITE,
+        handler: deleteTask,
+        body: undefined,
+      },
+      {
+        method: "POST",
+        path: "/api/external/v1/tasks/[id]/subtasks",
+        scope: ApiTokenScope.SUBTASKS_WRITE,
+        handler: postSubtask,
+        body: { title: "Created with a write token" },
+      },
+      {
+        method: "PATCH",
+        path: "/api/external/v1/subtasks/[id]",
+        scope: ApiTokenScope.SUBTASKS_WRITE,
+        handler: patchSubtask,
+        body: { title: "Updated with a write token", isComplete: true },
+      },
+      {
+        method: "DELETE",
+        path: "/api/external/v1/subtasks/[id]",
+        scope: ApiTokenScope.SUBTASKS_WRITE,
+        handler: deleteSubtask,
+        body: undefined,
+      },
+      {
+        method: "POST",
+        path: "/api/external/v1/boards",
+        scope: ApiTokenScope.BOARDS_WRITE,
+        handler: postBoard,
+        body: { name: "Created with a write token", iconKey: "rocket" },
+      },
+      {
+        method: "PATCH",
+        path: "/api/external/v1/boards/[slug]",
+        scope: ApiTokenScope.BOARDS_WRITE,
+        handler: patchBoard,
+        body: { name: "Updated with a write token" },
+      },
+      {
+        method: "DELETE",
+        path: "/api/external/v1/boards/[slug]",
+        scope: ApiTokenScope.BOARDS_WRITE,
+        handler: deleteBoard,
+        body: undefined,
+      },
+      {
+        method: "PATCH",
+        path: "/api/external/v1/boards/[slug]/note",
+        scope: ApiTokenScope.BOARDS_WRITE,
+        handler: patchBoardNote,
+        body: { content: "Updated with a write token" },
+      },
+    ] as const)("$method $path requires $scope", async ({ method, path, scope, handler, body }) => {
+      const board = await prisma.board.findUniqueOrThrow({
+        where: { userId_slug: { userId: demoUser.id, slug: starterBoard.slug } },
+      });
+      const task = await createRouteTask(board.id, "Preserve this task");
+      const subtask = await createRouteSubtask(task.id, "Preserve this subtask");
+      await prisma.boardNote.create({
+        data: { id: randomUUID(), boardId: board.id, content: "Preserve this note" },
+      });
+      const id = path.startsWith("/api/external/v1/subtasks/") ? subtask.id : task.id;
+      const requestPath = path.replace("[id]", id).replace("[slug]", board.slug);
+      const context = { params: Promise.resolve({ id, slug: board.slug }) };
+      const stateQuery = {
+        where: { userId: demoUser.id },
+        orderBy: { id: "asc" },
+        include: {
+          note: true,
+          tasks: {
+            orderBy: { id: "asc" },
+            include: { subtasks: { orderBy: { id: "asc" } } },
+          },
+        },
+      } as const;
+      const before = await prisma.board.findMany(stateQuery);
+
+      const response = await handler(
+        method === "DELETE"
+          ? externalDeleteRequest(requestPath)
+          : externalJsonRequest(method, requestPath, body),
+        context,
+      );
+      const after = await prisma.board.findMany(stateQuery);
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({
+        error: `Insufficient token scope: requires ${scope}.`,
+        ok: false,
+      });
+      expect(after).toEqual(before);
+
+      const { token } = await createApiToken({
+        createdById: demoUser.id,
+        label: "Legacy denial positive control",
+        scopes: [scope],
+      });
+      const positiveControl = await handler(
+        method === "DELETE"
+          ? externalDeleteRequest(requestPath, token)
+          : externalJsonRequest(method, requestPath, body, token),
+        context,
+      );
+
+      expect(positiveControl.status).toBeGreaterThanOrEqual(200);
+      expect(positiveControl.status).toBeLessThan(300);
+    });
+  });
+
   test("legacy env API key returns EXTERNAL_USER_ID data on all external read routes", async () => {
     const otherUser = await createTestUser({
       email: "legacy-other@example.test",
