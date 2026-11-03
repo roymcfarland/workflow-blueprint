@@ -350,7 +350,11 @@ describe("external API auth, rate limiting, and summaries", () => {
       expect(legacyResponse.status).toBe(200);
       expect(legacyHandler).toHaveBeenCalledOnce();
       expect(legacyHandler.mock.calls[0]?.[0].user).toEqual({
-        scopes: Object.values(ApiTokenScope),
+        scopes: [
+          ApiTokenScope.BOARDS_READ,
+          ApiTokenScope.SUBTASKS_READ,
+          ApiTokenScope.TASKS_READ,
+        ],
         userId: demoUser.id,
       });
     } finally {
