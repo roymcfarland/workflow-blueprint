@@ -109,7 +109,11 @@ const externalRateLimit = {
 const internalOutcomeHeader = "X-Internal-Outcome";
 const recentlyCompletedWindowDays = 7;
 const recentlyCompletedLimit = 25;
-const ALL_API_TOKEN_SCOPES: ApiTokenScope[] = Object.values(ApiTokenScope);
+const LEGACY_KEY_SCOPES: ApiTokenScope[] = [
+  ApiTokenScope.BOARDS_READ,
+  ApiTokenScope.SUBTASKS_READ,
+  ApiTokenScope.TASKS_READ,
+];
 
 const priorityMap: Record<ItemPriority, ExternalDailySummaryTask["priority"]> = {
   NONE: "none",
@@ -702,11 +706,11 @@ async function resolveExternalApiAccess(
       break;
   }
 
-  // Legacy env key: full-access, single fixed user (briefing-job consumer).
+  // Legacy env key: read-only, single fixed user (briefing-job consumer).
   if (allowLegacyKey && tokenMatchesAny(bearer.token, expectedKeys)) {
     return {
       ok: true,
-      data: { userId: externalUserId(), scopes: ALL_API_TOKEN_SCOPES },
+      data: { userId: externalUserId(), scopes: LEGACY_KEY_SCOPES },
     };
   }
 
