@@ -299,6 +299,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#272** | Docs: accuracy sweep (due-date convention, dependency state, document map) | `#272` | Documents the due-date/seed convention, corrects the stale moderate-count reference, schedules the next dependency recon, updates R3's completion references, and expands the document map; documentation-only; no code, test, config, lockfile or OpenAPI change. |
 | **#273** | Fix: legacy EXTERNAL_API_KEY is read-only on REST | `#273` | Legacy key now receives only BOARDS_READ/SUBTASKS_READ/TASKS_READ, so all 10 REST write handlers return 403 for it; enforces the existing Q5 hard-fail rule and makes README/Q5/Q7 "read-only" true. MCP already refused it; the known consumer (briefing job) is GET-only (`daily-summary`). No schema, route, contract-shape or OpenAPI change; token scopes unchanged. Deployment effect: any other caller that used `EXTERNAL_API_KEY` for writes will now get 403 and must switch to a per-user write-scoped token. |
 | **#274** | Security: clear glob and minimatch audit advisories | `#274` | Scoped `glob` under `@sentry/bundler-plugins` and `minimatch` under `@typescript-eslint/typescript-estree`. Regenerated the lockfile with npm 11, clearing 12 full and 5 production moderate findings. Sentry moves within major 10. Tooling majors are `glob`, `minimatch`, `path-scurry`, `dotenv`, and `ajv-formats` via `schema-utils`. |
+| **#275** | Docs: refresh dependency, test database, and cron guidance | `#275` | Records the November audit result and updates the R3 roadmap. Documents the disposable PostgreSQL prerequisite for tests and the daily 09:00 UTC recurring-task rollover and demo purge. |
 ### Active phase
 
 - **Historical:** the `#239` child-mutation race fix and the `#204`-`#233` Codecov campaign are
@@ -306,10 +307,10 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 - **RESOLVED — `codecov/project` was never a bug: it's a Pro-plan feature, and this org is on Team.** Seven repo-side attempts across three weeks (`#231`, `#235`, `#236`, four default-branch re-uploads, an org resync, and finally `#251`'s hypothesis test) chased a config/caching problem that never existed. `#251` proved the learned YAML was current — `coverage.status.project` correctly present — and `codecov/project` *still* didn't fire, which is what finally made the real cause checkable. Codecov support (Lijo Jacob) confirmed on 2026-08-25: Project Coverage status checks require the **Pro** plan; this org (`roymcfarland`) is on **Team**, which the plan page's own feature list confirms — it lists "Patch coverage analysis" and stops there. `codecov/patch` has worked correctly this entire time; only `codecov/project` was ever plan-gated. Not upgrading: coverage is already guarded in CI by Vitest's enforced 100%-on-four-metrics thresholds (`#247`), so `codecov/project` would only be a second view of a guarantee already enforced, not additional protection. `codecov.yml`'s `coverage.status.project` block is left in place, inert, as documentation of the intended config should the plan ever change.
 - **Vitest coverage is locked at 100% in CI:** `#247` closed the last runner gap — 99.85% statements and 99.44% functions, both invisible to Codecov because it measures lines — and added enforced 100% thresholds for statements, branches, functions, and lines. The threshold cannot protect `className` correctness: coverage measures execution, not assertion, and every `className` sits on a line that any render executes. `#247`'s `16c1523` amendment existed solely to assert a class that was already 100% “covered” and completely unguarded.
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (`#217`) shipped the `deepmerge-ts` major override and restored a clean audit.
-- **MCP audit migration (`#265`):** The SDK 1.x high advisories deferred by `#264` are resolved by the handler 2.x/server 2.x migration. The installed tree has zero high/critical advisories; moderate findings remain outside this slice (see `#268` below for the current count of 20).
+- **MCP audit migration (`#265`):** The SDK 1.x high advisories deferred by `#264` are resolved by the handler 2.x/server 2.x migration.
 - **Braces audit exception removed (`#266`):** The `#262` exception was removed because GitHub withdrew `GHSA-vfj7-8cjw-p6xm` on 2026-10-23. `braces@3.0.3` remains installed but unflagged; CI is back to a bare `npm audit --audit-level=high`.
-- **Moderate advisories (`#268`):** `@vitest/mocker` `<4.1.12` (GHSA-qxg6-89mg-rqv8, GHSA-xp26-3454-mjgp) cleared by the in-range vitest 4.1.12 bump; 20 moderate findings remain, 5 reachable under `--omit=dev` (build-time Sentry plugin only). Deferred: `minimatch` `<11.0.1` (GHSA-g3hv-75wg-m249; consumers eslint 9 on 3.1.5 and `typescript-estree` on 10.2.5, no upstream fix) and `glob` `<=14.0.1` (GHSA-3g3m-2fjr-6pw4; `@sentry/bundler-plugin-core` pins `glob ^13.0.6`, as does Sentry 11.10.0). Revisit at the monthly recon; triggers: a Sentry release depending on `glob >=14.0.2`, `typescript-estree` moving to `minimatch ^11`, or eslint 10 unblocking. A cross-major `overrides` force on the Sentry plugin was rejected because a local build cannot exercise its source-map-upload path.
-- **Next dependency recon: 2026-12-01 (monthly).** Revisit the three upstream triggers recorded in the `#268` bullet above; eslint 10 is still blocked by `eslint-plugin-import`'s peer dependency range (verified with `npm view eslint-plugin-import peerDependencies --json`).
+- **2026-11-08 dependency audit (`#274`).** After adding root overrides for `minimatch ^11.0.5` under `@typescript-eslint/typescript-estree` and `glob ^14.0.4` under `@sentry/bundler-plugins`, `npm audit fix` refreshed the lockfile. The full audit went from 12 moderate findings to 0, and `npm audit --omit=dev` went from 5 moderate findings to 0. The resolved Sentry SDK moved from 10.75.3 to 10.78.0, with transitive major bumps confined to build and lint tooling. ESLint and its plugins still resolve `minimatch@3.1.5`.
+- **Next dependency recon: 2026-12-01 (monthly).** Review advisory status, whether upstream dependency ranges allow the scoped overrides to be removed, and the ESLint 10 blocker described under R3.
 
 #### Next phase — sequenced roadmap
 
@@ -322,7 +323,7 @@ grows to do so needs a scoped docs-amendment PR merged first.
 | **R0** | Cron reports a committed rollover when the demo purge fails | Done in `#244` | Small, fully specified |
 | **R1** | `external-api.ts` dead-export cluster | Done in `#245` | Only item with evidence something is actually wrong |
 | **R2** | Finish the UI/UX audit | Done in `#246`, `#247` | Two rounds found six measured defects |
-| **R3** | Dependency recon | Done in `#250`, `#253`, `#258`, `#259`, `#264`, `#265`, `#266`, `#268` | Monthly; next 2026-12-01 |
+| **R3** | Dependency recon | Done in `#250`, `#253`, `#258`, `#259`, `#264`, `#265`, `#266`, `#268`, `#274` | Monthly; next 2026-12-01 |
 | **R4** | `deepmerge-ts` override removal | **Blocked upstream** | Recheck condition, not work |
 | **—** | `codecov/project` gate | Resolved in `#252` | Plan-gated (Team, not Pro) — not a bug; see the item above |
 
@@ -356,7 +357,7 @@ short content does not overflow. Keep the method that worked: drive the real app
 computed styles rather than eyeballing, and let measurement arbitrate against your own reading of the source — both
 instruments are unreliable and fail differently.
 
-**R3 — dependency recon, three rounds so far: two clean, then the 2026-10 round found 8 advisories.** `#250` (August): 25 in-range
+**R3 — dependency recon through 2026-10.** `#250` (August): 25 in-range
 minor/patch bumps, no advisory driving it — `npm audit` was already 0/0. Five outdated
 majors evaluated and left alone: `@types/node` 24→26 (must track the Node 24.22.x
 engine pin, not `latest`); `typescript` 6→7 (blocked — `typescript-eslint`, even at its
@@ -402,9 +403,8 @@ found a critical advisory that had gone unfixed for weeks.
 
 **R4 — `deepmerge-ts`.** Re-verified 2026-10-03 against `@prisma/config@7.10.0` (still the latest published; bumped by `#253`): still declares an
 exact `7.1.5`, so the cross-major pin at `^8.0.1` from `#217` cannot be removed. The trigger is
-`npm view @prisma/config dependencies.deepmerge-ts` reporting `8.x`. No work until then. `npm audit --omit=dev` exits
-non-zero for a *structural* reason (`prisma` is an optional peer of `@prisma/client`, walked regardless of flags) —
-narrowing the CI gate that way was measured and refuted; do not re-propose it.
+`npm view @prisma/config dependencies.deepmerge-ts` reporting `8.x`. No work until then. The earlier attempt to narrow the CI audit to `--omit=dev` still
+walked `prisma` as an optional peer of `@prisma/client`. Keep the full audit in CI.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -504,7 +504,7 @@ Three layers of automated checks are required, each with distinct Verifier behav
 - Add `test`, `test:watch`, and `test:smoke` scripts to `package.json`.
 - Add one representative test per critical layer (one API route, one `data.ts` transaction, one Zod validator).
 - Add smoke tests for the homepage and external daily-summary API.
-- Use an ephemeral test database (Supabase branch or local Postgres in Docker), not Prisma mocks.
+- Run database integration tests against ephemeral PostgreSQL. Point `TEST_DATABASE_URL` at an admin database on a disposable local PostgreSQL instance. Use a role that can run `CREATE DATABASE` so the test harness can create, migrate, and drop its own database.
 
 **Verifier behavior:**
 - **Hard-fail** any PR where `npm run lint` fails.
