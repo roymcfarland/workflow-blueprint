@@ -124,7 +124,7 @@ If the database runtime URL uses a pooler and migration deployment fails, tempor
 
 ## Recurring Tasks
 
-A nightly Vercel Cron job rolls over recurring tasks whose full interval has elapsed. It resets each due recurring task in place to `dueDate` today and `IN_PROGRESS`, clears `completedAt`/`archivedAt`, and marks all subtasks incomplete, regardless of whether the task was previously open, done, or archived.
+Vercel Cron runs `/api/cron/recurring-tasks` daily at 09:00 UTC. The job rolls over recurring tasks whose full interval has elapsed. It resets each due recurring task in place to `dueDate` today and `IN_PROGRESS`, clears `completedAt`/`archivedAt`, and marks all subtasks incomplete, regardless of whether the task was previously open, done, or archived. After rollover, the job attempts to purge expired demo accounts.
 
 Due dates are date-only UTC values stored at UTC midnight. Dashboard buckets use UTC days; the board view compares against the viewer's local calendar day on a UTC-midnight basis, so these views can disagree near midnight outside UTC by design (`src/lib/data.ts`, `src/components/board-workspace.tsx`).
 
@@ -387,6 +387,8 @@ type ExternalDailySummaryTask = {
 Daily-summary task ids are stable 48-bit hashes of the underlying UUIDs. `summary.byCategory` uses camelCase board slugs as keys.
 
 ## Scripts
+
+Before running the Vitest scripts, export `TEST_DATABASE_URL` pointing at an admin database on a disposable local PostgreSQL instance dedicated to testing. Use a role that can run `CREATE DATABASE` so the test harness can create, migrate, and drop a fresh database for each run.
 
 ```bash
 npm run dev            # start the local Next.js server
