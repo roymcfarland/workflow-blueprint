@@ -25,11 +25,6 @@ import {
 const externalRateLimit = 120;
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
-type MockSentryScope = {
-  setContext(name: string, context: Record<string, unknown>): void;
-  setTag(name: string, value: string): void;
-};
-
 function externalRequest(authorization: string) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
 
@@ -49,21 +44,6 @@ function restoreEnvironmentVariable(
   }
 
   process.env[name] = value;
-}
-
-async function withSentryModule<T>(
-  moduleShape: Record<string, unknown>,
-  callback: (externalApi: typeof import("@/lib/external-api")) => Promise<T>,
-) {
-  vi.resetModules();
-  vi.doMock("@sentry/nextjs", () => moduleShape);
-
-  try {
-    return await callback(await import("@/lib/external-api"));
-  } finally {
-    vi.doUnmock("@sentry/nextjs");
-    vi.resetModules();
-  }
 }
 
 function requestWithInitialHeaderFailure(error: Error) {
@@ -211,67 +191,36 @@ describe("external API auth, rate limiting, and summaries", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  test("adapts Sentry's default export and finalizes errors without rate-limit headers", async () => {
-    const captureException = vi.fn();
-    const scope = { setContext: vi.fn(), setTag: vi.fn() };
-    const withScope = vi.fn((callback: (scope: MockSentryScope) => void) => callback(scope));
+  test("finalizes errors without rate-limit headers when request inspection throws", async () => {
     const initialError = new Error("rate-limit request inspection failed");
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const route = "/api/external/v1/test";
 
     try {
-      await withSentryModule(
-        {
-          captureException: undefined,
-          default: { captureException, withScope },
-          withScope: undefined,
-        },
-        async ({ withExternalApiObservability: withObservability }) => {
-          const handler = vi.fn(async () => NextResponse.json({ ok: true }));
-          const response = await withObservability(
-            requestWithInitialHeaderFailure(initialError),
-            "/api/external/v1/test",
-            handler,
-          );
-
-          expect(response.status).toBe(500);
-          expect(response.headers.get("X-Request-Id")).toEqual(expect.any(String));
-          expect(response.headers.get("X-RateLimit-Limit")).toBeNull();
-          expect(handler).not.toHaveBeenCalled();
-        },
+      const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+      const response = await withExternalApiObservability(
+        requestWithInitialHeaderFailure(initialError),
+        route,
+        handler,
       );
 
-      expect(withScope).toHaveBeenCalledOnce();
-      expect(captureException).toHaveBeenCalledWith(initialError);
-    } finally {
-      consoleError.mockRestore();
-      consoleLog.mockRestore();
-    }
-  });
-
-  test("continues when the Sentry capture API is unavailable", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
-
-    try {
-      await withSentryModule(
-        { captureException: undefined, default: undefined, withScope: undefined },
-        async ({ withExternalApiObservability: withObservability }) => {
-          const response = await withObservability(
-            requestWithInitialHeaderFailure(new Error("request inspection failed")),
-            "/api/external/v1/test",
-            async () => NextResponse.json({ ok: true }),
-          );
-
-          expect(response.status).toBe(500);
-          expect(response.headers.get("X-Request-Id")).toEqual(expect.any(String));
-        },
+      await expectExternalApiError(response, 500, "Internal server error.");
+      const requestId = response.headers.get("X-Request-Id");
+      expect(requestId).toEqual(expect.any(String));
+      expect(response.headers.get("X-RateLimit-Limit")).toBeNull();
+      expect(handler).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledExactlyOnceWith(
+        "External API handler threw.",
+        { requestId, route, error: initialError },
       );
-
-      expect(consoleError).toHaveBeenCalledWith(
-        "Sentry capture failed for external API throw.",
-        expect.objectContaining({ message: "Sentry capture API is unavailable." }),
-      );
+      expect(consoleLog).toHaveBeenCalledOnce();
+      expect(JSON.parse(String(consoleLog.mock.calls[0]?.[0]))).toMatchObject({
+        requestId,
+        route,
+        outcome: "server_error",
+        status: 500,
+      });
     } finally {
       consoleError.mockRestore();
       consoleLog.mockRestore();

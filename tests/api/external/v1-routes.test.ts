@@ -55,25 +55,6 @@ import {
   seedPlanningData,
 } from "../../helpers/database";
 
-type MockSentryScope = {
-  setContext(name: string, context: Record<string, unknown>): void;
-  setTag(name: string, value: string): void;
-};
-
-const sentryMock = vi.hoisted(() => ({
-  captureException: vi.fn(),
-  captureRequestError: vi.fn(),
-  init: vi.fn(),
-  withScope: vi.fn((callback: (scope: MockSentryScope) => void) => {
-    callback({
-      setContext: vi.fn(),
-      setTag: vi.fn(),
-    });
-  }),
-}));
-
-vi.mock("@sentry/nextjs", () => sentryMock);
-
 const uuidV4Pattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const externalRateLimit = {
@@ -201,19 +182,6 @@ function structuredLog(index = 0) {
   return JSON.parse(structuredLogLine(index)) as StructuredExternalApiLog;
 }
 
-function resetSentryMock() {
-  sentryMock.captureException.mockReset();
-  sentryMock.withScope.mockReset();
-  sentryMock.withScope.mockImplementation(
-    (callback: (scope: MockSentryScope) => void) => {
-      callback({
-        setContext: vi.fn(),
-        setTag: vi.fn(),
-      });
-    },
-  );
-}
-
 async function createNamedBoard(userId: string, name: string, slug: string) {
   const board = await createTestBoard(userId);
 
@@ -294,7 +262,6 @@ describe("external v1 route contracts", () => {
 
     consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    resetSentryMock();
   });
 
   afterEach(() => {
@@ -2139,39 +2106,6 @@ describe("external v1 route contracts", () => {
     expect(log.outcome).toBe("server_error");
     expect(log.status).toBe(500);
     expect(log.requestId).toBe(response.headers.get("X-Request-Id"));
-  });
-
-  test("withExternalApiObservability calls Sentry.captureException on uncaught throws", async () => {
-    consoleErrorSpy.mockImplementation(() => {});
-
-    await withExternalApiObservability(
-      externalGetRequest("/api/external/v1/dashboard"),
-      "/api/external/v1/dashboard",
-      async () => {
-        throw new Error("simulated handler failure");
-      },
-    );
-
-    expect(sentryMock.captureException).toHaveBeenCalledTimes(1);
-    expect(sentryMock.captureException.mock.calls[0]?.[0]).toBeInstanceOf(Error);
-  });
-
-  test("withExternalApiObservability still returns a 500 NextResponse when Sentry capture itself throws", async () => {
-    consoleErrorSpy.mockImplementation(() => {});
-    sentryMock.captureException.mockImplementation(() => {
-      throw new Error("Sentry exploded");
-    });
-
-    const response = await withExternalApiObservability(
-      externalGetRequest("/api/external/v1/dashboard"),
-      "/api/external/v1/dashboard",
-      async () => {
-        throw new Error("simulated handler failure");
-      },
-    );
-
-    expect(response.status).toBe(500);
-    expect(response.headers.get("X-Request-Id")).toMatch(uuidV4Pattern);
   });
 
   test("GET /api/external/v1/dashboard returns a fresh request ID per request", async () => {
