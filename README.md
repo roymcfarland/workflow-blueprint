@@ -98,14 +98,6 @@ Use a durable PostgreSQL 14+ database for production account creation.
 `CRON_SECRET` secures `/api/cron/recurring-tasks`. It is required in Vercel production for the scheduled rollover job, but local development can omit it unless you are manually testing the route. When `CRON_SECRET` is set on the Vercel project, Vercel cron invocations automatically send it as an `Authorization: Bearer <CRON_SECRET>` header; the endpoint returns `401` without the matching bearer token.
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` enable task attachments (`src/lib/storage.ts`). Local development can omit them unless you are testing that feature; the storage helper throws a clear error rather than failing silently when they're missing.
 
-Optional server-side Sentry settings:
-
-| Variable | Required | Description |
-| --- | --- | --- |
-| `SENTRY_DSN` | No | Enables Sentry server-side error capture when set. Leave unset for local dev. |
-| `SENTRY_ENVIRONMENT` | No | Override for the Sentry environment tag. Defaults to `VERCEL_ENV` or `"development"`. |
-| `SENTRY_RELEASE` | No | Override for the Sentry release tag. Defaults to `VERCEL_GIT_COMMIT_SHA`. |
-
 ## Database Setup
 
 Apply the checked-in Prisma migrations to the database before enabling signup:
@@ -135,8 +127,6 @@ The external API exposes the configured user's planning data for project-owned c
 The authoritative machine-readable API reference is [`docs/openapi.yaml`](./docs/openapi.yaml). The examples below are a human-readable summary of that contract.
 
 Every REST response from `/api/external/v1/*` includes an `X-Request-Id` header (UUID v4) for log correlation. The same ID is written to a structured JSON log line on the server alongside the request route, status, duration, outcome, and a non-sensitive 8-character prefix of the API key used. Consumers may capture this header to trace client-side errors back to server logs.
-
-REST handler errors are also captured to Sentry when the `SENTRY_DSN` environment variable is set. Captured events include `requestId`, `route`, and `outcome` tags so they can be correlated with the structured log lines emitted by the external API wrapper. Authorization headers are stripped before any event leaves the server.
 
 Every REST response also includes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) so consumers can self-throttle. When the limit is exceeded, the API returns 429 with the standard `Retry-After` header.
 
