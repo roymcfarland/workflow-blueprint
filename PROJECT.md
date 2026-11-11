@@ -302,7 +302,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#275** | Docs: refresh dependency, test database, and cron guidance | `#275` | Records the November audit result and updates the R3 roadmap. Documents the disposable PostgreSQL prerequisite for tests and the daily 09:00 UTC recurring-task rollover and demo purge. |
 | **#276** | Remove the unused error-reporting SDK | `#276` | 2026-11-09. Removed the inactive capture hooks, SDK, and its scoped dependency override. Retained Node.js environment validation and external API error logging, request IDs, and responses. |
 | **#277** | Production dependency audit and monthly Dependabot updates | `#277` | Scoped the `audit` job to production dependencies at the high severity threshold. Configured monthly npm and GitHub Actions updates with grouping and deliberate pin exclusions. The owner will require `audit` after merge. |
-| **#TBD** | Deterministic coverage for the password-reset claim race | `#TBD` | Adds a real-PostgreSQL regression test that commits a competing claim between the token lookup and conditional update. Asserts that the losing reset returns null, preserves the password hash and change timestamp, and leaves the competing claim intact. Retains the concurrent end-to-end test. |
+| **#282** | Deterministic coverage for the password-reset claim race | `#282` | Adds a real-PostgreSQL regression test that commits a competing claim between the token lookup and conditional update. Asserts that the losing reset returns null, preserves the password hash and change timestamp, and leaves the competing claim intact. Retains the concurrent end-to-end test. |
 
 ### Active phase
 
