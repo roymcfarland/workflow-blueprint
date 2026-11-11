@@ -64,7 +64,7 @@ import {
   updateTaskForUser,
   withSerializationRetry,
 } from "@/lib/data";
-import { prisma } from "@/lib/db";
+import * as db from "@/lib/db";
 import { expandDemoSeed } from "@/lib/demo-data";
 import { buildExternalDailySummary } from "@/lib/external-api";
 import {
@@ -76,6 +76,8 @@ import {
 } from "@/lib/domain";
 import { removeStorageObject } from "@/lib/storage";
 import { createTestBoard, createTestUser, resetDatabase } from "./helpers/database";
+
+const { prisma } = db;
 
 function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
@@ -3661,6 +3663,50 @@ describe("src/lib/data.ts", () => {
       rejected: rejected.length,
       rejectedCode: loserError.code,
       rejectedMessage: loserError.message,
+    });
+  });
+
+  test("leaves the password unchanged when a competing claim uses the reset token", async () => {
+    const user = await createTestUser();
+    const { token } = await createPasswordResetToken(user.id);
+    const where = { tokenHash: sha256(token) };
+    const competingClaimAt = new Date();
+
+    const client = prisma.$extends({
+      query: {
+        passwordResetToken: {
+          async updateMany({ args, query }) {
+            // The transaction has read the token. Commit the competing claim on
+            // the base client before the transaction runs its conditional update.
+            await prisma.passwordResetToken.update({
+              where,
+              data: { usedAt: competingClaimAt },
+            });
+            return query(args);
+          },
+        },
+      },
+    });
+    const resetClient = new Proxy(prisma, {
+      get(target, property) {
+        return property === "$transaction"
+          ? client.$transaction.bind(client)
+          : Reflect.get(target, property);
+      },
+    });
+    const prismaSpy = vi.spyOn(db, "prisma", "get").mockReturnValueOnce(resetClient);
+    try {
+      await expect(resetPasswordWithToken(token, "losing-password-hash")).resolves.toBeNull();
+    } finally {
+      prismaSpy.mockRestore();
+    }
+
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: user.id } })).resolves.toMatchObject({
+      passwordHash: user.passwordHash,
+      passwordChangedAt: user.passwordChangedAt,
+    });
+    await expect(prisma.passwordResetToken.findUniqueOrThrow({ where })).resolves.toMatchObject({
+      usedAt: competingClaimAt,
     });
   });
 
