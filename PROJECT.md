@@ -301,7 +301,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#274** | Security: clear glob and minimatch audit advisories | `#274` | Scoped `glob` under `@sentry/bundler-plugins` and `minimatch` under `@typescript-eslint/typescript-estree`. Regenerated the lockfile with npm 11, clearing 12 full and 5 production moderate findings. Sentry moves within major 10. Tooling majors are `glob`, `minimatch`, `path-scurry`, `dotenv`, and `ajv-formats` via `schema-utils`. |
 | **#275** | Docs: refresh dependency, test database, and cron guidance | `#275` | Records the November audit result and updates the R3 roadmap. Documents the disposable PostgreSQL prerequisite for tests and the daily 09:00 UTC recurring-task rollover and demo purge. |
 | **#276** | Remove the unused error-reporting SDK | `#276` | 2026-11-09. Removed the inactive capture hooks, SDK, and its scoped dependency override. Retained Node.js environment validation and external API error logging, request IDs, and responses. |
-| **Pending PR** | Production dependency audit and monthly Dependabot updates | Pending PR | Scoped the `audit` job to production dependencies at the high severity threshold. Configured monthly npm and GitHub Actions updates with grouping and deliberate pin exclusions. The owner will require `audit` after merge. |
+| **#277** | Production dependency audit and monthly Dependabot updates | `#277` | Scoped the `audit` job to production dependencies at the high severity threshold. Configured monthly npm and GitHub Actions updates with grouping and deliberate pin exclusions. The owner will require `audit` after merge. |
 
 ### Active phase
 
