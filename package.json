@@ -82,7 +82,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "^16.4.3",
-    "jsdom": "^29.1.1",
+    "jsdom": "^31.0.0",
     "prisma": "^7.10.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
