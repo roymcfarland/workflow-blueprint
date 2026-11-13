@@ -300,6 +300,48 @@ describe("BoardWorkspace subtask panel granular API", () => {
     expect(await screen.findByDisplayValue("Server-reconciled title")).toBeDefined();
   });
 
+  test("preserves an in-progress title for a subtask without a server id during reconciliation", async () => {
+    const idlessSubtask = subtask({ id: "", title: "Original title" });
+    const sibling = subtask({ id: "subtask-2", sortOrder: 1, title: "Check copy" });
+    const response = deferred<Response>();
+    fetchMock.mockReturnValueOnce(response.promise);
+
+    render(
+      <BoardWorkspace board={boardSnapshot(task({ subtasks: [idlessSubtask, sibling] }))} />,
+    );
+    const panel = within(openSubtasksPanel());
+    const siblingRow = panel.getByDisplayValue("Check copy").closest(".group") as HTMLElement;
+    fireEvent.click(within(siblingRow).getByRole("button", { name: "Mark subtask complete" }));
+
+    const title = panel.getByDisplayValue("Original title");
+    act(() => title.focus());
+    fireEvent.change(title, { target: { value: "In-progress draft" } });
+
+    await act(async () => {
+      response.resolve(
+        apiResponse({
+          ok: true,
+          task: task({
+            subtasks: [
+              { ...idlessSubtask, title: "Server copy" },
+              { ...sibling, isComplete: true, title: "Reviewed copy" },
+            ],
+          }),
+        }),
+      );
+    });
+
+    expect(panel.getByDisplayValue("Reviewed copy")).toBeDefined();
+    expect(panel.getByDisplayValue("In-progress draft")).toBe(title);
+    expect(panel.queryByDisplayValue("Server copy")).toBeNull();
+    expect(document.activeElement).toBe(title);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/subtasks/subtask-2",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+  });
+
   test("ignores superseded subtask title successes and failures", async () => {
     const secondSubtask = subtask({
       id: "subtask-2",

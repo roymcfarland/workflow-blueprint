@@ -303,6 +303,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#276** | Remove the unused error-reporting SDK | `#276` | 2026-11-09. Removed the inactive capture hooks, SDK, and its scoped dependency override. Retained Node.js environment validation and external API error logging, request IDs, and responses. |
 | **#277** | Production dependency audit and monthly Dependabot updates | `#277` | Scoped the `audit` job to production dependencies at the high severity threshold. Configured monthly npm and GitHub Actions updates with grouping and deliberate pin exclusions. The owner will require `audit` after merge. |
 | **#282** | Deterministic coverage for the password-reset claim race | `#282` | Adds a real-PostgreSQL regression test that commits a competing claim between the token lookup and conditional update. Asserts that the losing reset returns null, preserves the password hash and change timestamp, and leaves the competing claim intact. Retains the concurrent end-to-end test. |
+| **#283** | Upgrade Vitest to 5.1 | `#283` | Upgrades Vitest and its V8 coverage provider together from 4.1.12 to 5.1.0. Adds one BoardWorkspace test that preserves a focused title draft for an idless subtask during sibling reconciliation. All four coverage metrics remain at 100%. |
 
 ### Active phase
 
