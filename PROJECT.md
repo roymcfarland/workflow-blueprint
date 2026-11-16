@@ -309,7 +309,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#285** | Align external board counts and MCP dashboard with the GUI | `#285` | REST and MCP board counts use the same task visibility filter as the GUI. The MCP dashboard omits active token metadata for every owner. Real PostgreSQL tests cover both behaviors. |
 | **#286** | Docs: point vulnerability reports to GitHub private reporting | `#286` | Routes reports through GitHub private vulnerability reporting and documents the public issue fallback for requesting a private channel. |
 | **#287** | Restrict CI workflow token permissions | `#287` | Grants all six CI jobs only `contents: read` through the workflow-level permissions block. Codecov continues to authenticate uploads with its repository secret. |
-| **#TBD** | Treat GUI-hidden tasks as not found on external write paths | `#TBD` | REST and MCP task and subtask writes use the GUI task visibility filter. PostgreSQL tests verify that denied writes leave rows intact. |
+| **#288** | Treat GUI-hidden tasks as not found on external write paths | `#288` | REST and MCP task and subtask writes use the GUI task visibility filter. PostgreSQL tests verify that denied writes leave rows intact. |
 
 ### Active phase
 
