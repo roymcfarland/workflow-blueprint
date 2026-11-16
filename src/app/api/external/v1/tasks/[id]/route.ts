@@ -57,7 +57,9 @@ export async function PATCH(
       }
 
       try {
-        const task = await updateTaskFieldsForUser(user.userId, id, fields);
+        const task = await updateTaskFieldsForUser(user.userId, id, fields, {
+          visibleOnly: true,
+        });
 
         return externalApiJson(
           externalTaskResponseSchema,
@@ -93,7 +95,7 @@ export async function DELETE(
       const { id } = await params;
 
       try {
-        await deleteTaskForUser(user.userId, id);
+        await deleteTaskForUser(user.userId, id, { visibleOnly: true });
 
         return externalApiJson(
           externalOkResponseSchema,

@@ -247,6 +247,7 @@ const externalMcpTools = [
         userId,
         input.taskId,
         normalizeNullableDescription(input.fields),
+        { visibleOnly: true },
       ),
     inputSchema: updateTaskInputSchema,
     name: "update_task",
@@ -256,7 +257,7 @@ const externalMcpTools = [
   defineExternalMcpTool({
     description: "Delete one of the token owner's tasks.",
     execute: async (userId, input: z.infer<typeof deleteTaskInputSchema>) => {
-      await deleteTaskForUser(userId, input.taskId);
+      await deleteTaskForUser(userId, input.taskId, { visibleOnly: true });
 
       return { ok: true };
     },
@@ -319,7 +320,7 @@ const externalMcpTools = [
   defineExternalMcpTool({
     description: "Create a subtask on one of the token owner's tasks.",
     execute: (userId, input: z.infer<typeof createSubtaskInputSchema>) =>
-      createSubtaskForUser(userId, input.taskId, input.body),
+      createSubtaskForUser(userId, input.taskId, input.body, { visibleOnly: true }),
     inputSchema: createSubtaskInputSchema,
     name: "create_subtask",
     requiredScope: ApiTokenScope.SUBTASKS_WRITE,
@@ -328,7 +329,7 @@ const externalMcpTools = [
   defineExternalMcpTool({
     description: "Update one of the token owner's subtasks.",
     execute: (userId, input: z.infer<typeof updateSubtaskInputSchema>) =>
-      updateSubtaskForUser(userId, input.subtaskId, input.fields),
+      updateSubtaskForUser(userId, input.subtaskId, input.fields, { visibleOnly: true }),
     inputSchema: updateSubtaskInputSchema,
     name: "update_subtask",
     requiredScope: ApiTokenScope.SUBTASKS_WRITE,
@@ -337,7 +338,7 @@ const externalMcpTools = [
   defineExternalMcpTool({
     description: "Delete one of the token owner's subtasks.",
     execute: (userId, input: z.infer<typeof deleteSubtaskInputSchema>) =>
-      deleteSubtaskForUser(userId, input.subtaskId),
+      deleteSubtaskForUser(userId, input.subtaskId, { visibleOnly: true }),
     inputSchema: deleteSubtaskInputSchema,
     name: "delete_subtask",
     requiredScope: ApiTokenScope.SUBTASKS_WRITE,

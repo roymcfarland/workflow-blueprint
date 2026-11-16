@@ -1145,12 +1145,20 @@ export async function createTaskForBoard(userId: string, boardSlug: string, inpu
   );
 }
 
-export async function updateTaskForUser(userId: string, taskId: string, input: TaskInput) {
+type TaskMutationOptions = { visibleOnly?: boolean };
+
+export async function updateTaskForUser(
+  userId: string,
+  taskId: string,
+  input: TaskInput,
+  options: TaskMutationOptions = {},
+) {
   return withSerializationRetry(() => prisma.$transaction(
     async (tx) => {
       const task = await tx.task.findFirst({
         where: {
           id: taskId,
+          ...(options.visibleOnly ? visibleTasksWhere(new Date()) : {}),
           board: {
             userId,
           },
@@ -1238,9 +1246,14 @@ export async function updateTaskFieldsForUser(
       "title" | "description" | "status" | "priority" | "dueDate" | "recurrence"
     >
   >,
+  options: TaskMutationOptions = {},
 ) {
   const task = await prisma.task.findFirst({
-    where: { id: taskId, board: { userId } },
+    where: {
+      id: taskId,
+      board: { userId },
+      ...(options.visibleOnly ? visibleTasksWhere(new Date()) : {}),
+    },
     include: taskInclude,
   });
 
@@ -1262,13 +1275,18 @@ export async function updateTaskFieldsForUser(
     })),
   };
 
-  return updateTaskForUser(userId, taskId, { ...current, ...fields });
+  return updateTaskForUser(userId, taskId, { ...current, ...fields }, options);
 }
 
-export async function deleteTaskForUser(userId: string, taskId: string) {
+export async function deleteTaskForUser(
+  userId: string,
+  taskId: string,
+  options: TaskMutationOptions = {},
+) {
   const deleted = await prisma.task.deleteMany({
     where: {
       id: taskId,
+      ...(options.visibleOnly ? visibleTasksWhere(new Date()) : {}),
       board: {
         userId,
       },
@@ -1284,12 +1302,14 @@ export async function createSubtaskForUser(
   userId: string,
   taskId: string,
   input: SubtaskCreateInput,
+  options: TaskMutationOptions = {},
 ): Promise<SerializedTask> {
   return prisma.$transaction(
     async (tx) => {
       const task = await tx.task.findFirst({
         where: {
           id: taskId,
+          ...(options.visibleOnly ? visibleTasksWhere(new Date()) : {}),
           board: {
             userId,
           },
@@ -1561,6 +1581,7 @@ export async function updateSubtaskForUser(
   userId: string,
   subtaskId: string,
   input: SubtaskUpdateInput,
+  options: TaskMutationOptions = {},
 ): Promise<SerializedTask> {
   return prisma.$transaction(async (tx) => {
     const subtask = await tx.subtask.findFirst({
@@ -1580,6 +1601,7 @@ export async function updateSubtaskForUser(
       where: {
         id: subtaskId,
         task: {
+          ...(options.visibleOnly ? visibleTasksWhere(new Date()) : {}),
           board: {
             userId,
           },
@@ -1674,6 +1696,7 @@ export async function updateChecklistItemForUser(
 export async function deleteSubtaskForUser(
   userId: string,
   subtaskId: string,
+  options: TaskMutationOptions = {},
 ): Promise<SerializedTask> {
   return prisma.$transaction(async (tx) => {
     const subtask = await tx.subtask.findFirst({
@@ -1693,6 +1716,7 @@ export async function deleteSubtaskForUser(
       where: {
         id: subtaskId,
         task: {
+          ...(options.visibleOnly ? visibleTasksWhere(new Date()) : {}),
           board: {
             userId,
           },

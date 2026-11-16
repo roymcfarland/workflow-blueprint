@@ -55,7 +55,9 @@ export async function PATCH(
       }
 
       try {
-        const parentTask = await updateSubtaskForUser(user.userId, id, parsed.data);
+        const parentTask = await updateSubtaskForUser(user.userId, id, parsed.data, {
+          visibleOnly: true,
+        });
 
         return externalApiJson(
           externalTaskResponseSchema,
@@ -89,7 +91,7 @@ export async function DELETE(
       const { id } = await params;
 
       try {
-        const parentTask = await deleteSubtaskForUser(user.userId, id);
+        const parentTask = await deleteSubtaskForUser(user.userId, id, { visibleOnly: true });
 
         return externalApiJson(
           externalTaskResponseSchema,

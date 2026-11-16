@@ -67,7 +67,9 @@ export async function POST(
       }
 
       try {
-        const parentTask = await createSubtaskForUser(user.userId, id, parsed.data);
+        const parentTask = await createSubtaskForUser(user.userId, id, parsed.data, {
+          visibleOnly: true,
+        });
 
         return externalApiJson(
           externalTaskResponseSchema,
