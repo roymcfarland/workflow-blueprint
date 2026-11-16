@@ -612,7 +612,7 @@ Builder agents (Codex and similar) sometimes ship correct-but-unauthorized chang
 
 **Answer: Per-user, scoped API tokens that resolve to the token's owner.**
 
-An authenticated admin may create API tokens (the existing `ApiToken` model, owned via `createdById`) and hand them to their own agents. An agent presents the token as `Authorization: Bearer <token>` to `/api/external/v1/*` and may perform the supported board, task, and subtask operations on the owning user's data.
+An authenticated admin may create API tokens (the existing `ApiToken` model, owned via `createdById`) and hand them to their own agents. An agent presents the token as `Authorization: Bearer <token>` to `/api/external/v1/*` and may perform a supported subset of board, task, and subtask operations on the owning user's data. The agent must never exceed what the owning user could do in the GUI.
 
 Rules for this model:
 - **Per-user resolution.** A request authenticated by a DB-issued `ApiToken` resolves to that token's **owner** (`createdById`) and is scoped to that user's own data exactly as the internal session routes are. It must **never** resolve to the fixed `EXTERNAL_USER_ID`, nor to any other user. (The legacy `EXTERNAL_API_KEY` env key keeps resolving to the single `EXTERNAL_USER_ID`, read-only, for the existing briefing consumer.)
@@ -621,7 +621,15 @@ Rules for this model:
 - **No new registration, no multi-tenancy, no CORS.** Tokens are issued only to existing authenticated users (sign-up stays invite-only); there are still no orgs/workspaces/shared boards (per-user only); the surface stays server-to-server (no CORS), `no-store`/`noindex`, and rate-limited per the external wrapper.
 - **Revocation & hygiene.** Tokens stay revocable (`revokedAt`) and record `lastUsedAt`; revoked tokens are rejected.
 
+**Known gaps**
+
+The following behaviors violate the rule and are tracked for a follow-up code slice.
+
+- REST `GET /api/external/v1/boards` and MCP `list_boards` count all tasks on each owned board, including tasks with a future `visibleAt`. The GUI board and dashboard exclude those tasks. See `src/app/api/external/v1/boards/route.ts`, `src/lib/mcp-tools.ts`, and `src/lib/data.ts`.
+- MCP `get_dashboard` returns active-token metadata to any token with `TASKS_READ` without rechecking whether the owner is still an admin. The GUI shows the Active Tokens panel only to admins. See `src/app/api/external/v1/[transport]/route.ts`, `src/lib/mcp-tools.ts`, `src/lib/data.ts`, and `src/components/dashboard-overview.tsx`.
+
 **Verifier behavior:**
+- **Hard-fail** any PR that widens agent access beyond the rule above. A PR that closes either known gap should remove its bullet.
 - **Hard-fail** any external endpoint that resolves the acting user to anyone other than the authenticated token's owner (cross-user access), or that resolves a per-user `ApiToken` to the fixed `EXTERNAL_USER_ID`.
 - **Hard-fail** any external **write** endpoint that does not require a write-scoped token.
 - **Hard-fail** any external endpoint that exposes an ADMIN-only operation, or any path by which an external token gains ADMIN role or creates a non-demo account.
