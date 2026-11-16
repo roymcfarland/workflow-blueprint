@@ -308,7 +308,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#284** | Docs: audit and refresh documentation against the code | `#284` | Aligns setup, runtime, external API, deployment, and dependency guidance with the repository. Adds a private security reporting route and records the current check and automation settings. Documentation-only. |
 | **#285** | Align external board counts and MCP dashboard with the GUI | `#285` | REST and MCP board counts use the same task visibility filter as the GUI. The MCP dashboard omits active token metadata for every owner. Real PostgreSQL tests cover both behaviors. |
 | **#286** | Docs: point vulnerability reports to GitHub private reporting | `#286` | Routes reports through GitHub private vulnerability reporting and documents the public issue fallback for requesting a private channel. |
-| **#TBD** | Restrict CI workflow token permissions | `#TBD` | Grants all six CI jobs only `contents: read` through the workflow-level permissions block. Codecov continues to authenticate uploads with its repository secret. |
+| **#287** | Restrict CI workflow token permissions | `#287` | Grants all six CI jobs only `contents: read` through the workflow-level permissions block. Codecov continues to authenticate uploads with its repository secret. |
 
 ### Active phase
 
