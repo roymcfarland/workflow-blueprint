@@ -186,7 +186,11 @@ function taskInputForCreate(
 const externalMcpTools = [
   defineExternalMcpTool({
     description: "Get the token owner's dashboard snapshot.",
-    execute: (userId) => getDashboardSnapshot(userId),
+    execute: async (userId) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Omit token metadata from the response.
+      const { activeTokens, ...dashboard } = await getDashboardSnapshot(userId);
+      return dashboard;
+    },
     inputSchema: emptyToolInputSchema,
     name: "get_dashboard",
     requiredScope: ApiTokenScope.TASKS_READ,
