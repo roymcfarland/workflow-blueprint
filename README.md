@@ -32,71 +32,47 @@ A short, honest retrospective. Three things I would change if I were starting th
 - Next.js 16 App Router and React 19
 - Prisma 7 with PostgreSQL persistence (currently hosted on Supabase)
 - Tailwind CSS 4 with custom blueprint design tokens
-- Zod validation on all API payloads
+- TypeScript 6 and Zod validation for API inputs and external REST responses
 - Signed HTTP-only session cookies with `jose`
-- Resend transactional email for welcome and password reset messages
+- Resend transactional email for welcomes, invitations, and password resets
+- Vitest 5 with Vite 8 for tests
 
 ## Getting Started
 
+Use the Node.js version declared in [`package.json`](./package.json) and selected by [`.nvmrc`](./.nvmrc). Use npm from that Node installation, as CI does, and install from the committed npm lockfile. Avoid substituting a global npm from another Node installation or using pnpm. Use a local PostgreSQL 14+ instance for development. CI tests against PostgreSQL 16.
+
 ```bash
-npm install
+npm ci
 npm run db:deploy
-npm run db:seed
 npm run dev
 ```
 
-The dev server starts Next.js on `127.0.0.1`. Run `npm run db:deploy` before the first deploy, and run `npm run db:seed` only when you want the demo account and starter boards in the configured database.
-
-The seed command reads the demo account password from the required `DEMO_USER_PASSWORD` environment variable and refuses to run when `NODE_ENV=production` or `VERCEL_ENV=production` unless `ALLOW_PRODUCTION_SEED=true` is also set. Choose a unique value per environment and rotate it.
-
-The seed is idempotent: it skips tasks whose IDs already exist, so reseeding an existing database does not rewrite their dates. Seeded due dates are UTC-midnight values relative to the seed's UTC day (`prisma/seed.ts`).
-
-```text
-DEMO_USER_PASSWORD="choose-a-strong-password-of-12-or-more-chars"
-npm run db:seed
-```
+Configure the local environment before running migrations or starting the app. The webpack dev server binds to `127.0.0.1:3000`. Run `npm run db:seed` only when you want the persistent demo account and starter boards. The seed requires a unique password of at least 12 characters in `DEMO_USER_PASSWORD`. It refuses to run in production without the explicit `ALLOW_PRODUCTION_SEED` opt-in. Reseeding skips tasks with existing IDs and preserves their dates. New seed dates are relative to the seed's UTC day (`prisma/seed.ts`).
 
 ## Environment
 
-Create `.env.local` for local work:
+Set local variables in `.env.local` or export them in the shell. Set deployment variables in the corresponding Vercel environment.
 
-```bash
-DATABASE_URL="postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres?sslmode=require"
-DIRECT_URL="postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres?sslmode=require"
-AUTH_SECRET="replace-with-a-long-random-secret"
-NEXT_PUBLIC_SITE_URL="https://www.workflowblueprint.io"
-RESEND_API_KEY="re_..."
-EMAIL_FROM="Workflow Blueprint <hello@workflowblueprint.io>"
-ADMIN_EMAILS="you@example.com"
-EXTERNAL_API_KEY="replace-with-the-shared-external-api-key"
-EXTERNAL_USER_ID="user_demo_alex_blue"
-```
+| Name | Purpose | Required | Where |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Runtime PostgreSQL connection. Use a durable database for production. | A runtime connection is required. The following row lists fallback names in lookup order. | Local, Vercel |
+| `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING` | Integration-provided alternatives to `DATABASE_URL`. | If used in place of `DATABASE_URL` | Local, Vercel |
+| `DIRECT_URL` | Prisma CLI connection for migrations. The CLI prefers this name, then `POSTGRES_URL_NON_POOLING`, then the remaining runtime names. | Optional | Local, Vercel |
+| `AUTH_SECRET` | Signs session JWTs. Use a random secret of at least 32 characters in production-mode runtime. | Production-mode runtime | Local, Vercel |
+| `NEXT_PUBLIC_SITE_URL` | Canonical URLs, email links, and a trusted origin for session mutations. | Optional | Local, Vercel |
+| `SITE_URL` | Canonical metadata fallback. | Optional | Local, Vercel |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Sends welcome, invitation, and reset emails. Local flows can return preview links for invitations and resets when email is unconfigured. | Production-mode runtime | Local, Vercel |
+| `EXTERNAL_API_KEY` | Configures the REST API and authenticates the legacy read-only integration. MCP accepts per-user tokens independently. | To use external REST | Local, Vercel |
+| `EXTERNAL_USER_ID` | Selects the legacy REST account. Defaults to the seeded demo user. | Optional | Local, Vercel |
+| `CRON_SECRET` | Authenticates the recurring-task cron request. Vercel supplies it as a bearer token. | For scheduled rollover and demo cleanup | Local if testing the route, Vercel Production |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` | Enable task attachments in a private Supabase Storage bucket. See [Q4 in PROJECT.md](./PROJECT.md#q4-is-supabase-postgres-mandatory-for-production-or-is-any-postgresql-compatible-database-acceptable). | For attachments | Local, Vercel |
+| `DEMO_USER_PASSWORD` | Password used by the persistent demo seed. | For seeding | Seed command environment |
+| `ALLOW_PRODUCTION_SEED` | Explicitly permits the seed to run in production. | For intentional production seeding | Seed command environment |
+| `ADMIN_EMAILS` | Comma-separated admin promotion allowlist used when no email argument is supplied. | For promotion without an email argument | Admin command environment |
+| `ADMIN_PROMOTE_ACTOR`, `ADMIN_PROMOTE_NONINTERACTIVE` | Set the actor on the `user.promote_admin` audit entry and opt out of the confirmation prompt, respectively. The actor falls back to `USER`, then `LOGNAME`, then the script name. | Optional | Admin command environment |
+| `TEST_DATABASE_URL` | Admin connection to a disposable local Postgres instance used by Vitest. | Set for local test runs. The harness also accepts a local `DATABASE_URL` fallback. | Local, GitHub Actions |
 
-Optional, for task attachments (Supabase Storage only — see [Q4 of PROJECT.md](./PROJECT.md) for the scoped storage exception; the database itself stays plain PostgreSQL):
-
-```bash
-SUPABASE_URL="https://your-project.supabase.co"
-SUPABASE_SERVICE_ROLE_KEY="replace-with-the-service-role-key-from-supabase-settings"
-SUPABASE_STORAGE_BUCKET="task-attachments"
-```
-
-When the project is linked in Vercel, you can pull local secrets without printing them:
-
-```bash
-npx vercel@latest env pull .env.local --environment=development
-```
-
-`DATABASE_URL` must be a PostgreSQL 14+ connection string. Supabase Postgres is the recommended example and current production host, but any compatible durable PostgreSQL database works. If the Vercel/Supabase integration provides `POSTGRES_PRISMA_URL`, `POSTGRES_URL`, or `POSTGRES_URL_NON_POOLING` instead, the app will use those automatically.
-Prisma CLI commands prefer `DIRECT_URL`, then `POSTGRES_URL_NON_POOLING`, when available.
-Use a durable PostgreSQL 14+ database for production account creation.
-`AUTH_SECRET` must be a long random secret in production.
-`NEXT_PUBLIC_SITE_URL` is used to generate absolute canonical and social sharing metadata; when it is unset the app falls back in order to `SITE_URL`, then Vercel's `VERCEL_PROJECT_PRODUCTION_URL` and `VERCEL_URL`, and finally a hard-coded default (`src/lib/site-config.ts`).
-`RESEND_API_KEY` and `EMAIL_FROM` enable welcome emails and production password reset emails. Local development can omit them; reset requests will expose a preview link instead.
-`ADMIN_EMAILS` is a comma-separated allowlist consulted by `npm run admin:bootstrap`/`admin:promote` (`scripts/admin-promote.ts`) when no email is passed explicitly; optional otherwise.
-`ADMIN_PROMOTE_ACTOR` and `ADMIN_PROMOTE_NONINTERACTIVE` are optional knobs for that same script: the first is recorded as the `actor` on the resulting `user.promote_admin` admin audit log entry (falling back to `$USER`, then `$LOGNAME`, then the literal `scripts/admin-promote`), and setting the second to exactly `true` skips the interactive confirmation prompt for scripted or CI runs.
-`EXTERNAL_API_KEY` enables the external `/api/external/v1/*` API. `EXTERNAL_USER_ID` selects which account the external API surfaces; when unset it falls back to the seeded demo user.
-`CRON_SECRET` secures `/api/cron/recurring-tasks`. It is required in Vercel production for the scheduled rollover job, but local development can omit it unless you are manually testing the route. When `CRON_SECRET` is set on the Vercel project, Vercel cron invocations automatically send it as an `Authorization: Bearer <CRON_SECRET>` header; the endpoint returns `401` without the matching bearer token.
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET` enable task attachments (`src/lib/storage.ts`). Local development can omit them unless you are testing that feature; the storage helper throws a clear error rather than failing silently when they're missing.
+Vercel supplies `VERCEL_ENV` for deployment environment detection and `VERCEL_PROJECT_PRODUCTION_URL` and `VERCEL_URL` as metadata fallbacks after `NEXT_PUBLIC_SITE_URL` and `SITE_URL`. Next.js supplies `NODE_ENV` and `NEXT_RUNTIME`. npm supplies `npm_lifecycle_event` to the Prisma generation hook. Test setup controls `TZ` for deterministic dates. CI uses `CODECOV_TOKEN` for its coverage upload.
 
 ## Database Setup
 
@@ -112,11 +88,11 @@ For a brand-new database, optionally seed the demo account:
 npm run db:seed
 ```
 
-If the database runtime URL uses a pooler and migration deployment fails, temporarily run `npm run db:deploy` with the direct connection string in `DATABASE_URL`, then keep the Vercel runtime `DATABASE_URL` pointed at the connection string you use for serverless traffic.
+If the runtime connection uses a pooler that cannot apply migrations, set `DIRECT_URL` to a direct connection for the Prisma CLI and keep `DATABASE_URL` pointed at the runtime pooler.
 
 ## Recurring Tasks
 
-Vercel Cron runs `/api/cron/recurring-tasks` daily at 09:00 UTC. The job rolls over recurring tasks whose full interval has elapsed. It resets each due recurring task in place to `dueDate` today and `IN_PROGRESS`, clears `completedAt`/`archivedAt`, and marks all subtasks incomplete, regardless of whether the task was previously open, done, or archived. After rollover, the job attempts to purge expired demo accounts.
+Vercel Cron runs `/api/cron/recurring-tasks` daily at 09:00 UTC. The job rolls over recurring tasks whose full interval has elapsed. It resets each due recurring task in place to `dueDate` today and `IN_PROGRESS`, clears `completedAt`/`archivedAt`, and marks all subtasks incomplete, regardless of whether the task was previously open, done, or archived. Tasks deleted during rollover are reported as skipped. After rollover commits, the job attempts to purge expired demo accounts and reports purge errors separately.
 
 Due dates are date-only UTC values stored at UTC midnight. Dashboard buckets use UTC days; the board view compares against the viewer's local calendar day on a UTC-midnight basis, so these views can disagree near midnight outside UTC by design (`src/lib/data.ts`, `src/components/board-workspace.tsx`).
 
@@ -126,11 +102,11 @@ The external API exposes the configured user's planning data for project-owned c
 
 The authoritative machine-readable API reference is [`docs/openapi.yaml`](./docs/openapi.yaml). The examples below are a human-readable summary of that contract.
 
-Every REST response from `/api/external/v1/*` includes an `X-Request-Id` header (UUID v4) for log correlation. The same ID is written to a structured JSON log line on the server alongside the request route, status, duration, outcome, and a non-sensitive 8-character prefix of the API key used. Consumers may capture this header to trace client-side errors back to server logs.
+Responses from the v1 REST handlers include an `X-Request-Id` header (UUID v4) for log correlation. The same ID is written to a structured JSON log line alongside the request route, method, status, duration, outcome, resolved user ID when available, and an eight-character prefix of the submitted bearer token when available. Consumers may capture this header to trace client-side errors back to server logs.
 
-Every REST response also includes `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) so consumers can self-throttle. When the limit is exceeded, the API returns 429 with the standard `Retry-After` header.
+Once rate limiting completes, REST responses also include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) so consumers can self-throttle. When the limit is exceeded, the API returns 429 with the standard `Retry-After` header.
 
-Every v1 REST response is JSON, dynamic (`force-dynamic`, `revalidate = 0`), and sent with `Cache-Control: no-store` and `X-Robots-Tag: noindex`; MCP uses its protocol-specific transport described below.
+The v1 REST handlers return JSON, are dynamic (`force-dynamic`, `revalidate = 0`), and sent with `Cache-Control: no-store` and `X-Robots-Tag: noindex`; MCP uses its protocol-specific transport described below.
 
 ### Authentication
 
@@ -142,11 +118,12 @@ Authorization: Bearer <EXTERNAL_API_KEY>
 
 Keys are compared with SHA-256 + `timingSafeEqual`. The legacy key resolves to `EXTERNAL_USER_ID`, remains read-only, and has no expiry.
 
-Per-user API tokens are issued inside the app and resolve to the token owner. They carry granular scopes (`BOARDS_READ`, `BOARDS_WRITE`, `TASKS_READ`, `TASKS_WRITE`, `SUBTASKS_READ`, `SUBTASKS_WRITE`) and can be created with an optional 1-365 day expiry; tokens created without an expiry never expire. Admins can see each token's `Active`, `Expired`, or `Revoked` status plus its Expires value in the token ledger, and can revoke tokens at any time. Write endpoints require the matching write scope. The MCP endpoint below requires a per-user scoped API token and does not accept the legacy `EXTERNAL_API_KEY`.
+Admins issue per-user API tokens from the app's API Tokens page and resolve to the token owner. They carry granular scopes (`BOARDS_READ`, `BOARDS_WRITE`, `TASKS_READ`, `TASKS_WRITE`, `SUBTASKS_READ`, `SUBTASKS_WRITE`) and can be created with an optional 1-365 day expiry; tokens created without an expiry never expire. Admins can see each token's `Active`, `Expired`, or `Revoked` status plus its Expires value in the token ledger, and can revoke tokens at any time. REST reads require the matching read scope and writes require the matching write scope. The MCP endpoint below requires a per-user scoped API token and does not accept the legacy `EXTERNAL_API_KEY`.
 
 - Missing or malformed `Authorization` header → `401` JSON.
 - Wrong, revoked, or expired token → `403` JSON; callers cannot distinguish these cases.
-- Required key is unset → `503` JSON.
+- Insufficient token scope → `403` JSON.
+- `EXTERNAL_API_KEY` is unset → `503` JSON from REST, including for requests using per-user tokens.
 
 Most external API errors use this shape:
 
@@ -378,7 +355,7 @@ Daily-summary task ids are stable 48-bit hashes of the underlying UUIDs. `summar
 
 ## Scripts
 
-Before running the Vitest scripts, export `TEST_DATABASE_URL` pointing at an admin database on a disposable local PostgreSQL instance dedicated to testing. Use a role that can run `CREATE DATABASE` so the test harness can create, migrate, and drop a fresh database for each run.
+Before running the Vitest scripts, export `TEST_DATABASE_URL` pointing at an admin database on a disposable local PostgreSQL instance dedicated to testing. Use a role that can run `CREATE DATABASE` so the test harness can create, migrate, and drop a fresh database for each run. Keep `DIRECT_URL` and `POSTGRES_URL_NON_POOLING` unset in the test environment so the migration targets that database.
 
 ```bash
 npm run dev            # start the local Next.js server
@@ -402,7 +379,11 @@ npm run admin:bootstrap # promote a user to ADMIN by email (see scripts/admin-pr
 npm run admin:promote  # alias for admin:bootstrap
 ```
 
-Vercel automatically runs `vercel-build` instead of `build` when it is present, so each production deployment applies any pending Prisma migrations before the new code starts handling requests. Local `npm run build` deliberately does not migrate so it cannot accidentally touch a remote database.
+## CI and Deployments
+
+[GitHub Actions CI](./.github/workflows/ci.yml) runs six independent jobs on pull requests and pushes to `main`. The `test` job enforces the Vitest coverage thresholds and uploads coverage to Codecov. The `smoke` job boots Next.js and exercises HTTP routes. Both jobs use PostgreSQL service containers. Main branch protection requires an up-to-date branch and passing `Vercel`, `lint`, `audit`, `test`, and `smoke` checks. The `typecheck` and `build` jobs also run in Actions.
+
+Vercel supplies the PR preview check and deploys the production app from `main`. The deployment script `vercel-build` applies pending Prisma migrations to the database configured for that deployment, then builds. The local `npm run build` compiles without migrations. Configure the production-mode environment before serving it with `npm run start`. [`vercel.json`](./vercel.json) declares the daily recurring-task cron.
 
 ## License
 
@@ -411,6 +392,12 @@ This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
 This is a source-available license that permits personal use, research, and non-commercial projects. **Commercial use is strictly prohibited without express written permission from Roy McFarland.**
 
 See the [LICENSE](./LICENSE) file for the full text.
+
+## Security and Automation
+
+- Report vulnerabilities privately using [SECURITY.md](./SECURITY.md).
+- GitHub secret scanning and push protection are enabled. The tracked [CI workflow](./.github/workflows/ci.yml) checks production dependency advisories with `npm audit --omit=dev --audit-level=high`.
+- [Dependabot](./.github/dependabot.yml) checks npm and GitHub Actions monthly, with up to three open version-update PRs per ecosystem. It groups npm minor and patch updates and groups GitHub Actions updates together. npm exclusions protect the Node runtime and Node types pins, the exact React Compiler plugin pin, and ESLint and TypeScript peer compatibility. [`package.json`](./package.json) lists transitive overrides.
 
 ## Security Notes
 
@@ -423,4 +410,4 @@ See the [LICENSE](./LICENSE) file for the full text.
 - Session JWTs include the user's `passwordChangedAt` timestamp so password changes/resets revoke every existing session.
 - Password reset and invitation tokens are stored hashed and claimed atomically inside transactions before any state changes.
 - Development reset links are returned only outside production; production sends reset and invitation links through Resend.
-- Admin actions (invitation create/revoke, role promotion) write an `AdminAuditLog` row recording actor, action, target, and timestamp.
+- Admin actions (invitation create/revoke, API token create/revoke, role promotion) write an `AdminAuditLog` row recording actor, action, target, and timestamp.

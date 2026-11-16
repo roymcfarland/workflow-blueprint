@@ -12,6 +12,7 @@
 - `PROJECT.md` (this file) — Strategic: what the product is, what is out of scope, and durable rules for PRs.
 - `AGENTS.md` — Tactical: operational quickstart for AI agents (how to run the dev server, required services, environment variables).
 - `README.md` — Human-facing documentation, setup instructions, and API contracts.
+- `SECURITY.md` — Private vulnerability reporting route.
 - `CASE_STUDY.md` — Walkthrough of one PR (#13) end-to-end: prompt, diff, Verifier rule it triggered, and resolution. Read this if you are evaluating the multi-agent workflow itself.
 - `docs/openapi.yaml` — Generated external REST API contract; regenerate with `npm run generate:openapi`, drift-checked by `tests/api/external/openapi.test.ts`.
 - `docs/archive/` — Retired handoff documents, kept for historical context.
@@ -304,6 +305,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#277** | Production dependency audit and monthly Dependabot updates | `#277` | Scoped the `audit` job to production dependencies at the high severity threshold. Configured monthly npm and GitHub Actions updates with grouping and deliberate pin exclusions. The owner will require `audit` after merge. |
 | **#282** | Deterministic coverage for the password-reset claim race | `#282` | Adds a real-PostgreSQL regression test that commits a competing claim between the token lookup and conditional update. Asserts that the losing reset returns null, preserves the password hash and change timestamp, and leaves the competing claim intact. Retains the concurrent end-to-end test. |
 | **#283** | Upgrade Vitest to 5.1 | `#283` | Upgrades Vitest and its V8 coverage provider together from 4.1.12 to 5.1.0. Adds one BoardWorkspace test that preserves a focused title draft for an idless subtask during sibling reconciliation. All four coverage metrics remain at 100%. |
+| **#284** | Docs: audit and refresh documentation against the code | `#284` | Aligns setup, runtime, external API, deployment, and dependency guidance with the repository. Adds a private security reporting route and records the current check and automation settings. Documentation-only. |
 
 ### Active phase
 
@@ -314,9 +316,9 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 - **Dependabot and Codecov settings.** CI uploads coverage with `CODECOV_TOKEN` and treats upload errors as non-blocking. Main currently requires no Codecov check. Dependabot-triggered Actions runs receive Dependabot secrets. Before making a token-backed Codecov check required, the owner must also configure `CODECOV_TOKEN` as a Dependabot secret.
 - **Dependency audit series:** D1 (`#205`) shipped the within-major security overrides; D2 (`#217`) shipped the `deepmerge-ts` major override and restored a clean audit.
 - **MCP audit migration (`#265`):** The SDK 1.x high advisories deferred by `#264` are resolved by the handler 2.x/server 2.x migration.
-- **Braces audit exception removed (`#266`):** The `#262` exception was removed because GitHub withdrew `GHSA-vfj7-8cjw-p6xm` on 2026-10-23. `braces@3.0.3` remains installed but unflagged. That PR restored the full-tree audit. CI now runs `npm audit --omit=dev --audit-level=high`.
-- **2026-11-08 dependency audit (`#274`).** After adding root overrides for `minimatch ^11.0.5` under `@typescript-eslint/typescript-estree` and `glob ^14.0.4` under `@sentry/bundler-plugins`, `npm audit fix` refreshed the lockfile. The full audit went from 12 moderate findings to 0, and `npm audit --omit=dev` went from 5 moderate findings to 0. The resolved Sentry SDK moved from 10.75.3 to 10.78.0, with transitive major bumps confined to build and lint tooling. ESLint and its plugins still resolve `minimatch@3.1.5`.
-- **Next dependency recon: 2026-12-01 (monthly).** Review advisory status, whether upstream dependency ranges allow the scoped overrides to be removed, and the ESLint 10 blocker described under R3.
+- **Braces audit exception removed (`#266`):** The `#262` exception was removed because GitHub withdrew `GHSA-vfj7-8cjw-p6xm` on 2026-10-23. `braces@3.0.3` remains installed but unflagged. That PR restored the full-tree audit at the time. `#277` later scoped the CI gate to production dependencies with `npm audit --omit=dev --audit-level=high`.
+- **2026-11-08 dependency audit (`#274`).** After adding root overrides for `minimatch ^11.0.5` under `@typescript-eslint/typescript-estree` and `glob ^14.0.4` under `@sentry/bundler-plugins`, `npm audit fix` refreshed the lockfile. The full audit went from 12 moderate findings to 0, and `npm audit --omit=dev` went from 5 moderate findings to 0. The resolved Sentry SDK moved from 10.75.3 to 10.78.0, with transitive major bumps confined to build and lint tooling. ESLint and its plugins still resolved `minimatch@3.1.5` at the time. `#276` subsequently removed Sentry and its scoped override.
+- **Dependency monitoring.** Dependabot runs monthly for npm and GitHub Actions. The separate scheduled dependency recon is disabled by the owner.
 
 #### Next phase — sequenced roadmap
 
@@ -329,23 +331,13 @@ grows to do so needs a scoped docs-amendment PR merged first.
 | **R0** | Cron reports a committed rollover when the demo purge fails | Done in `#244` | Small, fully specified |
 | **R1** | `external-api.ts` dead-export cluster | Done in `#245` | Only item with evidence something is actually wrong |
 | **R2** | Finish the UI/UX audit | Done in `#246`, `#247` | Two rounds found six measured defects |
-| **R3** | Dependency recon | Done in `#250`, `#253`, `#258`, `#259`, `#264`, `#265`, `#266`, `#268`, `#274` | Monthly; next 2026-12-01 |
-| **R4** | `deepmerge-ts` override removal | **Blocked upstream** | Recheck condition, not work |
+| **R3** | Dependency recon | Done in `#250`, `#253`, `#258`, `#259`, `#264`, `#265`, `#266`, `#268`, `#274` | Separate scheduled recon is disabled |
+| **R4** | `deepmerge-ts` override review | **Upstream condition met** | Prisma now declares an 8.x dependency. Removal needs its own verification. |
 | **—** | `codecov/project` gate | Resolved in `#252` | Plan-gated (Team, not Pro) — not a bug; see the item above |
 
-**R0 — the cron should report work it actually committed.** `#242` correctly ensured a demo-purge failure cannot roll back
-a committed rollover, proven by re-reading the task from Postgres. But the route still rejects, so the response carries
-no rollover information even though the rollover succeeded. Durability is right; observability is not. Return 200 with the
-rollover result plus a purge-error indicator, so an operator can see what happened. Retrying is harmless either way —
-after a rollover the task's `dueDate` is today, so it is no longer a candidate.
+**R0 — complete in `#244`.** The cron reports the committed rollover even if the independent demo purge fails. A rerun on the same UTC day does not roll over the same tasks again.
 
-**R1 — is some of `external-api.ts`'s coverage measuring dead code?** `requireExternalApiUser` and
-`requireExternalApiAccess` are **both** dead: near-identical duplicates, zero callers, and the `/api/external/v1/*` routes
-use only `withExternalApiObservability`. Several tests in `tests/lib/external-api.test.ts` reach shared rate-limit and
-auth logic *through* those dead entry points. The deletion is trivial; the question worth answering first is whether that
-shared logic is exercised anywhere production actually runs. If not, this repository's 100% is partly measuring code
-nothing calls — which is worth knowing precisely, and is the strongest argument for doing R1 before R2. **Begin by tracing
-what `withExternalApiObservability` calls**, then decide scope. Do not delete anything before that trace exists.
+**R1 — complete in `#245`.** The unused `requireExternalApiUser` and `requireExternalApiAccess` exports were removed. Tests exercise the shared authentication and rate-limit logic through the production `withExternalApiObservability` entry point.
 
 **R2 — the UI/UX audit is complete.** Computed-style measurement through the demo endpoint found the dashboard; board in
 board view and list view, with notes open and closed; profile; task detail modal; `/admin/invitations`;
@@ -357,18 +349,18 @@ unreachably because a `min-width: auto` blowout made a 464px track inside a 343p
 3.80:1 contrast. `#247` fixed the mobile nav drawer clipping 126px under `overflow-y: hidden`, stranding New Board, the
 Account menu, and Sign out (3 of 17 controls), plus its close button shrinking from 40px to 22px under default flex shrink.
 
-One measured-clean pattern remains **latent, not a defect**: `src/components/admin/api-tokens-admin.tsx:221` uses
+One measured-clean pattern remains **latent, not a defect**: `src/components/admin/api-tokens-admin.tsx` uses
 `grid gap-3 sm:grid-cols-2` with no base column, structurally identical to the `#246` dashboard-grid bug, but its current
 short content does not overflow. Keep the method that worked: drive the real app through the demo endpoint, measure
 computed styles rather than eyeballing, and let measurement arbitrate against your own reading of the source — both
 instruments are unreliable and fail differently.
 
 **R3 — dependency recon through 2026-10.** `#250` (August): 25 in-range
-minor/patch bumps, no advisory driving it — `npm audit` was already 0/0. Five outdated
-majors evaluated and left alone: `@types/node` 24→26 (must track the Node 24.22.x
+minor/patch bumps, no advisory driving it — `npm audit` was already 0/0. Outdated
+majors evaluated at the time included: `@types/node` 24→26 (must track the Node 24.22.x
 engine pin, not `latest`); `typescript` 6→7 (blocked — `typescript-eslint`, even at its
 own latest 8.68.0, peers `typescript: ">=4.8.4 <6.1.0"`); `jsdom` 29→30 (compatible, no
-advisory or EOL driver — still true as of `#253`). The deferred `mcp-handler` 1→2
+advisory or EOL driver at the time). The lockfile now resolves jsdom 31. The deferred `mcp-handler` 1→2
 migration is now complete in `#265`, driven by four high SDK advisories: v2 replaces
 the `@modelcontextprotocol/sdk` peer with `@modelcontextprotocol/server`. The route
 uses the combined handler options and adapts `ctx.http?.authInfo` to the existing
@@ -377,9 +369,9 @@ the native 2026-07-28 path with subscription streams disabled.
 
 `#253` (September): 16 more in-range bumps, again no advisory. **Corrects the `#250`
 finding on `eslint`**: it is not merely optional-with-no-driver, it is **blocked** —
-`eslint-plugin-import@latest` and `eslint-plugin-react@latest` (both bundled by
-`eslint-config-next`, both already at their own latest) peer-cap at eslint 9, so eslint
-10 is uninstallable without `--legacy-peer-deps`. `eslint@9.39.5` is itself marked
+The locked versions of `eslint-plugin-import` and `eslint-plugin-react`, both bundled by
+`eslint-config-next`, declare peer support through ESLint 9. An ESLint 10 upgrade
+requires compatible plugin peer ranges. `eslint@9.39.5` is itself marked
 deprecated by npm, so this is now a real, tracked constraint, not a someday-optional
 bump — watch `npm view eslint-plugin-import@latest peerDependencies` for a `^10` and
 take the slice the moment it appears. `@types/node`'s `^24` and `eslint`'s `^9` ranges
@@ -403,14 +395,11 @@ in-range lockfile bumps, including React 19.3.0, with no majors. The majors abov
 unchanged: `eslint` 10 is still blocked on `eslint-plugin-import`, and `eslint` 9 is still
 end-of-life.
 
-**Cadence: monthly (1st, 09:00 local).** Moved to quarterly after `#253` because the monthly
-runs kept finding nothing actionable, then moved back on 2026-10-02 once a quarterly run
-found a critical advisory that had gone unfixed for weeks.
-
-**R4 — `deepmerge-ts`.** Re-verified 2026-10-03 against `@prisma/config@7.10.0` (still the latest published; bumped by `#253`): still declares an
-exact `7.1.5`, so the cross-major pin at `^8.0.1` from `#217` cannot be removed. The trigger is
-`npm view @prisma/config dependencies.deepmerge-ts` reporting `8.x`. No work until then. The earlier attempt to narrow the CI audit to `--omit=dev` still
-walked `prisma` as an optional peer of `@prisma/client`. The production audit can still include optional peers reachable from production dependencies.
+**R4 — `deepmerge-ts`.** The earlier Prisma config release pinned 7.x. The current
+lockfile's `@prisma/config` declares an 8.x dependency, which meets the original
+recheck condition. The root override remains in `package.json`. Verify the full
+dependency tree and production audit in a separate PR before removing it. The
+production audit can include optional peers reachable from production dependencies.
 
 ### Standing Builder guardrails (post-PR-1)
 
@@ -428,32 +417,32 @@ The Q1 test-coverage rule has been enforceable since PR 1 (`#7`) merged. It appl
 
 ## Purpose
 
-Workflow Blueprint is an invite-gated task planning workspace where authenticated users organize boards, tasks, subtasks, due dates, priorities, and board notes. It provides dashboard rollups, profile/theme settings, and admin-managed invitations through a server-rendered web app, and exposes its planning data to external consumers (such as the morning briefing job at `www.roymcfarland.news`) through a versioned, key-authenticated external API. Workflow Blueprint is a source-available product licensed under the PolyForm Noncommercial 1.0.0 license, permitting personal and non-commercial use while reserving commercial rights.
+Workflow Blueprint is an invite-gated task planning workspace where authenticated users organize boards, tasks, subtasks, due dates, priorities, and board notes. It provides dashboard rollups, profile/theme settings, and admin-managed invitations through a server-rendered web app, and exposes its planning data to integrations (such as the morning briefing job at `www.roymcfarland.news`) through the versioned REST API. Scoped per-user API tokens also let agents read and write through REST or MCP. Workflow Blueprint is a source-available product licensed under the PolyForm Noncommercial 1.0.0 license, permitting personal and non-commercial use while reserving commercial rights.
 
 ---
 
 ## Stack
 
 - Language: TypeScript/TSX with strict TypeScript settings (`tsconfig.json`).
-- Framework: Next.js 16.4.3 App Router and React 19.3.0 (`package.json`, `src/app/layout.tsx`).
+- Framework: Next.js 16 App Router and React 19 (`package.json`, `src/app/layout.tsx`).
 - Package manager: npm with `package-lock.json`.
 - Database/ORM: Prisma 7 with a PostgreSQL datasource; the README identifies PostgreSQL (currently hosted on Supabase) as the deployment database (`package.json`, `prisma/schema.prisma`, `README.md`).
 - Styling/UI: Tailwind CSS 4 through PostCSS, custom global design tokens, lucide-react icons, and @dnd-kit drag-and-drop (`package.json`, `postcss.config.mjs`, `src/app/globals.css`, `src/components/board-workspace.tsx`). Dashboard charts (the completion-rate ring, the This Week density strip) are hand-rolled SVG, not a charting library.
 - Validation/auth/email: Zod schemas, jose-signed JWT session cookies, bcryptjs password hashing, and Resend transactional email (`package.json`, `src/lib/validators.ts`, `src/lib/auth.ts`, `src/lib/email.ts`).
-- Runtime versions: Node.js 24.22.x is declared via `engines.node` and pinned in `.nvmrc`; `@types/node` is `^24` to match the runtime major and TypeScript targets `ES2017` (`package.json`, `tsconfig.json`).
+- Runtime and tools: See `engines.node` in `package.json` for the Node pin. The Node types track that major. TypeScript 6 targets `ES2017` (`tsconfig.json`).
 
 ---
 
 ## Architecture
 
-The app is organized as a Next.js App Router application under `src/app`: root metadata and providers are in `src/app/layout.tsx`, the public sign-in page is `src/app/page.tsx`, and authenticated pages are wrapped by `src/app/(app)/layout.tsx`. Protected server pages call auth helpers, load user-scoped snapshots from `src/lib/data.ts`, and render feature components such as `src/components/dashboard-overview.tsx` and `src/components/board-workspace.tsx` (`src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`, `src/lib/auth.ts`). API routes live under `src/app/api` and share same-origin checks, Zod request parsing, auth/admin gates, and rate limiting through `src/lib/api.ts`, then delegate mutations and queries to `src/lib/data.ts` (`src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`). Prisma models and enums define users, boards, tasks, subtasks, task labels, checklist items, attachments, board notes, password reset tokens, invitations, API tokens, rate-limit buckets, and admin audit logs in `prisma/schema.prisma`, while domain constants and serialization live in `src/lib/domain.ts` and `src/lib/data.ts`. Security headers are configured globally in `next.config.ts`, while HTML page responses get nonce-based CSP handling through `src/proxy.ts`.
+The app is organized as a Next.js App Router application under `src/app`: root metadata and providers are in `src/app/layout.tsx`, the public sign-in page is `src/app/page.tsx`, and authenticated pages are wrapped by `src/app/(app)/layout.tsx`. Protected server pages call auth helpers, load user-scoped snapshots from `src/lib/data.ts`, and render feature components such as `src/components/dashboard-overview.tsx` and `src/components/board-workspace.tsx` (`src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`, `src/lib/auth.ts`). API routes live under `src/app/api`. Session API routes use shared same-origin checks, Zod request parsing, auth/admin gates, and rate limiting as applicable through `src/lib/api.ts`, then delegate mutations and queries to `src/lib/data.ts` (`src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`). Prisma models and enums define users, boards, tasks, subtasks, task labels, checklist items, attachments, board notes, password reset tokens, invitations, API tokens, rate-limit buckets, and admin audit logs in `prisma/schema.prisma`, while domain constants and serialization live in `src/lib/domain.ts` and `src/lib/data.ts`. Security headers are configured globally in `next.config.ts`, while HTML page responses get nonce-based CSP handling through `src/proxy.ts`.
 
 ---
 
 ## Conventions
 
 - Imports use the `@/` alias for `src/*`; the alias is configured in `tsconfig.json` and used in `src/app/layout.tsx`, `src/app/api/auth/sign-up/route.ts`, and `src/components/board-workspace.tsx`.
-- API route handlers return `NextResponse.json(...)` payloads and use shared helpers before business logic: `parseJsonPayload`, `requireApiUser`/`requireApiAdmin`, `assertSameOriginRequest`, and `checkRateLimit` (`src/lib/api.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`).
+- JSON API handlers return `NextResponse.json(...)` payloads and use shared helpers before business logic: `parseJsonPayload`, `requireApiUser`/`requireApiAdmin`, `assertSameOriginRequest`, and `checkRateLimit` (`src/lib/api.ts`, `src/app/api/auth/sign-up/route.ts`, `src/app/api/boards/[slug]/tasks/route.ts`, `src/app/api/admin/invitations/route.ts`).
 - Request and response shapes are modeled with Zod; input types are inferred from schemas in `src/lib/validators.ts`, and external API responses are validated with schemas from `src/lib/external-contract.ts` through `externalApiJson` in `src/lib/external-api.ts` (`src/app/api/external/v1/dashboard/route.ts`).
 - Authenticated pages perform server-side user checks before rendering or fetching protected data (`src/app/(app)/layout.tsx`, `src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`, `src/lib/auth.ts`).
 - Prisma access is centralized in `src/lib/data.ts`, which returns serialized UI/API shapes for board, dashboard, task, and invitation data instead of exposing raw Prisma records directly (`src/lib/data.ts`, `src/app/(app)/dashboard/page.tsx`, `src/app/(app)/boards/[slug]/page.tsx`).
@@ -539,11 +528,11 @@ Three layers of automated checks are required, each with distinct Verifier behav
 
 **Answer: CI is GitHub Actions + Vercel preview, both required.**
 
-Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration tests) and the Vercel preview build before merge.
+The GitHub Actions CI workflow and Vercel preview build both run on PRs. See [README CI and Deployments](./README.md#ci-and-deployments) for the checks enforced by main branch protection and the additional jobs CI runs.
 
 **Sequencing / required corrections:**
 - Add `.github/workflows/ci.yml` with parallel jobs — originally `lint`, `test`, `smoke`; grown since to six (`lint`, `audit`, `typecheck`, `build`, `test`, `smoke`), still with no `needs:` dependencies between them.
-- Add a Postgres service container in the `test` job for the ephemeral DB.
+- Use Postgres service containers in `test` and `smoke` for the ephemeral test databases.
 - Use `node-version-file: '.nvmrc'` in the workflow.
 
 **Verifier behavior:**
@@ -551,16 +540,11 @@ Every PR must pass both a GitHub Actions workflow (lint, smoke, unit/integration
 - **Hard-fail** any PR that uses admin merge-without-checks without a PROJECT.md emergency note.
 - **Warn** on new env-var code paths without matching CI `env:` entries.
 
-### Q3. Which Node.js version should contributors and deployments use? `package.json` has no `engines` field.
+### Q3. Which Node.js version should contributors and deployments use?
 
-**Answer: Node 24.22.x, enforced across three pin sites.**
+**Answer: Use the Node line declared by `engines.node` in `package.json`.**
 
-All contributors and all deploys run Node 24.22.x. Patches flow automatically; minor bumps require a deliberate PR.
-
-**Sequencing / required corrections:**
-- Add `"engines": { "node": "24.22.x" }` to `package.json`.
-- Add `.nvmrc` file at repo root containing `24.22`.
-- Ensure `.github/workflows/ci.yml` uses `node-version-file: '.nvmrc'`.
+`.nvmrc` selects that line locally and `.github/workflows/ci.yml` reads it through `node-version-file`. Patches flow automatically. Minor bumps require a deliberate PR and verification that Vercel matches.
 
 **Verifier behavior:**
 - **Hard-fail** any PR where `package.json engines.node`, `.nvmrc`, and the CI workflow's Node version are not consistent.
@@ -584,7 +568,7 @@ The schema and code stay portable across any Postgres 14+ host. Supabase is the 
 - **Hard-fail** any PR that introduces Supabase RLS policies, or calls to Supabase Realtime / Edge Functions / Auth, or uses `supabase-js` for database access (Prisma is the sole DB client).
 - **Allow** `@supabase/supabase-js` **only** in server-side storage helpers / attachment API routes for the task-attachments feature (per the "Storage exception" above), via `SUPABASE_SERVICE_ROLE_KEY`. **Hard-fail** if a Supabase storage client or the service-role key is imported into a client component, if `supabase-js` is used for anything other than Storage, or if the attachments bucket is public.
 - **Hard-fail** any PR that adds Postgres extensions Supabase doesn't support, or that bumps the schema beyond Postgres 15 features.
-- **Warn** if a PR adds connection-string handling beyond the existing `DATABASE_URL` / `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` set.
+- **Warn** if a PR adds connection-string handling beyond the existing `DATABASE_URL` / `DIRECT_URL` / `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` set.
 
 ### Q5. Is the external API intended to be a stable private integration contract, or a one-off endpoint for the current external consumer?
 
@@ -628,16 +612,24 @@ Builder agents (Codex and similar) sometimes ship correct-but-unauthorized chang
 
 **Answer: Per-user, scoped API tokens that resolve to the token's owner.**
 
-An authenticated admin may create API tokens (the existing `ApiToken` model, owned via `createdById`) and hand them to their own agents. An agent presents the token as `Authorization: Bearer <token>` to `/api/external/v1/*` and may perform headlessly the same actions the owning user could perform in the GUI — nothing more.
+An authenticated admin may create API tokens (the existing `ApiToken` model, owned via `createdById`) and hand them to their own agents. An agent presents the token as `Authorization: Bearer <token>` to `/api/external/v1/*` and may perform a supported subset of board, task, and subtask operations on the owning user's data. The agent must never exceed what the owning user could do in the GUI.
 
 Rules for this model:
 - **Per-user resolution.** A request authenticated by a DB-issued `ApiToken` resolves to that token's **owner** (`createdById`) and is scoped to that user's own data exactly as the internal session routes are. It must **never** resolve to the fixed `EXTERNAL_USER_ID`, nor to any other user. (The legacy `EXTERNAL_API_KEY` env key keeps resolving to the single `EXTERNAL_USER_ID`, read-only, for the existing briefing consumer.)
-- **Scopes.** Tokens carry a scope — at minimum **read** vs **read/write**. Read endpoints accept any valid, unrevoked token; write endpoints require a write-scoped token. Pre-existing/legacy tokens default to **read**.
+- **Scopes.** Tokens carry a scope — at minimum **read** vs **read/write**. Read endpoints require the matching read scope. Write endpoints require the matching write scope. The legacy environment key is read-only.
 - **USER capabilities only.** The external surface exposes only what a USER can do to their own boards/tasks/subtasks. ADMIN-only operations — invitation issuance, API-token management, role/user administration — are **never** exposed externally, and a token never grants ADMIN.
 - **No new registration, no multi-tenancy, no CORS.** Tokens are issued only to existing authenticated users (sign-up stays invite-only); there are still no orgs/workspaces/shared boards (per-user only); the surface stays server-to-server (no CORS), `no-store`/`noindex`, and rate-limited per the external wrapper.
 - **Revocation & hygiene.** Tokens stay revocable (`revokedAt`) and record `lastUsedAt`; revoked tokens are rejected.
 
+**Known gaps**
+
+The following behaviors violate the rule and are tracked for a follow-up code slice.
+
+- REST `GET /api/external/v1/boards` and MCP `list_boards` count all tasks on each owned board, including tasks with a future `visibleAt`. The GUI board and dashboard exclude those tasks. See `src/app/api/external/v1/boards/route.ts`, `src/lib/mcp-tools.ts`, and `src/lib/data.ts`.
+- MCP `get_dashboard` returns active-token metadata to any token with `TASKS_READ` without rechecking whether the owner is still an admin. The GUI shows the Active Tokens panel only to admins. See `src/app/api/external/v1/[transport]/route.ts`, `src/lib/mcp-tools.ts`, `src/lib/data.ts`, and `src/components/dashboard-overview.tsx`.
+
 **Verifier behavior:**
+- **Hard-fail** any PR that widens agent access beyond the rule above. A PR that closes either known gap should remove its bullet.
 - **Hard-fail** any external endpoint that resolves the acting user to anyone other than the authenticated token's owner (cross-user access), or that resolves a per-user `ApiToken` to the fixed `EXTERNAL_USER_ID`.
 - **Hard-fail** any external **write** endpoint that does not require a write-scoped token.
 - **Hard-fail** any external endpoint that exposes an ADMIN-only operation, or any path by which an external token gains ADMIN role or creates a non-demo account.
