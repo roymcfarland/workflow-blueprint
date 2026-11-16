@@ -306,7 +306,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#282** | Deterministic coverage for the password-reset claim race | `#282` | Adds a real-PostgreSQL regression test that commits a competing claim between the token lookup and conditional update. Asserts that the losing reset returns null, preserves the password hash and change timestamp, and leaves the competing claim intact. Retains the concurrent end-to-end test. |
 | **#283** | Upgrade Vitest to 5.1 | `#283` | Upgrades Vitest and its V8 coverage provider together from 4.1.12 to 5.1.0. Adds one BoardWorkspace test that preserves a focused title draft for an idless subtask during sibling reconciliation. All four coverage metrics remain at 100%. |
 | **#284** | Docs: audit and refresh documentation against the code | `#284` | Aligns setup, runtime, external API, deployment, and dependency guidance with the repository. Adds a private security reporting route and records the current check and automation settings. Documentation-only. |
-| **#TBD** | Align external board counts and MCP dashboard with the GUI | `#TBD` | REST and MCP board counts use the same task visibility filter as the GUI. The MCP dashboard omits active token metadata for every owner. Real PostgreSQL tests cover both behaviors. |
+| **#285** | Align external board counts and MCP dashboard with the GUI | `#285` | REST and MCP board counts use the same task visibility filter as the GUI. The MCP dashboard omits active token metadata for every owner. Real PostgreSQL tests cover both behaviors. |
 
 ### Active phase
 
