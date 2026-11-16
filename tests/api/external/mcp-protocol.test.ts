@@ -1,9 +1,10 @@
-import { ApiTokenScope } from "@/generated/prisma/client";
+import { ApiTokenScope, UserRole } from "@/generated/prisma/client";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { DELETE, GET, POST } from "@/app/api/external/v1/[transport]/route";
-import { createApiToken } from "@/lib/data";
+import { GET as getBoards } from "@/app/api/external/v1/boards/route";
+import { createApiToken, getBoardSummaries, getDashboardSnapshot } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { createTestBoard, createTestUser, resetDatabase } from "../../helpers/database";
 
@@ -120,6 +121,70 @@ describe("external MCP protocol through the real handler", () => {
     expect(data.boards.map((item: { slug: string }) => item.slug)).toEqual([board.slug]);
     expect(data.boards.map((item: { slug: string }) => item.slug)).not.toContain(otherBoard.slug);
   });
+
+  test("board counts include only visible tasks in data, REST, and MCP", async () => {
+    const { board, token } = await fixture([ApiTokenScope.BOARDS_READ]);
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    await prisma.task.createMany({
+      data: [
+        { title: "Always visible", visibleAt: null },
+        { title: "Already visible", visibleAt: new Date(now - day) },
+        { title: "Hidden until tomorrow", visibleAt: new Date(now + day) },
+        { title: "Hidden until later", visibleAt: new Date(now + 2 * day) },
+      ].map((task, sortOrder) => ({
+        ...task,
+        id: randomUUID(),
+        boardId: board.id,
+        sortOrder,
+        status: "ON_DECK" as const,
+        priority: "NONE" as const,
+      })),
+    });
+
+    const summaries = await getBoardSummaries(board.userId);
+    const rest = await getBoards(new Request(`${origin}/api/external/v1/boards`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }));
+    expect(rest.status).toBe(200);
+    const mcp = await rpc(token, "tools/call", { name: "list_boards", arguments: {} });
+    expect(mcp.result.isError).not.toBe(true);
+
+    const expectedBoards = [{ slug: board.slug, totalTasks: 2 }];
+    expect.soft(summaries, "getBoardSummaries").toMatchObject(expectedBoards);
+    expect.soft(await rest.json(), "REST boards").toMatchObject({ data: { boards: expectedBoards } });
+    expect.soft(JSON.parse(mcp.result.content[0].text), "MCP list_boards")
+      .toMatchObject({ boards: expectedBoards });
+  });
+
+  test.each([UserRole.ADMIN, UserRole.USER])(
+    "get_dashboard omits active token metadata for a %s owner",
+    async (role) => {
+      const { board, token } = await fixture([ApiTokenScope.TASKS_READ]);
+      await prisma.user.update({ where: { id: board.userId }, data: { role } });
+      await prisma.task.create({ data: {
+        id: randomUUID(), boardId: board.id, title: "Dashboard task", sortOrder: 0,
+        status: "IN_PROGRESS", priority: "NONE",
+      } });
+      await createApiToken({
+        createdById: board.userId,
+        label: "Other dashboard token",
+        scopes: [ApiTokenScope.BOARDS_READ],
+      });
+
+      const mcp = await rpc(token, "tools/call", { name: "get_dashboard", arguments: {} });
+      expect(mcp.result.isError).not.toBe(true);
+      const dashboard = JSON.parse(mcp.result.content[0].text);
+      const { activeTokens, ...expectedDashboard } = await getDashboardSnapshot(board.userId);
+
+      expect(activeTokens).toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: "Other dashboard token" }),
+      ]));
+      expect(dashboard).not.toHaveProperty("activeTokens");
+      expect(dashboard.totalTaskCount).toBe(1);
+      expect(dashboard).toEqual(expectedDashboard);
+    },
+  );
 
   test("creating and deleting with A's token leaves B's rows unchanged", async () => {
     const { board, otherBoard, otherTask, token } = await fixture();

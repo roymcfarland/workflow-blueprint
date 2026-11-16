@@ -685,7 +685,12 @@ export async function getShellSnapshot(userId: string) {
   };
 }
 
+function visibleTasksWhere(now: Date): Prisma.TaskWhereInput {
+  return { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] };
+}
+
 export async function getBoardSummaries(userId: string): Promise<BoardSummary[]> {
+  const now = new Date();
   const boards = await prisma.board.findMany({
     where: { userId },
     orderBy: {
@@ -698,7 +703,7 @@ export async function getBoardSummaries(userId: string): Promise<BoardSummary[]>
       iconKey: true,
       _count: {
         select: {
-          tasks: true,
+          tasks: { where: visibleTasksWhere(now) },
         },
       },
     },
@@ -723,7 +728,7 @@ export async function getDashboardSnapshot(userId: string): Promise<DashboardSna
       },
       include: {
         tasks: {
-          where: { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] },
+          where: visibleTasksWhere(now),
           include: taskInclude,
         },
       },
@@ -1052,7 +1057,7 @@ export async function getBoardSnapshot(userId: string, slug: string): Promise<Bo
     include: {
       note: true,
       tasks: {
-        where: { OR: [{ visibleAt: null }, { visibleAt: { lte: now } }] },
+        where: visibleTasksWhere(now),
         include: taskInclude,
         orderBy: [
           {
