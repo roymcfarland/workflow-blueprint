@@ -4,6 +4,15 @@ import { beforeEach, describe, expect, test } from "vitest";
 
 import { DELETE, GET, POST } from "@/app/api/external/v1/[transport]/route";
 import { GET as getBoards } from "@/app/api/external/v1/boards/route";
+import {
+  DELETE as deleteSubtask,
+  PATCH as patchSubtask,
+} from "@/app/api/external/v1/subtasks/[id]/route";
+import {
+  DELETE as deleteTask,
+  PATCH as patchTask,
+} from "@/app/api/external/v1/tasks/[id]/route";
+import { POST as postSubtask } from "@/app/api/external/v1/tasks/[id]/subtasks/route";
 import { createApiToken, getBoardSummaries, getDashboardSnapshot } from "@/lib/data";
 import { prisma } from "@/lib/db";
 import { createTestBoard, createTestUser, resetDatabase } from "../../helpers/database";
@@ -246,6 +255,152 @@ function modernRequest(token: string, method: string, params: Record<string, unk
   if (typeof params.name === "string") req.headers.set("MCP-Name", params.name);
   return req;
 }
+
+const visibilityWrites = [
+  {
+    tool: "update_task",
+    handler: patchTask,
+    method: "PATCH",
+    path: (id: string) => `tasks/${id}`,
+    target: "taskId",
+    input: { fields: { title: "Updated task" } },
+    status: 200,
+    expectedTask: { title: "Updated task", subtasks: [{ title: "Original subtask" }] },
+  },
+  {
+    tool: "delete_task",
+    handler: deleteTask,
+    method: "DELETE",
+    path: (id: string) => `tasks/${id}`,
+    target: "taskId",
+    input: {},
+    status: 200,
+    expectedTask: null,
+  },
+  {
+    tool: "create_subtask",
+    handler: postSubtask,
+    method: "POST",
+    path: (id: string) => `tasks/${id}/subtasks`,
+    target: "taskId",
+    input: { body: { title: "Added subtask" } },
+    status: 201,
+    expectedTask: { subtasks: [{ title: "Original subtask" }, { title: "Added subtask" }] },
+  },
+  {
+    tool: "update_subtask",
+    handler: patchSubtask,
+    method: "PATCH",
+    path: (id: string) => `subtasks/${id}`,
+    target: "subtaskId",
+    input: { fields: { title: "Updated subtask", isComplete: true } },
+    status: 200,
+    expectedTask: { subtasks: [{ title: "Updated subtask", isComplete: true }] },
+  },
+  {
+    tool: "delete_subtask",
+    handler: deleteSubtask,
+    method: "DELETE",
+    path: (id: string) => `subtasks/${id}`,
+    target: "subtaskId",
+    input: {},
+    status: 200,
+    expectedTask: { subtasks: [] },
+  },
+];
+
+async function createVisibilityTask(boardId: string, visibleAt: Date | null) {
+  return prisma.task.create({
+    data: {
+      id: randomUUID(),
+      boardId,
+      title: "Original task",
+      sortOrder: 0,
+      status: "ON_DECK",
+      visibleAt,
+      subtasks: { create: { id: randomUUID(), title: "Original subtask", sortOrder: 0 } },
+    },
+    include: { subtasks: true },
+  });
+}
+
+function readVisibilityTask(id: string) {
+  return prisma.task.findUnique({
+    where: { id },
+    include: { subtasks: { orderBy: { sortOrder: "asc" } } },
+  });
+}
+
+describe.each(["REST", "MCP"])("%s external task write visibility", (transport) => {
+  beforeEach(resetDatabase);
+
+  test.each(visibilityWrites)("$tool treats hidden tasks as missing and allows visible tasks", async ({
+    tool, handler, method, path, target, input, status, expectedTask,
+  }) => {
+    const { board, otherBoard, token } = await fixture([
+      ApiTokenScope.TASKS_WRITE,
+      ApiTokenScope.SUBTASKS_WRITE,
+    ]);
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    const hidden = await createVisibilityTask(board.id, new Date(now + day));
+    const past = await createVisibilityTask(board.id, new Date(now - day));
+    const alwaysVisible = await createVisibilityTask(board.id, null);
+    const other = await createVisibilityTask(otherBoard.id, null);
+
+    if (transport === "MCP") {
+      await handshake(token);
+    }
+
+    const invoke = async (id: string) => {
+      if (transport === "MCP") {
+        const { result } = await rpc(token, "tools/call", {
+          name: tool,
+          arguments: { [target]: id, ...input },
+        });
+        return result;
+      }
+
+      const response = await handler(request(input.body ?? input.fields, token, method, path(id)), {
+        params: Promise.resolve({ id }),
+      });
+      return { status: response.status, body: await response.json() };
+    };
+    const idFor = (task: typeof hidden) => target === "taskId" ? task.id : task.subtasks[0].id;
+    const message = target === "taskId" ? "Task not found." : "Subtask not found.";
+    const missing = await invoke(randomUUID());
+    expect(missing).toEqual(transport === "REST"
+      ? { status: 404, body: { ok: false, error: message } }
+      : { isError: true, content: [{ type: "text", text: message }] });
+
+    for (const task of [hidden, other]) {
+      expect(await invoke(idFor(task))).toEqual(missing);
+      expect(await readVisibilityTask(task.id)).toEqual(task);
+    }
+
+    for (const task of [past, alwaysVisible]) {
+      const result = await invoke(idFor(task));
+      const expectedResponse = expectedTask ? { id: task.id, ...expectedTask } : { ok: true };
+      if (transport === "REST") {
+        expect(result.status).toBe(status);
+        expect(result.body).toMatchObject(expectedTask
+          ? { ok: true, data: expectedResponse }
+          : expectedResponse);
+      } else {
+        expect(result.isError).not.toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject(expectedResponse);
+      }
+
+      const stored = await readVisibilityTask(task.id);
+      if (expectedTask) {
+        expect(stored).toMatchObject({ ...expectedTask, visibleAt: task.visibleAt });
+      } else {
+        expect(stored).toBeNull();
+        expect(await prisma.subtask.findUnique({ where: { id: task.subtasks[0].id } })).toBeNull();
+      }
+    }
+  });
+});
 
 describe("2026-07-28 MCP protocol through the real handler", () => {
   beforeEach(resetDatabase);

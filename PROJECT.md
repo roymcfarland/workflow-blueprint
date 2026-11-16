@@ -309,6 +309,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#285** | Align external board counts and MCP dashboard with the GUI | `#285` | REST and MCP board counts use the same task visibility filter as the GUI. The MCP dashboard omits active token metadata for every owner. Real PostgreSQL tests cover both behaviors. |
 | **#286** | Docs: point vulnerability reports to GitHub private reporting | `#286` | Routes reports through GitHub private vulnerability reporting and documents the public issue fallback for requesting a private channel. |
 | **#287** | Restrict CI workflow token permissions | `#287` | Grants all six CI jobs only `contents: read` through the workflow-level permissions block. Codecov continues to authenticate uploads with its repository secret. |
+| **#TBD** | Treat GUI-hidden tasks as not found on external write paths | `#TBD` | REST and MCP task and subtask writes use the GUI task visibility filter. PostgreSQL tests verify that denied writes leave rows intact. |
 
 ### Active phase
 
@@ -615,7 +616,7 @@ Builder agents (Codex and similar) sometimes ship correct-but-unauthorized chang
 
 **Answer: Per-user, scoped API tokens that resolve to the token's owner.**
 
-An authenticated admin may create API tokens (the existing `ApiToken` model, owned via `createdById`) and hand them to their own agents. An agent presents the token as `Authorization: Bearer <token>` to `/api/external/v1/*` and may perform a supported subset of board, task, and subtask operations on the owning user's data. The agent must never exceed what the owning user could do in the GUI.
+An authenticated admin may create API tokens (the existing `ApiToken` model, owned via `createdById`) and hand them to their own agents. An agent presents the token as `Authorization: Bearer <token>` to `/api/external/v1/*` and may perform a supported subset of board, task, and subtask operations on the owning user's data. The agent must never exceed what the owning user could do in the GUI. External write operations on tasks hidden from the GUI behave as if those tasks were not found.
 
 Rules for this model:
 - **Per-user resolution.** A request authenticated by a DB-issued `ApiToken` resolves to that token's **owner** (`createdById`) and is scoped to that user's own data exactly as the internal session routes are. It must **never** resolve to the fixed `EXTERNAL_USER_ID`, nor to any other user. (The legacy `EXTERNAL_API_KEY` env key keeps resolving to the single `EXTERNAL_USER_ID`, read-only, for the existing briefing consumer.)
@@ -625,7 +626,7 @@ Rules for this model:
 - **Revocation & hygiene.** Tokens stay revocable (`revokedAt`) and record `lastUsedAt`; revoked tokens are rejected.
 
 **Verifier behavior:**
-- **Hard-fail** any PR that widens agent access beyond the rule above. A PR that closes either known gap should remove its bullet.
+- **Hard-fail** any PR that widens agent access beyond the rule above.
 - **Hard-fail** any external endpoint that resolves the acting user to anyone other than the authenticated token's owner (cross-user access), or that resolves a per-user `ApiToken` to the fixed `EXTERNAL_USER_ID`.
 - **Hard-fail** any external **write** endpoint that does not require a write-scoped token.
 - **Hard-fail** any external endpoint that exposes an ADMIN-only operation, or any path by which an external token gains ADMIN role or creates a non-demo account.
