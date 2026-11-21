@@ -310,6 +310,7 @@ Builder agents must respect the sequencing of any PRs listed under "Active phase
 | **#286** | Docs: point vulnerability reports to GitHub private reporting | `#286` | Routes reports through GitHub private vulnerability reporting and documents the public issue fallback for requesting a private channel. |
 | **#287** | Restrict CI workflow token permissions | `#287` | Grants all six CI jobs only `contents: read` through the workflow-level permissions block. Codecov continues to authenticate uploads with its repository secret. |
 | **#288** | Treat GUI-hidden tasks as not found on external write paths | `#288` | REST and MCP task and subtask writes use the GUI task visibility filter. PostgreSQL tests verify that denied writes leave rows intact. |
+| **#290** | Override `effect` to the patched 3.22 line (audit) | `#290` | The production `npm audit` gate failed on `effect <=3.22.0` (GHSA-7589-6fvf-x4pw, ReDoS in `Schema.TemplateLiteral`, high), reachable through `prisma` -> `@prisma/config`, which pins `effect@3.20.0` exactly. Added an `overrides` pin `effect@^3.22.1` (the lockfile resolves 3.22.5, within-major). No application code change; `npm audit --omit=dev --audit-level=high` reports 0 vulnerabilities. Remove the override when `@prisma/config` bumps its own `effect` pin to 3.22.1 or later. |
 
 ### Active phase
 
